@@ -20,7 +20,8 @@ class ColdStartEstimation(Enum):
 
     @classmethod
     def from_string(cls,s):
-        s = s.lower()
+
+        s = s.name.lower()
         if s == "no":
             return ColdStartEstimation.NO
         elif s == "naive" or s == "":

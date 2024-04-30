@@ -1,5 +1,5 @@
 from dataclasses import dataclass,field
-from enum import Enum
+
 
 class ContainerPool:
 
@@ -47,7 +47,9 @@ class ContainerPool:
 
 class Node:
 
-    def __init__ (self, name, memory, speedup, region, cost=0.0,
+    def __init__ (self, name, memory, speedup, region,
+                  battery,
+                  cost=0.0,
                   custom_sched_policy=None,
                   peer_exposed_memory_fraction=1.0):
         self.name = name
@@ -61,6 +63,8 @@ class Node:
 
         self.warm_pool = ContainerPool()
         self.kv_store = {}
+
+        self.battery = battery
 
     def __repr__ (self):
         return self.name

@@ -7,6 +7,7 @@ from numpy.random import SeedSequence, default_rng
 import sys
 
 import conf
+import energy
 import utils.plot
 from policy import SchedulerDecision
 import policy
@@ -17,6 +18,8 @@ from stateful import key_locator
 from arrivals import ArrivalProcess
 from infrastructure import *
 from statistics import Stats
+from utils import plot
+
 
 @dataclass
 class Event:
@@ -42,6 +45,10 @@ class Arrival(Event):
 
 @dataclass
 class CheckExpiredContainers(Event):
+    node: Node
+
+@dataclass
+class BatteryUpdate(Event):
     node: Node
 
 @dataclass
@@ -206,6 +213,7 @@ class Simulation:
         stateful_policy_name = self.config.get(conf.SEC_STATEFUL, conf.POLICY_NAME, fallback="none")
         self.key_migration_policy = self.new_state_migration_policy(stateful_policy_name)
 
+        self.battery_update_interval = self.config.getfloat(conf.SEC_BATTERY, conf.BATTERY_UPDATE_INTERVAL, fallback=-1)
         self.policy_update_interval = self.config.getfloat(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
         self.rate_update_interval = self.config.getfloat(conf.SEC_SIM, conf.RATE_UPDATE_INTERVAL, fallback=-1)
         print(self.rate_update_interval)
@@ -240,7 +248,10 @@ class Simulation:
         # Initialize state placement
         stateful.init_key_placement (self.functions, self.infra, self.keys_rng)
 
-
+        #todo. cosi come policy update interval ho anche battery update interval
+        if self.battery_update_interval > 0.0:
+            for node in self.node2policy.keys():
+                self.schedule(self.battery_update_interval, BatteryUpdate(node))
         if self.policy_update_interval > 0.0:
             self.schedule(self.policy_update_interval, PolicyUpdate())
         if self.rate_update_interval > 0.0:
@@ -312,7 +323,8 @@ class Simulation:
             for item in self.events:
                 if isinstance(item[1], CheckExpiredContainers) \
                    or isinstance(item[1], PolicyUpdate) \
-                   or isinstance(item[1], ArrivalRateUpdate) \
+                        or isinstance(item[1], BatteryUpdate) \
+                        or isinstance(item[1], ArrivalRateUpdate) \
                    or isinstance(item[1], StatPrinter):
                     item[1].canceled = True
             self.external_arrivals_allowed = False
@@ -361,6 +373,9 @@ class Simulation:
                 self.stats.update_mig_policy_upd_time(time.time()-upd_t0)
 
             self.schedule(t + self.policy_update_interval, event)
+        elif isinstance(event, BatteryUpdate):
+            event.node.battery.update_soc_idle(event.node.name)
+            self.schedule(t + self.battery_update_interval, event)
         elif isinstance(event, ArrivalRateUpdate):
             for n, arvs in self.node2arrivals.copy().items():
                 for arv in arvs:
@@ -382,6 +397,7 @@ class Simulation:
             raise RuntimeError("")
 
     def handle_completion (self, event):
+        #todo calcola e_u
         rt = self.t - event.arrival
         f = event.function
         c = event.qos_class
@@ -521,3 +537,4 @@ class Simulation:
                     data_access_time += extra_latency
                 self.stats.data_access_count[(k,f,n)] += 1
         return float(duration + data_access_time), float(data_access_time)
+

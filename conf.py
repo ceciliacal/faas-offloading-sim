@@ -33,6 +33,9 @@ FALLBACK_ON_LOCAL_REJECTION = "local-rejection-fallback"
 
 SEC_STATEFUL = "stateful"
 
+SEC_BATTERY = "battery"
+BATTERY_UPDATE_INTERVAL = "update-interval"
+
 import configparser
 
 def parse_config_file(config_file):
