@@ -3,20 +3,22 @@ import math
 import numpy as np
 import yaml
 
+import node_battery
 import faas
 import conf
 import stateful
 from arrivals import PoissonArrivalProcess, TraceArrivalProcess, MAPArrivalProcess
 from numpy.random import SeedSequence, default_rng
 
-from energy import Energy
 from simulation import Simulation
 from infrastructure import *
 
 
 def read_spec_file(spec_file_name, infra, config):
     peer_exposed_memory_fraction = config.getfloat(conf.SEC_SIM, conf.EDGE_EXPOSED_FRACTION, fallback=0.5)
-    rate = config.getint(conf.SEC_SIM, conf.RATE_UPDATE_INTERVAL, fallback=120)
+    offloading_consumption_rate = config.getfloat(conf.SEC_BATTERY, conf.ENERGY_PER_DATA_SIZE, fallback=0.001)
+    time_consumption_rate = config.getfloat(conf.SEC_BATTERY, conf.BATTERY_UPDATE_INTERVAL, fallback=1)
+
 
     with open(spec_file_name, "r") as stream:
         spec = yaml.safe_load(stream)
@@ -54,11 +56,14 @@ def read_spec_file(spec_file_name, infra, config):
 
             recharge = n["recharge"] if "recharge" in n else 0.0
             battery_capacity = n["battery_capacity"] if "battery_capacity" in n else 1300.0
-            power_consumption_rate_idle = n[
-                "power_consumption_rate_idle"] if "power_consumption_rate_idle" in n else 12.0
-            power_consumption_rate_max = n["power_consumption_rate_max"] if "power_consumption_rate_max" in n else 24.0
+            idle_node_power_consumption_rate = n[
+                "idle_power_consumption_rate"] if "idle_power_consumption_rate" in n else 0.01
+            resources_consumption_rate = n["max_power_consumption_rate"] if "max_power_consumption_rate" in n else 0.2
 
-            battery = Energy(100.0, recharge, battery_capacity, power_consumption_rate_idle, power_consumption_rate_max)
+            battery = node_battery.Battery(node_name, 100.0, time_consumption_rate, recharge, battery_capacity,
+                                           idle_node_power_consumption_rate, resources_consumption_rate,
+                                           offloading_consumption_rate)
+
             node = faas.Node(node_name, memory, speedup, reg,
                              battery,
                              cost=cost,

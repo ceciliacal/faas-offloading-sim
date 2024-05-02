@@ -35,6 +35,7 @@ SEC_STATEFUL = "stateful"
 
 SEC_BATTERY = "battery"
 BATTERY_UPDATE_INTERVAL = "update-interval"
+ENERGY_PER_DATA_SIZE = "energy-per-data-size"
 
 import configparser
 

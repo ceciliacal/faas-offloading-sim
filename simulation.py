@@ -7,7 +7,7 @@ from numpy.random import SeedSequence, default_rng
 import sys
 
 import conf
-import energy
+import node_battery
 import utils.plot
 from policy import SchedulerDecision
 import policy
@@ -214,6 +214,7 @@ class Simulation:
         self.key_migration_policy = self.new_state_migration_policy(stateful_policy_name)
 
         self.battery_update_interval = self.config.getfloat(conf.SEC_BATTERY, conf.BATTERY_UPDATE_INTERVAL, fallback=-1)
+
         self.policy_update_interval = self.config.getfloat(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
         self.rate_update_interval = self.config.getfloat(conf.SEC_SIM, conf.RATE_UPDATE_INTERVAL, fallback=-1)
         print(self.rate_update_interval)
@@ -248,7 +249,6 @@ class Simulation:
         # Initialize state placement
         stateful.init_key_placement (self.functions, self.infra, self.keys_rng)
 
-        #todo. cosi come policy update interval ho anche battery update interval
         if self.battery_update_interval > 0.0:
             for node in self.node2policy.keys():
                 self.schedule(self.battery_update_interval, BatteryUpdate(node))
@@ -374,7 +374,7 @@ class Simulation:
 
             self.schedule(t + self.policy_update_interval, event)
         elif isinstance(event, BatteryUpdate):
-            event.node.battery.update_soc_idle(event.node.name)
+            event.node.battery.update_soc_idle()
             self.schedule(t + self.battery_update_interval, event)
         elif isinstance(event, ArrivalRateUpdate):
             for n, arvs in self.node2arrivals.copy().items():
@@ -441,6 +441,8 @@ class Simulation:
         if self.external_arrivals_allowed:
             self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n)) 
 
+        #update SoC
+        n.battery.update_soc_completion(f.memory, n.total_memory*n.peer_exposed_memory_fraction)
 
     def do_offload (self, arrival, target_node):
         latency = self.infra.get_latency(arrival.node, target_node)
@@ -500,7 +502,8 @@ class Simulation:
                 self.stats.penalty += c.drop_penalty
             else:
                 self.stats.offloaded[(f,c,n)] += 1
-                self.do_offload(event, remote_node)  
+                self.do_offload(event, remote_node)
+                n.battery.update_soc_offloading(f.inputSizeMean)
         elif sched_decision == SchedulerDecision.OFFLOAD_EDGE:
             if target_node is not None:
                 remote_node = target_node
@@ -512,7 +515,8 @@ class Simulation:
                 self.stats.penalty += c.drop_penalty
             else:
                 self.stats.offloaded[(f,c,n)] += 1
-                self.do_offload(event, remote_node)  
+                self.do_offload(event, remote_node)
+                n.battery.update_soc_offloading(f.inputSizeMean)
 
         # Schedule next (if this is an external arrival)
         if external:
