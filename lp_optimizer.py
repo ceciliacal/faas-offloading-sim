@@ -132,6 +132,31 @@ def update_probabilities (params: OptProblemParams, VERBOSE=False):
         prob += (pl.lpSum([params.cloud.cost*params.arrival_rates[(f,c)]*\
                        pC[f][c]*params.serv_time_cloud[f]*f.memory/1024 for f,c in params.fun_classes()]) <= params.budget/3600)
 
+
+    '''
+        #Energy constraint
+    soc = params.local_node.battery.soc
+    recharge = params.local_node.battery.recharge_rate
+    resources_soc_depletion = params.local_node.battery.resources_soc_depletion
+    offloading_soc_depletion = params.local_node.battery.offloading_soc_depletion
+    available_memory = params.usable_local_memory_coeff*params.local_node.total_memory
+    available_memory_edge_enabled = params.aggregated_edge_memory
+
+    prob += (soc + recharge -
+             pl.lpSum([f.memory*x[f][c]/available_memory for f, c in F_C]) * resources_soc_depletion -
+             pl.lpSum([2*f.inputSizeMean*y[f][c] for f, c in F_C]) * offloading_soc_depletion -
+
+             pl.lpSum([2 * f.inputSizeMean * params.arrival_rates[(f,c)] * pC[f][c] * params.serv_time_cloud[f] for f, c in F_C]) * offloading_soc_depletion
+             ) <= 0
+    if EDGE_ENABLED:
+        prob += (soc + recharge -
+             pl.lpSum([f.memory*x[f][c]/available_memory_edge_enabled for f, c in F_C]) * resources_soc_depletion -
+             pl.lpSum([2*f.inputSizeMean*y[f][c] for f, c in F_C]) * offloading_soc_depletion -
+             pl.lpSum([(2 * f.inputSizeMean) * params.arrival_rates[(f,c)] * pC[f][c] * params.serv_time_cloud[f] for f,c in params.fun_classes()]) * offloading_soc_depletion
+             ) <= 0
+    '''
+
+
     status = solve(prob)
     if status != "Optimal":
         print(f"WARNING: solution status: {status}")

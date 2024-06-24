@@ -49,6 +49,7 @@ class Node:
 
     def __init__ (self, name, memory, speedup, region,
                   battery,
+                  co2_emission,
                   cost=0.0,
                   custom_sched_policy=None,
                   peer_exposed_memory_fraction=1.0):
@@ -65,6 +66,8 @@ class Node:
         self.kv_store = {}
 
         self.battery = battery
+        self.co2_emission = co2_emission
+        self.current_co2 = co2_emission
 
     def __repr__ (self):
         return self.name

@@ -36,6 +36,8 @@ SEC_STATEFUL = "stateful"
 SEC_BATTERY = "battery"
 BATTERY_UPDATE_INTERVAL = "update-interval"
 ENERGY_PER_DATA_SIZE = "energy-per-data-size"
+CO2_EMISSION_UPDATE_INTERVAL = "co2-emission-update-interval"
+CO2_EMISSION_NUMBER_UPDATES = "co2-emission-number-updates"
 
 import configparser
 

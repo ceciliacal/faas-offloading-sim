@@ -1,6 +1,6 @@
 class Battery:
     def __init__(self, node_name, soc, time_consumption_rate,
-                 recharge_rate, battery_capacity,
+                 recharge_input, battery_capacity,
                  idle_node_power_consumption_rate,
                  resources_consumption_rate,
                  offloading_consumption_rate):
@@ -19,8 +19,9 @@ class Battery:
         self.offloading_soc_depletion = (offloading_consumption_rate * time_consumption_rate * 100) / self.full_capacity
 
         self.energy_consumption = 0  #e_u (node energy consumption)
-        self.recharge_rate = recharge_rate  # energy input recharge rate
+        self.recharge_input = recharge_input  # energy input recharge rate
 
+    #todo. aggiungere spegnimento nodo se soc = 0
     def update_soc_idle(self):
         self.soc = self.soc - self.idle_soc_depletion
         print("===soc: ", self.soc, " nodo ", self.node_name, " self.idle_soc_depletion ", self.idle_soc_depletion)

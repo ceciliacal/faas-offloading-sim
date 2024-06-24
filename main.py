@@ -18,6 +18,7 @@ def read_spec_file(spec_file_name, infra, config):
     peer_exposed_memory_fraction = config.getfloat(conf.SEC_SIM, conf.EDGE_EXPOSED_FRACTION, fallback=0.5)
     offloading_consumption_rate = config.getfloat(conf.SEC_BATTERY, conf.ENERGY_PER_DATA_SIZE, fallback=0.001)
     time_consumption_rate = config.getfloat(conf.SEC_BATTERY, conf.BATTERY_UPDATE_INTERVAL, fallback=1)
+    #todo aggiungere recharge rate (diverso da recharge input) -> o comunque aggiustare recharge input sulla base di time consumption rate
 
 
     with open(spec_file_name, "r") as stream:
@@ -57,15 +58,17 @@ def read_spec_file(spec_file_name, infra, config):
             recharge = n["recharge"] if "recharge" in n else 0.0
             battery_capacity = n["battery_capacity"] if "battery_capacity" in n else 1300.0
             idle_node_power_consumption_rate = n[
-                "idle_power_consumption_rate"] if "idle_power_consumption_rate" in n else 0.01
-            resources_consumption_rate = n["max_power_consumption_rate"] if "max_power_consumption_rate" in n else 0.2
+                "idle_power_consumption_rate"] if "idle_power_consumption_rate" in n else 0.0
+            resources_consumption_rate = n["max_power_consumption_rate"] if "max_power_consumption_rate" in n else 0.0
 
             battery = node_battery.Battery(node_name, 100.0, time_consumption_rate, recharge, battery_capacity,
                                            idle_node_power_consumption_rate, resources_consumption_rate,
                                            offloading_consumption_rate)
+            co2_emission = n["co2_emission"] if "co2_emission" in n else 0.0
 
             node = faas.Node(node_name, memory, speedup, reg,
                              battery,
+                             co2_emission,
                              cost=cost,
                              custom_sched_policy=custom_policy,
                              peer_exposed_memory_fraction=peer_exposed_memory_fraction)

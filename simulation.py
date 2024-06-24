@@ -8,6 +8,7 @@ import sys
 
 import conf
 import node_battery
+import probabilistic_energy_aware
 import utils.plot
 from policy import SchedulerDecision
 import policy
@@ -30,7 +31,7 @@ class Event:
     def __lt__(self, other):
         return True
 
-    def __le__(self,other):
+    def __le__(self, other):
         return True
 
 
@@ -43,25 +44,49 @@ class Arrival(Event):
     offloaded_from: [Node] = field(default_factory=list)
     original_arrival_time: float = None
 
+
 @dataclass
 class CheckExpiredContainers(Event):
     node: Node
+
 
 @dataclass
 class BatteryUpdate(Event):
     node: Node
 
+
+@dataclass
+class CO2EmissionUpdate(Event):
+    node: Node
+
+@dataclass
+class CO2EmissionReverse(Event):
+
+    is_reversed: bool = False  #false +, true - (avviene inversione)
+
+    def reverse(self) -> bool:
+        if self.is_reversed is True:
+            return False
+        else:
+            return True
+
+
+
+
 @dataclass
 class PolicyUpdate(Event):
     pass
+
 
 @dataclass
 class ArrivalRateUpdate(Event):
     pass
 
+
 @dataclass
 class StatPrinter(Event):
     pass
+
 
 @dataclass
 class Completion(Event):
@@ -79,10 +104,8 @@ OFFLOADING_OVERHEAD = 0.005
 ARRIVAL_TRACE_PERIOD = 60.0
 
 
-
 @dataclass
 class Simulation:
-
     config: configparser.ConfigParser
     seed_sequence: SeedSequence
     infra: Infrastructure
@@ -90,12 +113,13 @@ class Simulation:
     classes: [QoSClass]
     node2arrivals: dict
 
-    def __post_init__ (self):
-        assert(len(self.functions) > 0)
-        assert(len(self.classes) > 0)
+
+    def __post_init__(self):
+        assert (len(self.functions) > 0)
+        assert (len(self.classes) > 0)
 
         self.__event_counter = 0
-
+        self.co2_emission_count = 0
 
         self.stats = Stats(self, self.functions, self.classes, self.infra)
 
@@ -107,7 +131,7 @@ class Simulation:
         # Seeds
         n_arrival_processes = sum([len(arrival_procs) for arrival_procs in self.node2arrivals.values()])
         # Spawn off child SeedSequences to pass to child processes.
-        child_seeds = self.seed_sequence.spawn(5 + 3*n_arrival_processes)
+        child_seeds = self.seed_sequence.spawn(5 + 3 * n_arrival_processes)
         self.service_rng = default_rng(child_seeds[0])
         self.node_choice_rng = default_rng(child_seeds[1])
         self.policy_rng1 = default_rng(child_seeds[2])
@@ -115,9 +139,10 @@ class Simulation:
         self.keys_policy_rng = default_rng(child_seeds[4])
 
         i = 5
-        for n,arvs in self.node2arrivals.items():
+        for n, arvs in self.node2arrivals.items():
             for arv in arvs:
-                arv.init_rng(default_rng(child_seeds[i]), default_rng(child_seeds[i+1]), default_rng(child_seeds[i+2]))
+                arv.init_rng(default_rng(child_seeds[i]), default_rng(child_seeds[i + 1]),
+                             default_rng(child_seeds[i + 2]))
                 i += 3
 
         self.max_neighbors = self.config.getint(conf.SEC_SIM, conf.EDGE_NEIGHBORS, fallback=3)
@@ -127,10 +152,9 @@ class Simulation:
         for node in self.infra.get_nodes():
             if node.speedup > 0:
                 for fun in self.functions:
-                    self.init_time[(fun,node)] = fun.initMean/node.speedup
+                    self.init_time[(fun, node)] = fun.initMean / node.speedup
 
-
-    def new_policy (self, configured_policy, node):
+    def new_policy(self, configured_policy, node):
         if configured_policy == "basic":
             return policy.BasicPolicy(self, node)
         if configured_policy == "basic-budget":
@@ -170,6 +194,8 @@ class Simulation:
             return stateful.StateAwareOffloadingPolicy(self, node)
         elif configured_policy == "state-aware-always-offload":
             return stateful.AlwaysOffloadStatefulPolicy(self, node)
+        elif configured_policy == "probabilistic-energy-aware":
+            return probabilistic_energy_aware.ProbabilisticEnergyAwarePolicy(self, node)
         else:
             raise RuntimeError(f"Unknown policy: {configured_policy}")
 
@@ -191,7 +217,7 @@ class Simulation:
         else:
             raise RuntimeError(f"Unknown state migration policy: {stateful_policy_name}")
 
-    def run (self):
+    def run(self):
         # Simulate
         self.close_the_door_time = self.config.getfloat(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, fallback=100)
         self.events = []
@@ -214,13 +240,15 @@ class Simulation:
         self.key_migration_policy = self.new_state_migration_policy(stateful_policy_name)
 
         self.battery_update_interval = self.config.getfloat(conf.SEC_BATTERY, conf.BATTERY_UPDATE_INTERVAL, fallback=-1)
-
+        self.co2_emission_interval = self.config.getfloat(conf.SEC_BATTERY, conf.CO2_EMISSION_UPDATE_INTERVAL,
+                                                          fallback=-1)
+        self.co2_emission_number_updates = self.config.getfloat(conf.SEC_BATTERY, conf.CO2_EMISSION_NUMBER_UPDATES,
+                                                                fallback=-1)
         self.policy_update_interval = self.config.getfloat(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
         self.rate_update_interval = self.config.getfloat(conf.SEC_SIM, conf.RATE_UPDATE_INTERVAL, fallback=-1)
         print(self.rate_update_interval)
         self.stats_print_interval = self.config.getfloat(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, fallback=-1)
         self.stats_file = sys.stdout
-
 
         rt_print_filename = self.config.get(conf.SEC_SIM, conf.RESP_TIMES_FILE, fallback="")
         if len(rt_print_filename) > 0:
@@ -229,13 +257,18 @@ class Simulation:
         else:
             self.resp_times_file = None
 
+        if self.co2_emission_interval > 0.0 and self.co2_emission_number_updates < 1.0:
+            print("CO2 emission configuration is wrong")
+            exit(1)
+        self.co2_emission_reverse_interval = self.co2_emission_number_updates * self.co2_emission_interval
+        self.is_reverse = False
 
-
+        self.co2_emission_count = 0
 
         if not self.config.getboolean(conf.SEC_SIM, conf.PLOT_RESP_TIMES, fallback=False):
             self.resp_time_samples = {}
         else:
-            self.resp_time_samples = {(f,c): [] for f in self.functions for c in f.get_invoking_classes()}
+            self.resp_time_samples = {(f, c): [] for f in self.functions for c in f.get_invoking_classes()}
 
         for n, arvs in self.node2arrivals.copy().items():
             for arv in arvs:
@@ -247,11 +280,15 @@ class Simulation:
             exit(1)
 
         # Initialize state placement
-        stateful.init_key_placement (self.functions, self.infra, self.keys_rng)
+        stateful.init_key_placement(self.functions, self.infra, self.keys_rng)
 
         if self.battery_update_interval > 0.0:
             for node in self.node2policy.keys():
                 self.schedule(self.battery_update_interval, BatteryUpdate(node))
+        if self.co2_emission_interval > 0.0:
+            for node in self.node2policy.keys():
+                self.schedule(self.co2_emission_interval, CO2EmissionUpdate(node))
+                self.schedule(self.co2_emission_reverse_interval, CO2EmissionReverse())
         if self.policy_update_interval > 0.0:
             self.schedule(self.policy_update_interval, PolicyUpdate())
         if self.rate_update_interval > 0.0:
@@ -263,7 +300,7 @@ class Simulation:
                 self.stats_file = open(stats_print_filename, "w")
 
         while len(self.events) > 0:
-            t,e = heappop(self.events)
+            t, e = heappop(self.events)
             self.handle(t, e)
 
         if self.stats_print_interval > 0:
@@ -289,18 +326,17 @@ class Simulation:
 
         return self.stats
 
-
-    def move_key (self, k, src_node, dest_node):
+    def move_key(self, k, src_node, dest_node):
         if src_node == dest_node:
             return
         dest_node.kv_store[k] = src_node.kv_store[k]
-        del(src_node.kv_store[k])
+        del (src_node.kv_store[k])
         key_locator.update_key_location(k, dest_node)
 
         moved_bytes = dest_node.kv_store[k]
         self.stats.data_migrations_count += 1
         self.stats.data_migrated_bytes += moved_bytes
-    
+
     def __schedule_next_arrival(self, node, arrival_proc):
         if not self.external_arrivals_allowed:
             return
@@ -310,30 +346,29 @@ class Simulation:
         f = arrival_proc.function
 
         if iat >= 0.0 and self.t + iat < self.close_the_door_time:
-            self.schedule(self.t + iat, Arrival(node,f,c, arrival_proc))
+            self.schedule(self.t + iat, Arrival(node, f, c, arrival_proc))
         else:
             arrival_proc.close()
             self.node2arrivals[node].remove(arrival_proc)
             if len(self.node2arrivals[node]) == 0:
-                del(self.node2arrivals[node])
+                del (self.node2arrivals[node])
 
         if len(self.node2arrivals) == 0:
             # Little hack: remove all expiration from the event list (we do not
             # need to wait for them)
             for item in self.events:
                 if isinstance(item[1], CheckExpiredContainers) \
-                   or isinstance(item[1], PolicyUpdate) \
+                        or isinstance(item[1], PolicyUpdate) \
                         or isinstance(item[1], BatteryUpdate) \
                         or isinstance(item[1], ArrivalRateUpdate) \
-                   or isinstance(item[1], StatPrinter):
+                        or isinstance(item[1], StatPrinter):
                     item[1].canceled = True
             self.external_arrivals_allowed = False
 
-
-    def schedule (self, t, event):
+    def schedule(self, t, event):
         heappush(self.events, (t, event))
 
-    def print_periodic_stats (self):
+    def print_periodic_stats(self):
         of = self.stats_file if self.stats_file is not None else sys.stdout
         if not self.first_stat_print:
             print(",", end='', file=of)
@@ -374,8 +409,11 @@ class Simulation:
 
             self.schedule(t + self.policy_update_interval, event)
         elif isinstance(event, BatteryUpdate):
-            event.node.battery.update_soc_idle()
-            self.schedule(t + self.battery_update_interval, event)
+            self.handle_battery(event)
+        elif isinstance(event, CO2EmissionUpdate):
+            self.handle_co2emission(event)
+        elif isinstance(event, CO2EmissionReverse):
+            self.handle_co2reverse(event)
         elif isinstance(event, ArrivalRateUpdate):
             for n, arvs in self.node2arrivals.copy().items():
                 for arv in arvs:
@@ -413,18 +451,18 @@ class Simulation:
                 rt += self.infra.get_latency(curr_node, remote_node)
                 curr_node = remote_node
 
-        self.stats.resp_time_sum[(f,c,n)] += rt
-        if (f,c,n) in self.resp_time_samples:
-            self.resp_time_samples[(f,c,n)].append(rt)
-        self.stats.completions[(f,c,n)] += 1
-        self.stats.node2completions[(f,n)] += 1
-        self.stats.execution_time_sum[(f,n)] += duration
+        self.stats.resp_time_sum[(f, c, n)] += rt
+        if (f, c, n) in self.resp_time_samples:
+            self.resp_time_samples[(f, c, n)].append(rt)
+        self.stats.completions[(f, c, n)] += 1
+        self.stats.node2completions[(f, n)] += 1
+        self.stats.execution_time_sum[(f, n)] += duration
         self.stats.raw_utility += c.utility
         if c.max_rt <= 0.0 or rt <= c.max_rt:
             self.stats.utility += c.utility
-            self.stats.utility_detail[(f,c,n)] += c.utility
+            self.stats.utility_detail[(f, c, n)] += c.utility
         elif c.max_rt > 0.0:
-            self.stats.violations[(f,c,n)] += 1
+            self.stats.violations[(f, c, n)] += 1
             self.stats.penalty += c.deadline_penalty
 
         if f.max_data_access_time is not None and dat > f.max_data_access_time:
@@ -432,40 +470,44 @@ class Simulation:
             self.stats.data_access_tardiness += dat - f.max_data_access_time
 
         if n.cost > 0.0:
-            self.stats.cost += duration * f.memory/1024 * n.cost
+            self.stats.cost += duration * f.memory / 1024 * n.cost
 
         if self.resp_times_file is not None:
-            print(f"{f},{c},{n},{event.offloaded_from != None and len(event.offloaded_from) > 0},{event.cold},{dat},{rt}", file=self.resp_times_file)
+            print(
+                f"{f},{c},{n},{event.offloaded_from != None and len(event.offloaded_from) > 0},{event.cold},{dat},{rt}",
+                file=self.resp_times_file)
 
         n.warm_pool.append((f, self.t + self.expiration_timeout))
         if self.external_arrivals_allowed:
-            self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n)) 
+            self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n))
 
-        #update SoC
-        n.battery.update_soc_completion(f.memory, n.total_memory*n.peer_exposed_memory_fraction)
+            #update SoC
+        n.battery.update_soc_completion(f.memory, n.total_memory * n.peer_exposed_memory_fraction)
 
-    def do_offload (self, arrival, target_node):
+    def do_offload(self, arrival, target_node):
         latency = self.infra.get_latency(arrival.node, target_node)
-        transfer_time = arrival.function.inputSizeMean*8/1000/1000/self.infra.get_bandwidth(arrival.node, target_node)
-        remote_arv = Arrival(target_node, arrival.function, arrival.qos_class, offloaded_from=arrival.offloaded_from.copy())
+        transfer_time = arrival.function.inputSizeMean * 8 / 1000 / 1000 / self.infra.get_bandwidth(arrival.node,
+                                                                                                    target_node)
+        remote_arv = Arrival(target_node, arrival.function, arrival.qos_class,
+                             offloaded_from=arrival.offloaded_from.copy())
         remote_arv.offloaded_from.append(arrival.node)
         remote_arv.original_arrival_time = self.t
 
         self.schedule(self.t + latency + OFFLOADING_OVERHEAD + transfer_time, remote_arv)
 
-    def handle_arrival (self, event):
-        n = event.node 
+    def handle_arrival(self, event):
+        n = event.node
         node_policy = self.node2policy[n]
         external = len(event.offloaded_from) == 0
         arv_proc = event.arrival_proc
         f = event.function
         c = event.qos_class
-        self.stats.arrivals[(f,c,n)] += 1
+        self.stats.arrivals[(f, c, n)] += 1
         if external:
-            self.stats.ext_arrivals[(f,c,n)] += 1
+            self.stats.ext_arrivals[(f, c, n)] += 1
 
         # Policy
-        sched_decision, target_node = node_policy.schedule(f,c,event.offloaded_from)
+        sched_decision, target_node = node_policy.schedule(f, c, event.offloaded_from)
 
         if sched_decision == SchedulerDecision.EXEC:
             duration, data_access_time = self.next_function_duration(f, n)
@@ -475,46 +517,48 @@ class Simulation:
                 init_time = 0
             else:
                 self.stats.update_memory_usage(event.node, self.t)
-                assert(n.curr_memory >= f.memory)
+                assert (n.curr_memory >= f.memory)
                 n.curr_memory -= f.memory
-                self.stats.cold_starts[(f,n)] += 1
-                init_time = self.init_time[(f,n)]
+                self.stats.cold_starts[(f, n)] += 1
+                init_time = self.init_time[(f, n)]
             arrival_time = self.t if event.original_arrival_time is None else event.original_arrival_time
-            self.schedule(float(self.t + init_time + duration), Completion(arrival_time, f,c, n, init_time > 0, duration, event.offloaded_from, data_access_time))
+            self.schedule(float(self.t + init_time + duration),
+                          Completion(arrival_time, f, c, n, init_time > 0, duration, event.offloaded_from,
+                                     data_access_time))
         elif sched_decision == SchedulerDecision.DROP:
-            self.stats.dropped_reqs[(f,c,n)] += 1
+            self.stats.dropped_reqs[(f, c, n)] += 1
             self.stats.penalty += c.drop_penalty
             if event.offloaded_from is not None and len(event.offloaded_from) > 0:
-                self.stats.dropped_offloaded[(f,c,n)] += 1
+                self.stats.dropped_offloaded[(f, c, n)] += 1
         elif sched_decision == SchedulerDecision.OFFLOAD_CLOUD:
             if target_node is not None:
                 remote_node = target_node
             else:
                 # Pick the closest cloud node
-                nodes_w_lat = [(_n,self.infra.get_latency(n,_n)) for _n in self.infra.get_cloud_nodes()]
+                nodes_w_lat = [(_n, self.infra.get_latency(n, _n)) for _n in self.infra.get_cloud_nodes()]
                 if len(nodes_w_lat) < 1:
                     remote_node = None
                 else:
                     remote_node = sorted(nodes_w_lat, key=lambda x: x[1])[0][0]
             if remote_node is None:
                 # drop
-                self.stats.dropped_reqs[(f,c,n)] += 1
+                self.stats.dropped_reqs[(f, c, n)] += 1
                 self.stats.penalty += c.drop_penalty
             else:
-                self.stats.offloaded[(f,c,n)] += 1
+                self.stats.offloaded[(f, c, n)] += 1
                 self.do_offload(event, remote_node)
                 n.battery.update_soc_offloading(f.inputSizeMean)
         elif sched_decision == SchedulerDecision.OFFLOAD_EDGE:
             if target_node is not None:
                 remote_node = target_node
             else:
-                remote_node = node_policy.pick_edge_node(f,c)
+                remote_node = node_policy.pick_edge_node(f, c)
             if remote_node is None:
                 # drop
-                self.stats.dropped_reqs[(f,c,n)] += 1
+                self.stats.dropped_reqs[(f, c, n)] += 1
                 self.stats.penalty += c.drop_penalty
             else:
-                self.stats.offloaded[(f,c,n)] += 1
+                self.stats.offloaded[(f, c, n)] += 1
                 self.do_offload(event, remote_node)
                 n.battery.update_soc_offloading(f.inputSizeMean)
 
@@ -522,23 +566,55 @@ class Simulation:
         if external:
             self.__schedule_next_arrival(n, arv_proc)
 
-    def next_function_duration (self, f: Function, n: Node):
+    def next_function_duration(self, f: Function, n: Node):
         # execution time
-        duration = float(self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV/n.speedup) )
+        duration = float(self.service_rng.gamma(1.0 / f.serviceSCV, f.serviceMean * f.serviceSCV / n.speedup))
         data_access_time = 0
         # we add the time to access state
-        for k,prob in f.accessed_keys:
+        for k, prob in f.accessed_keys:
             # check if it is accessed 
             if self.keys_rng.random() <= prob:
                 # check if the key is on the node
                 if k not in n.kv_store:
                     remote_node = stateful.key_locator.get_node(k)
-                    assert(k in remote_node.kv_store)
+                    assert (k in remote_node.kv_store)
                     value_size = remote_node.kv_store[k]
-                    extra_latency = self.infra.get_latency(n, remote_node)*2
+                    extra_latency = self.infra.get_latency(n, remote_node) * 2
                     # bandwidth
-                    extra_latency += value_size/(self.infra.get_bandwidth(n, remote_node)*125000)
+                    extra_latency += value_size / (self.infra.get_bandwidth(n, remote_node) * 125000)
                     data_access_time += extra_latency
-                self.stats.data_access_count[(k,f,n)] += 1
+                self.stats.data_access_count[(k, f, n)] += 1
         return float(duration + data_access_time), float(data_access_time)
 
+    def handle_battery(self, event):
+        n = event.node
+        n.battery.update_soc_idle()
+        self.schedule(self.t + self.battery_update_interval, event)
+
+    def handle_co2emission(self, event):
+        n = event.node
+
+        if self.co2_emission_count == 0:
+            pass
+        if self.co2_emission_count % self.co2_emission_number_updates == 0:
+            #faccio reverse rispetto ad aumentare/diminuire emissione CO2 simulando variazione oraria
+            #co2_emission è 5% del recharge_input che si valuta ad ogni policy update, pertanto vado
+            #a simulare la variazione del co2_emission facendolo aumentare/diminuire di 5% in più fino
+            #ad arrivare a co2_number_updates
+            if n.co2_emission > self.co
+       else:
+            n.co2_emission = #x 1, 2, 3 todo. forse caso di creare classe emission con contatore e segno?
+
+       #todo aggiungere un emission rate (che è il 5.0 %, nel nodo io salvo il valore aggiornato di questo 5%?)
+        self.co2_emission_count += 1
+
+
+    def reverse_co2_trend(self, event):
+        n = event.node
+
+
+
+    def handle_co2reverse(self, event):
+        event.reverse()
+        self.is_reverse = event.is_reversed
+        self.schedule(self.t + self.co2_emission_reverse_interval, event)
