@@ -1,23 +1,21 @@
 import configparser
-from dataclasses import dataclass, field
+import sys
 import time
 from heapq import heappop, heappush
-import numpy as np
+
+import probabilistic_energy_aware
 from numpy.random import SeedSequence, default_rng
-import sys
 
 import conf
 import node_battery
-import probabilistic_energy_aware
-import utils.plot
-from policy import SchedulerDecision
 import policy
 import probabilistic
-from faas import *
 import stateful
-from stateful import key_locator
 from arrivals import ArrivalProcess
+from faas import *
 from infrastructure import *
+from policy import SchedulerDecision
+from stateful import key_locator
 from statistics import Stats
 from utils import plot
 
@@ -58,19 +56,6 @@ class BatteryUpdate(Event):
 @dataclass
 class CO2EmissionUpdate(Event):
     node: Node
-
-@dataclass
-class CO2EmissionReverse(Event):
-
-    is_reversed: bool = False  #false +, true - (avviene inversione)
-
-    def reverse(self) -> bool:
-        if self.is_reversed is True:
-            return False
-        else:
-            return True
-
-
 
 
 @dataclass
@@ -113,13 +98,11 @@ class Simulation:
     classes: [QoSClass]
     node2arrivals: dict
 
-
     def __post_init__(self):
         assert (len(self.functions) > 0)
         assert (len(self.classes) > 0)
 
         self.__event_counter = 0
-        self.co2_emission_count = 0
 
         self.stats = Stats(self, self.functions, self.classes, self.infra)
 
@@ -261,9 +244,6 @@ class Simulation:
             print("CO2 emission configuration is wrong")
             exit(1)
         self.co2_emission_reverse_interval = self.co2_emission_number_updates * self.co2_emission_interval
-        self.is_reverse = False
-
-        self.co2_emission_count = 0
 
         if not self.config.getboolean(conf.SEC_SIM, conf.PLOT_RESP_TIMES, fallback=False):
             self.resp_time_samples = {}
@@ -287,8 +267,8 @@ class Simulation:
                 self.schedule(self.battery_update_interval, BatteryUpdate(node))
         if self.co2_emission_interval > 0.0:
             for node in self.node2policy.keys():
-                self.schedule(self.co2_emission_interval, CO2EmissionUpdate(node))
-                self.schedule(self.co2_emission_reverse_interval, CO2EmissionReverse())
+                if node.co2_baseline_rate > 0.0:
+                    self.schedule(self.co2_emission_interval, CO2EmissionUpdate(node))
         if self.policy_update_interval > 0.0:
             self.schedule(self.policy_update_interval, PolicyUpdate())
         if self.rate_update_interval > 0.0:
@@ -360,6 +340,7 @@ class Simulation:
                 if isinstance(item[1], CheckExpiredContainers) \
                         or isinstance(item[1], PolicyUpdate) \
                         or isinstance(item[1], BatteryUpdate) \
+                        or isinstance(item[1], CO2EmissionUpdate) \
                         or isinstance(item[1], ArrivalRateUpdate) \
                         or isinstance(item[1], StatPrinter):
                     item[1].canceled = True
@@ -377,7 +358,7 @@ class Simulation:
         self.stats.print(of)
         self.first_stat_print = False
 
-    def handle (self, t, event):
+    def handle(self, t, event):
         if event.canceled:
             return
         self.t = t
@@ -392,10 +373,10 @@ class Simulation:
         elif isinstance(event, Completion):
             self.handle_completion(event)
         elif isinstance(event, PolicyUpdate):
-            for n,p in self.node2policy.items():
+            for n, p in self.node2policy.items():
                 upd_t0 = time.time()
                 p.update()
-                self.stats.update_policy_upd_time(n,time.time()-upd_t0)
+                self.stats.update_policy_upd_time(n, time.time() - upd_t0)
 
             # Migrate keys
             if self.key_migration_policy is not None:
@@ -405,15 +386,13 @@ class Simulation:
                 for p in self.node2policy.values():
                     if isinstance(p, stateful.StateAwareOffloadingPolicy):
                         p.latency_estimation_cache = {}
-                self.stats.update_mig_policy_upd_time(time.time()-upd_t0)
+                self.stats.update_mig_policy_upd_time(time.time() - upd_t0)
 
             self.schedule(t + self.policy_update_interval, event)
         elif isinstance(event, BatteryUpdate):
             self.handle_battery(event)
         elif isinstance(event, CO2EmissionUpdate):
             self.handle_co2emission(event)
-        elif isinstance(event, CO2EmissionReverse):
-            self.handle_co2reverse(event)
         elif isinstance(event, ArrivalRateUpdate):
             for n, arvs in self.node2arrivals.copy().items():
                 for arv in arvs:
@@ -426,7 +405,7 @@ class Simulation:
         elif isinstance(event, CheckExpiredContainers):
             if len(event.node.warm_pool) == 0:
                 return
-            f,timeout = event.node.warm_pool.front()
+            f, timeout = event.node.warm_pool.front()
             if timeout < t:
                 self.stats.update_memory_usage(event.node, self.t)
                 event.node.curr_memory += f.memory
@@ -434,7 +413,7 @@ class Simulation:
         else:
             raise RuntimeError("")
 
-    def handle_completion (self, event):
+    def handle_completion(self, event):
         #todo calcola e_u
         rt = self.t - event.arrival
         f = event.function
@@ -589,30 +568,41 @@ class Simulation:
     def handle_battery(self, event):
         n = event.node
         n.battery.update_soc_idle()
+        #todo rivedere: node_battery.Battery.update_soc_idle(n.battery)
         self.schedule(self.t + self.battery_update_interval, event)
 
     def handle_co2emission(self, event):
         n = event.node
+        node_clock = n.co2_footprint_clock
 
-        if self.co2_emission_count == 0:
+        if node_clock.count == 0:
             pass
-        if self.co2_emission_count % self.co2_emission_number_updates == 0:
-            #faccio reverse rispetto ad aumentare/diminuire emissione CO2 simulando variazione oraria
-            #co2_emission è 5% del recharge_input che si valuta ad ogni policy update, pertanto vado
-            #a simulare la variazione del co2_emission facendolo aumentare/diminuire di 5% in più fino
-            #ad arrivare a co2_number_updates
-            if n.co2_emission > self.co
-       else:
-            n.co2_emission = #x 1, 2, 3 todo. forse caso di creare classe emission con contatore e segno?
+        else:
+            print("=== co2emission === node: ", n.name, " node_clock.count: ", node_clock.count,
+                  " node_clock.current_co2_footprint: ", node_clock.current_co2_footprint
+                  , " n.co2_baseline_rate: ", n.co2_baseline_rate)
+            if node_clock.count % self.co2_emission_number_updates == 0:
+                #faccio reverse rispetto ad aumentare/diminuire emissione CO2 simulando variazione oraria
+                #co2_emission è 5% del recharge_input che si valuta ad ogni policy update, pertanto vado
+                #a simulare la variazione del co2_emission facendolo aumentare/diminuire di 5% in più fino
+                #ad arrivare a co2_number_updates
+                if node_clock.is_increasing:
+                    node_clock.is_increasing = False
+                    node_clock.current_co2_footprint = node_clock.current_co2_footprint - n.co2_baseline_rate
+                else:
+                    node_clock.is_increasing = True
+                    node_clock.current_co2_footprint = node_clock.current_co2_footprint + n.co2_baseline_rate
+            else:
+                if node_clock.is_increasing:
+                    node_clock.current_co2_footprint = node_clock.current_co2_footprint + n.co2_baseline_rate
+                else:
+                    node_clock.current_co2_footprint = node_clock.current_co2_footprint - n.co2_baseline_rate
 
-       #todo aggiungere un emission rate (che è il 5.0 %, nel nodo io salvo il valore aggiornato di questo 5%?)
-        self.co2_emission_count += 1
-
+        node_clock.count = node_clock.count + 1
+        self.schedule(self.t + self.co2_emission_interval, event)
 
     def reverse_co2_trend(self, event):
         n = event.node
-
-
 
     def handle_co2reverse(self, event):
         event.reverse()

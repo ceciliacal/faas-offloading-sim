@@ -151,6 +151,7 @@ def update_probabilities(params: OptProblemParams, VERBOSE=False):
     available_memory = params.usable_local_memory_coeff * params.local_node.total_memory
     available_memory_edge_enabled = params.aggregated_edge_memory
 
+    #todo aggiungere co2_emission
     prob += (soc + recharge -
              pl.lpSum([f.memory * x[f][c] / available_memory for f, c in F_C]) * resources_soc_depletion -
              pl.lpSum([2 * f.inputSizeMean * y[f][c] for f, c in F_C]) * offloading_soc_depletion -
@@ -158,7 +159,7 @@ def update_probabilities(params: OptProblemParams, VERBOSE=False):
              pl.lpSum(
                  [2 * f.inputSizeMean * params.arrival_rates[(f, c)] * pC[f][c] * params.serv_time_cloud[f] for f, c in
                   F_C]) * offloading_soc_depletion
-             ) <= 0
+             ) >= 0
     if EDGE_ENABLED:
         prob += (soc + recharge -
                  pl.lpSum(
@@ -167,7 +168,7 @@ def update_probabilities(params: OptProblemParams, VERBOSE=False):
                  pl.lpSum(
                      [(2 * f.inputSizeMean) * params.arrival_rates[(f, c)] * pC[f][c] * params.serv_time_cloud[f] for
                       f, c in params.fun_classes()]) * offloading_soc_depletion
-                 ) <= 0
+                 ) >= 0
 
     status = solve(prob)
     if status != "Optimal":

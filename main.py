@@ -3,6 +3,7 @@ import math
 import numpy as np
 import yaml
 
+import co2_footprint_clock
 import node_battery
 import faas
 import conf
@@ -19,7 +20,6 @@ def read_spec_file(spec_file_name, infra, config):
     offloading_consumption_rate = config.getfloat(conf.SEC_BATTERY, conf.ENERGY_PER_DATA_SIZE, fallback=0.001)
     time_consumption_rate = config.getfloat(conf.SEC_BATTERY, conf.BATTERY_UPDATE_INTERVAL, fallback=1)
     #todo aggiungere recharge rate (diverso da recharge input) -> o comunque aggiustare recharge input sulla base di time consumption rate
-
 
     with open(spec_file_name, "r") as stream:
         spec = yaml.safe_load(stream)
@@ -64,11 +64,14 @@ def read_spec_file(spec_file_name, infra, config):
             battery = node_battery.Battery(node_name, 100.0, time_consumption_rate, recharge, battery_capacity,
                                            idle_node_power_consumption_rate, resources_consumption_rate,
                                            offloading_consumption_rate)
-            co2_emission = n["co2_emission"] if "co2_emission" in n else 0.0
+            co2_baseline_rate = n["co2_emission"] if "co2_emission" in n else 0.0
+            co2_clock = co2_footprint_clock.CO2footprint(node_name, co2_baseline_rate,
+                                                         count=0, is_increasing=True)
 
             node = faas.Node(node_name, memory, speedup, reg,
                              battery,
-                             co2_emission,
+                             co2_baseline_rate,
+                             co2_clock,
                              cost=cost,
                              custom_sched_policy=custom_policy,
                              peer_exposed_memory_fraction=peer_exposed_memory_fraction)
