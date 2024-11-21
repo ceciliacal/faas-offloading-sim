@@ -30,7 +30,6 @@ SPLIT_BUDGET_AMONG_EDGE_NODES = "split-budget-edge"
 MULTIPLE_OFFLOADING_ALLOWED = "multiple-offloading-allowed"
 FALLBACK_ON_LOCAL_REJECTION = "local-rejection-fallback"
 
-
 SEC_STATEFUL = "stateful"
 
 SEC_BATTERY = "battery"
@@ -38,6 +37,28 @@ BATTERY_UPDATE_INTERVAL = "update-interval"
 ENERGY_PER_DATA_SIZE = "energy-per-data-size"
 CO2_EMISSION_UPDATE_INTERVAL = "co2-emission-update-interval"
 CO2_EMISSION_NUMBER_UPDATES = "co2-emission-number-updates"
+
+SEC_CARBON = "carbon"
+CARBON_INTENSITY_UPDATE_INTERVAL = "update-interval"
+NUM_REGIONS_CLOUD = "num-regions-cloud"
+NUM_REGIONS_EDGE = "num-regions-edge"
+START_DATE = "start-date"
+END_DATE = "end-date"
+FILE_CO2_TRACES_EDGE_REGION_1 = "file-edge1"
+FILE_CO2_TRACES_EDGE_REGION_2 = "file-edge2"
+FILE_CO2_TRACES_CLOUD_REGION_1 = "file-cloud1"
+FILE_CO2_TRACES_CLOUD_REGION_2 = "file-cloud2"
+CO2_TRACES_COL_TIMESTAMP= "Datetime (UTC)"
+CO2_TRACES_COL_INTENSITY_DIRECT = "Carbon Intensity gCO₂eq/kWh (direct)"
+REGIONS_FILE = "regions-file"
+
+EDGE = "edge"
+CLOUD = "cloud"
+LOCAL = "local"
+EDGE_NEIGHBORS_PER_REGION = "edge_neighbors_per_region"
+DISPATCHER = "dispatcher"
+EXEC = "EXEC"
+DROP = "DROP"
 
 import configparser
 

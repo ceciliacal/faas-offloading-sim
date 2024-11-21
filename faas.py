@@ -46,14 +46,8 @@ class ContainerPool:
         return repr(self.pool)
 
 class Node:
-
-    def __init__ (self, name, memory, speedup, region,
-                  battery,
-                  co2_baseline_rate,
-                  co2_footprint_clock,
-                  cost=0.0,
-                  custom_sched_policy=None,
-                  peer_exposed_memory_fraction=1.0):
+    def __init__(self, name, memory, speedup, region, co2_footprint,
+                 cost=0.0, custom_sched_policy=None, peer_exposed_memory_fraction=1.0):
         self.name = name
         self.total_memory = memory
         self.curr_memory = memory
@@ -66,24 +60,34 @@ class Node:
         self.warm_pool = ContainerPool()
         self.kv_store = {}
 
-        self.battery = battery
-        self.co2_baseline_rate = co2_baseline_rate
-        self.co2_footprint_clock = co2_footprint_clock
+        self.co2_footprint = co2_footprint
 
-    def __repr__ (self):
+    def __repr__(self):
         return self.name
 
     def __lt__(self, other):
-        return self.name <  other.name
+        return self.name < other.name
 
-    def __le__(self,other):
+    def __le__(self, other):
         return self.name <= other.name
 
-    def __hash__ (self):
+    def __hash__(self):
         return hash(self.name)
 
 
+class Dispatcher(Node):
+    def __init__(self, name, memory, speedup, region, co2_footprint,
+                 cost=0.0, custom_sched_policy="dispatcher-policy", peer_exposed_memory_fraction=0.0):
+        super().__init__(name, memory, speedup, region, co2_footprint,
+                         cost, custom_sched_policy, peer_exposed_memory_fraction)
+        self.aggregated_region_memory = 0.0
+        self.avg_speedup = 0.0
 
+        self.avg_node2completions:dict = {}  #key= function, value = avg #completions
+        self.avg_execution_time_sum:dict = {}    #key = function, value = avg exec time sum
+        self.avg_cold_starts:dict = {}   #key = function, value = avg #cold starts
+
+        self.decision = "OFFLOAD_"+region.name.upper()
 
 @dataclass
 class QoSClass:

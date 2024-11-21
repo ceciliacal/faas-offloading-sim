@@ -8,7 +8,7 @@ class Stats:
         self.infra = infra
         self.functions = functions
         self.classes = classes
-        self.nodes = infra.get_nodes()
+        self.nodes = infra.get_nodes(ignore_non_processing=False)
         fun_classes = [(f,c) for f in functions for c in classes]
         fcn = [(f,c,n) for f in functions for c in classes for n in self.nodes]
         
@@ -46,6 +46,17 @@ class Stats:
         self._mig_policy_updates = 0
 
         self.budget = self.sim.config.getfloat(conf.SEC_POLICY, conf.HOURLY_BUDGET, fallback=-1.0)
+
+        #todo: quando ci stanno i completions vado ad aggiornare queste statistiche, che poi in "update" il dispatcher
+        # (NB: update del dispatcher con granularita molto piu fine, deve simulare aggiornamento real time su stato dei
+        # nodi cloud della sua regione) rielabora (facendo aggregazioni: media o somma -> cioè calcola prob_cold_start
+        # medio per ogni reg e expected exec time medio x ogni funz ) e poi nell'update metrics di
+        # probabilistic_energy_aware vado a recuperare queste statistiche esposte dal dispatcher, su cui calcolo
+        # expected exec time & probability cold start
+        #self.cloud_arrivals = {x: 0 for x in [(f,c,n) for f in functions for c in classes for n in infra.get_nodes(ignore_non_processing=True)]}
+        self.execution_time_sum_cloud_nodes = {(r, f, n): 0 for r in infra.regions for f in functions for n in infra.get_cloud_nodes_by_region(r)}
+        self.completions_cloud_nodes = {(r, f, n): 0 for r in infra.regions for f in functions for n in infra.get_cloud_nodes_by_region(r)}
+        self.cold_starts_cloud_nodes = {(r, f, n): 0 for r in infra.regions for f in functions for n in infra.get_cloud_nodes_by_region(r)}
 
     def to_dict (self):
         stats = {}
@@ -92,18 +103,21 @@ class Stats:
 
         avgMemUtil = {}
         for n in self._memory_usage_t0:
-            avgMemUtil[repr(n)] = self._memory_usage_area[n]/self.sim.t/n.total_memory
+            if n.total_memory != 0:
+                avgMemUtil[repr(n)] = self._memory_usage_area[n] / self.sim.t / n.total_memory
+            else:
+                avgMemUtil[repr(n)] = 0
         stats["avgMemoryUtilization"] = avgMemUtil
 
         avg_policy_upd_time = {}
         for n in self._policy_update_time_sum:
             if self._policy_updates[n] > 0:
-                avg_policy_upd_time[repr(n)] = self._policy_update_time_sum[n]/self._policy_updates[n]
+                avg_policy_upd_time[repr(n)] = self._policy_update_time_sum[n] / self._policy_updates[n]
         stats["avgPolicyUpdateTime"] = avg_policy_upd_time
 
         avg_mig_policy_upd_time = 0
         if self._mig_policy_updates > 0:
-            avg_mig_policy_upd_time = self._mig_policy_update_time_sum/self._mig_policy_updates
+            avg_mig_policy_upd_time = self._mig_policy_update_time_sum / self._mig_policy_updates
         stats["avgMigPolicyUpdateTime"] = avg_mig_policy_upd_time
 
 

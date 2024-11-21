@@ -143,7 +143,12 @@ def update_probabilities(params: OptProblemParams, VERBOSE=False):
                            pC[f][c] * params.serv_time_cloud[f] * f.memory / 1024 for f, c in
                            params.fun_classes()]) <= params.budget / 3600)
 
+
+    print("in update_probabilities: node = ", params.local_node.name,
+          ", CO2_datetime = ", params.local_node.co2_footprint.co2_datetime,
+          ", CO2_intensity = ", params.local_node.co2_footprint.co2_intensity)
     # Energy constraint
+    '''
     soc = params.local_node.battery.soc
     recharge = params.local_node.battery.recharge_input
     resources_soc_depletion = params.local_node.battery.resources_soc_depletion
@@ -169,6 +174,8 @@ def update_probabilities(params: OptProblemParams, VERBOSE=False):
                      [(2 * f.inputSizeMean) * params.arrival_rates[(f, c)] * pC[f][c] * params.serv_time_cloud[f] for
                       f, c in params.fun_classes()]) * offloading_soc_depletion
                  ) >= 0
+
+    '''
 
     status = solve(prob)
     if status != "Optimal":

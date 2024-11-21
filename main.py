@@ -1,25 +1,20 @@
-import sys
 import math
+import sys
+
 import numpy as np
+import pandas as pd
 import yaml
+from numpy.random import SeedSequence
 
-import co2_footprint_clock
-import node_battery
+import co2_footprint
 import faas
-import conf
-import stateful
 from arrivals import PoissonArrivalProcess, TraceArrivalProcess, MAPArrivalProcess
-from numpy.random import SeedSequence, default_rng
-
-from simulation import Simulation
 from infrastructure import *
+from simulation import Simulation
 
 
 def read_spec_file(spec_file_name, infra, config):
     peer_exposed_memory_fraction = config.getfloat(conf.SEC_SIM, conf.EDGE_EXPOSED_FRACTION, fallback=0.5)
-    offloading_consumption_rate = config.getfloat(conf.SEC_BATTERY, conf.ENERGY_PER_DATA_SIZE, fallback=0.001)
-    time_consumption_rate = config.getfloat(conf.SEC_BATTERY, conf.BATTERY_UPDATE_INTERVAL, fallback=1)
-    #todo aggiungere recharge rate (diverso da recharge input) -> o comunque aggiustare recharge input sulla base di time consumption rate
 
     with open(spec_file_name, "r") as stream:
         spec = yaml.safe_load(stream)
@@ -55,28 +50,20 @@ def read_spec_file(spec_file_name, infra, config):
             cost = n["cost"] if "cost" in n else 0.0
             custom_policy = n["policy"] if "policy" in n else None
 
-            recharge = n["recharge"] if "recharge" in n else 0.0
-            battery_capacity = n["battery_capacity"] if "battery_capacity" in n else 1300.0
-            idle_node_power_consumption_rate = n[
-                "idle_power_consumption_rate"] if "idle_power_consumption_rate" in n else 0.0
-            resources_consumption_rate = n["max_power_consumption_rate"] if "max_power_consumption_rate" in n else 0.0
+            # Compute carbon emissions
+            carbon_emission = co2_footprint.CO2footprint(node_name)
 
-            battery = node_battery.Battery(node_name, 100.0, time_consumption_rate, recharge, battery_capacity,
-                                           idle_node_power_consumption_rate, resources_consumption_rate,
-                                           offloading_consumption_rate)
-            co2_baseline_rate = n["co2_emission"] if "co2_emission" in n else 0.0
-            co2_clock = co2_footprint_clock.CO2footprint(node_name, co2_baseline_rate,
-                                                         count=0, is_increasing=True)
-
-            node = faas.Node(node_name, memory, speedup, reg,
-                             battery,
-                             co2_baseline_rate,
-                             co2_clock,
+            # Determine node type
+            NodeClass = faas.Dispatcher if conf.DISPATCHER in node_name else faas.Node
+            node = NodeClass(node_name, memory, speedup, reg, carbon_emission,
                              cost=cost,
                              custom_sched_policy=custom_policy,
                              peer_exposed_memory_fraction=peer_exposed_memory_fraction)
+
+            # Add node to infrastructure
             node_names[node_name] = node
             infra.add_node(node, reg)
+            infra.add_node_by_region_type(node)
 
         functions = []
         function_names = {}
@@ -146,19 +133,98 @@ def read_spec_file(spec_file_name, infra, config):
 
     return classes, functions, node2arrivals
 
+def read_traces_file(filename, col_datetime, col_co2intensity, start_date, end_date):
+
+    total_df = pd.read_csv(filename)
+    start_date = pd.to_datetime(start_date).date()
+    end_date = pd.to_datetime(end_date).date()
+
+    total_df[col_datetime] = pd.to_datetime(total_df[col_datetime])
+    weekly_df = total_df[(total_df[col_datetime].dt.date >= start_date) & (total_df[col_datetime].dt.date <= end_date)]
+    df = weekly_df[[col_datetime, col_co2intensity]]
+    return df
+
+def regions_setup(config):
+
+    col_datetime = conf.CO2_TRACES_COL_TIMESTAMP
+    col_co2intensity = conf.CO2_TRACES_COL_INTENSITY_DIRECT
+    start_date = config.get(conf.SEC_CARBON, conf.START_DATE, fallback=None)
+    end_date = config.get(conf.SEC_CARBON, conf.END_DATE, fallback=None)
+
+    regions_file_path = config.get(conf.SEC_CARBON, conf.REGIONS_FILE, fallback=None)
+    with open(regions_file_path, 'r') as file:
+        regions_data = yaml.safe_load(file)
+
+    regions = []
+
+    for region in regions_data['regions']:
+        co2_traces_filename = region['co2_traces_file']
+        co2_dataframe = read_traces_file(region['co2_traces_file'], col_datetime, col_co2intensity, start_date, end_date)
+
+        cloud_region = Region(
+            name=region['name'],
+            co2_traces_filename=co2_traces_filename,
+            datetime_co2intensity=co2_dataframe,
+            neighbors=region['neighbors'],
+            latency_sec=region['latency_sec'],
+            bandwidth_mbps=region['bandwidth_mbps']
+        )
+        regions.append(cloud_region)
+
+        # Check for zones, if present, to add edge regions
+        for zone in region.get('zones', []):
+            co2_traces_filename = zone['co2_traces_file']
+            co2_dataframe = read_traces_file(zone['co2_traces_file'], col_datetime, col_co2intensity, start_date,
+                                             end_date)
+
+            edge_region = Region(
+                name=zone['name'],
+                co2_traces_filename=co2_traces_filename,
+                datetime_co2intensity=co2_dataframe,
+                neighbors=region['neighbors'],
+                latency_sec=zone['latency_sec'],
+                bandwidth_mbps=zone['bandwidth_mbps'],
+                default_cloud=region['name']
+            )
+
+            regions.append(edge_region)
+
+    return regions
 
 def init_simulation(config):
     seed = config.getint(conf.SEC_SIM, conf.SEED, fallback=1)
     seed_sequence = SeedSequence(seed)
 
-    # Regions
-    reg_cloud = Region("cloud")
-    reg_edge = Region("edge", reg_cloud)
-    regions = [reg_edge, reg_cloud]
-    # Latency
-    latencies = {(reg_edge, reg_cloud): 0.100, (reg_edge, reg_edge): 0.005}
-    bandwidth_mbps = {(reg_edge, reg_edge): 100.0, (reg_cloud, reg_cloud): 1000.0, \
-                      (reg_edge, reg_cloud): 10.0}
+    regions = regions_setup(config)
+
+    print(regions)
+
+    #my_latencies = {}
+    bandwidth_mbps = {}
+    latencies = {}
+
+    for region in regions:
+        for target_name, latency in region.latency_sec.items():
+            # Find the target Region object by name
+            target_region = next((r for r in regions if r.name == target_name), None)
+            if target_region:
+                # Create the pair as a sorted tuple of Region objects
+                key_pair = tuple(sorted((region, target_region), key=lambda r: r.name))
+                if key_pair not in latencies:
+                    latencies[key_pair] = latency
+
+        for target_name, bandwidth in region.bandwidth_mbps.items():
+            # Find the target Region object by name
+            target_region = next((r for r in regions if r.name == target_name), None)
+            if target_region:
+                # Create the pair as a sorted tuple of Region objects
+                key_pair = tuple(sorted((region, target_region), key=lambda r: r.name))
+                if key_pair not in bandwidth_mbps:
+                    bandwidth_mbps[key_pair] = bandwidth
+
+    print("===latencies: ",latencies)
+    print("===bandwidth_mbps: ", bandwidth_mbps)
+
     # Infrastructure
     infra = Infrastructure(regions, latencies, bandwidth_mbps)
 

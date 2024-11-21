@@ -1,0 +1,61 @@
+regions:  #cloud regions
+  - name: "cloud_region_a"
+    co2_traces_file: "co2_traces/IT-NO_2023_hourly.csv"
+    neighbors:
+      - "cloud_region_b"
+      #- "cloud_region_c"
+    latency_sec:
+      cloud_region_b: 0.200
+      cloud_region_c: 0.400
+    bandwidth_mbps:
+      cloud_region_b: 1000.0
+      cloud_region_c: 1000.0
+    zones:  #edge regions referring to this cloud region
+      - name: "edge_zone_1"
+        co2_traces_file: "co2_traces/IT-CSO_2023_hourly.csv"
+        latency_sec:
+          cloud_region_a: 0.100
+          cloud_region_b: 0.300
+          cloud_region_c: 0.500
+          edge_zone_1: 0.005
+        bandwidth_mbps:
+          cloud_region_a: 10.0
+          cloud_region_b: 30.0
+          cloud_region_c: 50.0
+          edge_zone_1: 100.0
+      - name: "edge_zone_2"
+        co2_traces_file: "co2_traces/IT-CNO_2023_hourly.csv"
+        latency_sec:
+          cloud_region_a: 0.100
+          cloud_region_b: 0.300
+          cloud_region_c: 0.500
+          edge_zone_2: 0.005
+        bandwidth_mbps:
+          cloud_region_a: 10.0
+          cloud_region_b: 30.0
+          cloud_region_c: 50.0
+          edge_zone_2: 100.0
+
+  - name: "cloud_region_b"
+    co2_traces_file: "co2_traces/FR_2023_hourly.csv"
+    neighbors:
+      - "cloud_region_a"
+      #- "cloud_region_c"
+    latency_sec:
+      cloud_region_a: 0.200
+      cloud_region_c: 0.400
+    bandwidth_mbps:
+      cloud_region_a: 100
+      cloud_region_c: 80
+
+  - name: "cloud_region_c"
+    co2_traces_file: "co2_traces/FR_2023_hourly.csv" #TODO: qui metti islanda
+    neighbors:
+      #- "cloud_region_a"
+      #- "cloud_region_b"
+    latency_sec:
+      cloud_region_a: 0.400
+      cloud_region_b: 0.400
+    bandwidth_mbps:
+      cloud_region_a: 50
+      cloud_region_b: 80

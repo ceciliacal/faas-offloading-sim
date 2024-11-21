@@ -3,13 +3,11 @@ import sys
 import time
 from heapq import heappop, heappush
 
-import probabilistic_energy_aware
 from numpy.random import SeedSequence, default_rng
 
-import conf
-import node_battery
 import policy
 import probabilistic
+import probabilistic_carbon_aware
 import stateful
 from arrivals import ArrivalProcess
 from faas import *
@@ -57,6 +55,9 @@ class BatteryUpdate(Event):
 class CO2EmissionUpdate(Event):
     node: Node
 
+@dataclass
+class CarbonIntensityUpdate(Event):
+    pass
 
 @dataclass
 class PolicyUpdate(Event):
@@ -70,6 +71,10 @@ class ArrivalRateUpdate(Event):
 
 @dataclass
 class StatPrinter(Event):
+    pass
+
+@dataclass
+class DispatcherUpdate(Event):
     pass
 
 
@@ -89,6 +94,21 @@ OFFLOADING_OVERHEAD = 0.005
 ARRIVAL_TRACE_PERIOD = 60.0
 
 
+def read_co2_intensity(node):
+    n = node.co2_footprint.count
+    if n <= len(node.region.datetime_co2intensity) - 1:
+
+        nth_row = node.region.datetime_co2intensity.iloc[n]
+        #print("nth row: ", nth_row)
+        node.co2_footprint.co2_datetime = nth_row[conf.CO2_TRACES_COL_TIMESTAMP]
+        node.co2_footprint.co2_intensity = nth_row[conf.CO2_TRACES_COL_INTENSITY_DIRECT]
+        node.co2_footprint.count = n + 1
+        print("in update_co2_intensity: node: ",node.name," co2_datetime: ",node.co2_footprint.co2_datetime," co2_intensity: ",node.co2_footprint.co2_intensity," count: ",node.co2_footprint.count)
+    else:
+        #print("df finito! n=",n," data: ",node.region.datetime_co2intensity.iloc[n-1][conf.CO2_TRACES_COL_TIMESTAMP])
+        return
+
+
 @dataclass
 class Simulation:
     config: configparser.ConfigParser
@@ -97,6 +117,7 @@ class Simulation:
     functions: [Function]
     classes: [QoSClass]
     node2arrivals: dict
+
 
     def __post_init__(self):
         assert (len(self.functions) > 0)
@@ -111,15 +132,20 @@ class Simulation:
 
         self.verbosity = self.config.getint(conf.SEC_SIM, conf.VERBOSITY, fallback=0)
 
+
         # Seeds
         n_arrival_processes = sum([len(arrival_procs) for arrival_procs in self.node2arrivals.values()])
         # Spawn off child SeedSequences to pass to child processes.
-        child_seeds = self.seed_sequence.spawn(5 + 3 * n_arrival_processes)
+        child_seeds = self.seed_sequence.spawn(7 + 3 * n_arrival_processes)
         self.service_rng = default_rng(child_seeds[0])
         self.node_choice_rng = default_rng(child_seeds[1])
         self.policy_rng1 = default_rng(child_seeds[2])
         self.keys_rng = default_rng(child_seeds[3])
         self.keys_policy_rng = default_rng(child_seeds[4])
+
+        self.cloud_region_choice = default_rng(child_seeds[5])
+        self.cloud_node_random_choice = default_rng(child_seeds[6])
+        #self.edge_region_choice = default_rng(child_seeds[6])
 
         i = 5
         for n, arvs in self.node2arrivals.items():
@@ -129,13 +155,33 @@ class Simulation:
                 i += 3
 
         self.max_neighbors = self.config.getint(conf.SEC_SIM, conf.EDGE_NEIGHBORS, fallback=3)
+        self.max_edge_neighbors_per_region = self.config.getint(conf.SEC_CARBON, conf.EDGE_NEIGHBORS, fallback=3)
 
         # Other params
         self.init_time = {}
-        for node in self.infra.get_nodes():
+        avg_regional_init_time = {}
+
+        # Calculate average speedup for cloud regions
+        for region in self.infra.regions:
+            if region.is_cloud():
+                avg_speedup = 0
+                cloud_nodes = self.infra.get_cloud_nodes_by_region(region)
+                for node in cloud_nodes:
+                    avg_speedup = avg_speedup + node.speedup
+                avg_speedup = avg_speedup / len(cloud_nodes)
+                avg_regional_init_time[region] = avg_speedup
+
+        for node in self.infra.get_nodes(ignore_non_processing=False):
             if node.speedup > 0:
+                if conf.DISPATCHER in node.name:
+                    # Use average regional initialization time for dispatcher nodes in cloud regions
+                    speedup = avg_regional_init_time[node.region]
+                else:
+                    speedup = node.speedup
                 for fun in self.functions:
-                    self.init_time[(fun, node)] = fun.initMean / node.speedup
+                        self.init_time[(fun, node)] = fun.initMean / speedup
+
+
 
     def new_policy(self, configured_policy, node):
         if configured_policy == "basic":
@@ -178,7 +224,10 @@ class Simulation:
         elif configured_policy == "state-aware-always-offload":
             return stateful.AlwaysOffloadStatefulPolicy(self, node)
         elif configured_policy == "probabilistic-energy-aware":
-            return probabilistic_energy_aware.ProbabilisticEnergyAwarePolicy(self, node)
+            policy.SchedulerDecisionMultiRegionManager(self.infra.regions)
+            return probabilistic_carbon_aware.ProbabilisticCarbonAwarePolicy(self, node)
+        elif configured_policy == "dispatcher-policy":
+            return policy.CloudRegionDispatcherRandomPolicy(self, node)
         else:
             raise RuntimeError(f"Unknown policy: {configured_policy}")
 
@@ -209,41 +258,44 @@ class Simulation:
 
         self.expiration_timeout = self.config.getfloat(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, fallback=600)
 
+
         # Policy
         policy_name = self.config.get(conf.SEC_POLICY, conf.POLICY_NAME, fallback="basic")
-        for n in self.infra.get_edge_nodes():
+        for n in self.infra.edge_nodes:
             _policy = n.custom_sched_policy if n.custom_sched_policy is not None else policy_name
             self.node2policy[n] = self.new_policy(_policy, n)
-        for n in self.infra.get_cloud_nodes():
+        for n in self.infra.cloud_nodes:
             _policy = n.custom_sched_policy if n.custom_sched_policy is not None else "cloud"
+            self.node2policy[n] = self.new_policy(_policy, n)
+        for n in self.infra.dispatchers:
+            _policy = n.custom_sched_policy if n.custom_sched_policy is not None else "dispatcher-policy"
             self.node2policy[n] = self.new_policy(_policy, n)
 
         self.key_migration_policy = None
         stateful_policy_name = self.config.get(conf.SEC_STATEFUL, conf.POLICY_NAME, fallback="none")
         self.key_migration_policy = self.new_state_migration_policy(stateful_policy_name)
 
-        self.battery_update_interval = self.config.getfloat(conf.SEC_BATTERY, conf.BATTERY_UPDATE_INTERVAL, fallback=-1)
-        self.co2_emission_interval = self.config.getfloat(conf.SEC_BATTERY, conf.CO2_EMISSION_UPDATE_INTERVAL,
-                                                          fallback=-1)
-        self.co2_emission_number_updates = self.config.getfloat(conf.SEC_BATTERY, conf.CO2_EMISSION_NUMBER_UPDATES,
-                                                                fallback=-1)
+
         self.policy_update_interval = self.config.getfloat(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
         self.rate_update_interval = self.config.getfloat(conf.SEC_SIM, conf.RATE_UPDATE_INTERVAL, fallback=-1)
-        print(self.rate_update_interval)
         self.stats_print_interval = self.config.getfloat(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, fallback=-1)
+
+        self.carbon_intensity_update_interval = self.config.getfloat(conf.SEC_CARBON, conf.CARBON_INTENSITY_UPDATE_INTERVAL, fallback=-1)
+        self.policy_dispatcher_update_interval = self.config.getfloat(conf.DISPATCHER, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
+
+
         self.stats_file = sys.stdout
 
+        self.count_policy_update = 0
+        self.count_carbon_intensity_update = 0
+
         rt_print_filename = self.config.get(conf.SEC_SIM, conf.RESP_TIMES_FILE, fallback="")
+
         if len(rt_print_filename) > 0:
             self.resp_times_file = open(rt_print_filename, "w")
             print(f"Function,Class,Node,Offloaded,Cold,DataAccess,RT", file=self.resp_times_file)
         else:
             self.resp_times_file = None
-
-        if self.co2_emission_interval > 0.0 and self.co2_emission_number_updates < 1.0:
-            print("CO2 emission configuration is wrong")
-            exit(1)
-        self.co2_emission_reverse_interval = self.co2_emission_number_updates * self.co2_emission_interval
 
         if not self.config.getboolean(conf.SEC_SIM, conf.PLOT_RESP_TIMES, fallback=False):
             self.resp_time_samples = {}
@@ -262,13 +314,6 @@ class Simulation:
         # Initialize state placement
         stateful.init_key_placement(self.functions, self.infra, self.keys_rng)
 
-        if self.battery_update_interval > 0.0:
-            for node in self.node2policy.keys():
-                self.schedule(self.battery_update_interval, BatteryUpdate(node))
-        if self.co2_emission_interval > 0.0:
-            for node in self.node2policy.keys():
-                if node.co2_baseline_rate > 0.0:
-                    self.schedule(self.co2_emission_interval, CO2EmissionUpdate(node))
         if self.policy_update_interval > 0.0:
             self.schedule(self.policy_update_interval, PolicyUpdate())
         if self.rate_update_interval > 0.0:
@@ -278,6 +323,12 @@ class Simulation:
             stats_print_filename = self.config.get(conf.SEC_SIM, conf.STAT_PRINT_FILE, fallback="")
             if len(stats_print_filename) > 0:
                 self.stats_file = open(stats_print_filename, "w")
+
+        if self.carbon_intensity_update_interval > 0.0:
+            self.schedule(self.carbon_intensity_update_interval, CarbonIntensityUpdate())
+        if self.policy_dispatcher_update_interval > 0.0:    #for cloud nodes status update
+            self.schedule(self.policy_dispatcher_update_interval, DispatcherUpdate())
+
 
         while len(self.events) > 0:
             t, e = heappop(self.events)
@@ -339,8 +390,8 @@ class Simulation:
             for item in self.events:
                 if isinstance(item[1], CheckExpiredContainers) \
                         or isinstance(item[1], PolicyUpdate) \
-                        or isinstance(item[1], BatteryUpdate) \
-                        or isinstance(item[1], CO2EmissionUpdate) \
+                        or isinstance(item[1], CarbonIntensityUpdate) \
+                        or isinstance(item[1], DispatcherUpdate) \
                         or isinstance(item[1], ArrivalRateUpdate) \
                         or isinstance(item[1], StatPrinter):
                     item[1].canceled = True
@@ -358,6 +409,8 @@ class Simulation:
         self.stats.print(of)
         self.first_stat_print = False
 
+
+
     def handle(self, t, event):
         if event.canceled:
             return
@@ -366,7 +419,7 @@ class Simulation:
 
         self.__event_counter += 1
         if self.__event_counter % 10000 == 0:
-            print(t)
+            #print(t)
             self.__event_counter = 0
         if isinstance(event, Arrival):
             self.handle_arrival(event)
@@ -388,11 +441,28 @@ class Simulation:
                         p.latency_estimation_cache = {}
                 self.stats.update_mig_policy_upd_time(time.time() - upd_t0)
 
+
             self.schedule(t + self.policy_update_interval, event)
-        elif isinstance(event, BatteryUpdate):
-            self.handle_battery(event)
-        elif isinstance(event, CO2EmissionUpdate):
-            self.handle_co2emission(event)
+            self.count_policy_update = self.count_policy_update+1
+            print("count_policy_update: ", self.count_policy_update,
+                  "t = ",t,
+                  " scheduled t = ",t + self.policy_update_interval)
+        elif isinstance(event, CarbonIntensityUpdate):
+            for n in self.node2policy:
+                read_co2_intensity(n)
+                #print("current time t = ",t)
+            self.schedule(t + self.carbon_intensity_update_interval, event)
+            self.count_carbon_intensity_update = self.count_carbon_intensity_update+1
+            print("count_carbon_intensity_update: ", self.count_carbon_intensity_update,
+                  "t = ", t,
+                  " scheduled t = ", t + self.carbon_intensity_update_interval)
+        elif isinstance(event, DispatcherUpdate):
+            for n, p in self.node2policy.items():
+                if isinstance(n, Dispatcher):
+                    upd_t0 = time.time()
+                    p.update()
+                    self.stats.update_policy_upd_time(n, time.time() - upd_t0)
+            self.schedule(t + self.policy_dispatcher_update_interval, event)
         elif isinstance(event, ArrivalRateUpdate):
             for n, arvs in self.node2arrivals.copy().items():
                 for arv in arvs:
@@ -414,7 +484,6 @@ class Simulation:
             raise RuntimeError("")
 
     def handle_completion(self, event):
-        #todo calcola e_u
         rt = self.t - event.arrival
         f = event.function
         c = event.qos_class
@@ -460,8 +529,11 @@ class Simulation:
         if self.external_arrivals_allowed:
             self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n))
 
-            #update SoC
-        n.battery.update_soc_completion(f.memory, n.total_memory * n.peer_exposed_memory_fraction)
+        #if node is a cloud processing node, update stats (exec time & num completions)
+        region = n.region
+        if region.is_cloud() and not isinstance(n, Dispatcher):
+            self.stats.execution_time_sum_cloud_nodes[(region, f, n)] += duration
+            self.stats.completions_cloud_nodes[(region, f, n)] += 1
 
     def do_offload(self, arrival, target_node):
         latency = self.infra.get_latency(arrival.node, target_node)
@@ -488,7 +560,7 @@ class Simulation:
         # Policy
         sched_decision, target_node = node_policy.schedule(f, c, event.offloaded_from)
 
-        if sched_decision == SchedulerDecision.EXEC:
+        if sched_decision == SchedulerDecision.EXEC: #todo sistemare qua perche SchedulerDecision.EXEC dà 1 !!!
             duration, data_access_time = self.next_function_duration(f, n)
             # check warm or cold
             if f in n.warm_pool:
@@ -499,6 +571,12 @@ class Simulation:
                 assert (n.curr_memory >= f.memory)
                 n.curr_memory -= f.memory
                 self.stats.cold_starts[(f, n)] += 1
+
+                # if node is a cloud processing node, update stats (exec time & num completions)
+                region = n.region
+                if region.is_cloud() and not isinstance(n, Dispatcher):
+                    self.stats.cold_starts_cloud_nodes[(region, f, n)] += 1
+
                 init_time = self.init_time[(f, n)]
             arrival_time = self.t if event.original_arrival_time is None else event.original_arrival_time
             self.schedule(float(self.t + init_time + duration),
@@ -513,7 +591,8 @@ class Simulation:
             if target_node is not None:
                 remote_node = target_node
             else:
-                # Pick the closest cloud node
+                #todo: choose dispatcher of neighbor region
+                # Pick the closest cloud node TODO SCELTA NODO X OFFLOAD_CLOUD
                 nodes_w_lat = [(_n, self.infra.get_latency(n, _n)) for _n in self.infra.get_cloud_nodes()]
                 if len(nodes_w_lat) < 1:
                     remote_node = None
@@ -526,7 +605,6 @@ class Simulation:
             else:
                 self.stats.offloaded[(f, c, n)] += 1
                 self.do_offload(event, remote_node)
-                n.battery.update_soc_offloading(f.inputSizeMean)
         elif sched_decision == SchedulerDecision.OFFLOAD_EDGE:
             if target_node is not None:
                 remote_node = target_node
@@ -539,7 +617,6 @@ class Simulation:
             else:
                 self.stats.offloaded[(f, c, n)] += 1
                 self.do_offload(event, remote_node)
-                n.battery.update_soc_offloading(f.inputSizeMean)
 
         # Schedule next (if this is an external arrival)
         if external:
@@ -565,46 +642,4 @@ class Simulation:
                 self.stats.data_access_count[(k, f, n)] += 1
         return float(duration + data_access_time), float(data_access_time)
 
-    def handle_battery(self, event):
-        n = event.node
-        n.battery.update_soc_idle()
-        #todo rivedere: node_battery.Battery.update_soc_idle(n.battery)
-        self.schedule(self.t + self.battery_update_interval, event)
 
-    def handle_co2emission(self, event):
-        n = event.node
-        node_clock = n.co2_footprint_clock
-
-        if node_clock.count == 0:
-            pass
-        else:
-            print("=== co2emission === node: ", n.name, " node_clock.count: ", node_clock.count,
-                  " node_clock.current_co2_footprint: ", node_clock.current_co2_footprint
-                  , " n.co2_baseline_rate: ", n.co2_baseline_rate)
-            if node_clock.count % self.co2_emission_number_updates == 0:
-                #faccio reverse rispetto ad aumentare/diminuire emissione CO2 simulando variazione oraria
-                #co2_emission è 5% del recharge_input che si valuta ad ogni policy update, pertanto vado
-                #a simulare la variazione del co2_emission facendolo aumentare/diminuire di 5% in più fino
-                #ad arrivare a co2_number_updates
-                if node_clock.is_increasing:
-                    node_clock.is_increasing = False
-                    node_clock.current_co2_footprint = node_clock.current_co2_footprint - n.co2_baseline_rate
-                else:
-                    node_clock.is_increasing = True
-                    node_clock.current_co2_footprint = node_clock.current_co2_footprint + n.co2_baseline_rate
-            else:
-                if node_clock.is_increasing:
-                    node_clock.current_co2_footprint = node_clock.current_co2_footprint + n.co2_baseline_rate
-                else:
-                    node_clock.current_co2_footprint = node_clock.current_co2_footprint - n.co2_baseline_rate
-
-        node_clock.count = node_clock.count + 1
-        self.schedule(self.t + self.co2_emission_interval, event)
-
-    def reverse_co2_trend(self, event):
-        n = event.node
-
-    def handle_co2reverse(self, event):
-        event.reverse()
-        self.is_reverse = event.is_reversed
-        self.schedule(self.t + self.co2_emission_reverse_interval, event)

@@ -141,8 +141,8 @@ def print_results (results, filename=None):
 
 def default_infra():
     # Regions
-    reg_cloud = Region("cloud")
-    reg_edge = Region("edge", reg_cloud)
+    reg_cloud = Region("cloud", reg1_timestamp_co2intensity_reg)
+    reg_edge = Region("edge", reg1_timestamp_co2intensity_reg, reg_cloud)
     regions = [reg_edge, reg_cloud]
     # Latency
     latencies = {}

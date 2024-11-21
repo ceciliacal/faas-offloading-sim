@@ -1,10 +1,23 @@
+import conf
 from faas import Node
 
 class Region:
 
-    def __init__ (self, name: str, default_cloud = None):
+    def __init__(self, name: str, co2_traces_filename, datetime_co2intensity, neighbors, latency_sec, bandwidth_mbps, default_cloud=None):
         self.name = name
+        self.co2_traces_filename = co2_traces_filename
+        self.datetime_co2intensity = datetime_co2intensity
+        self.neighbors = neighbors
+        self.latency_sec = latency_sec
+        self.bandwidth_mbps = bandwidth_mbps
+
         self.default_cloud = default_cloud
+
+    def __repr__(self):
+        return (f"Region(name={self.name}, co2_traces_filename={self.co2_traces_filename}, "
+                f"neighbors={self.neighbors}, latency_ms={self.latency_sec}, "
+                f"bandwidth_mbps={self.bandwidth_mbps}), default_cloud={self.default_cloud}")
+
 
     def is_cloud (self):
         return self.default_cloud is None
@@ -20,13 +33,71 @@ class Region:
 
 class Infrastructure:
 
-    def __init__ (self, regions: [Region], network_latency: dict, bandwidth_mbps: dict):
-        self.regions = regions
+    def __init__ (self, regions, network_latency: dict, bandwidth_mbps: dict):
+        self.regions = [n for n in regions]
         self.latency = network_latency
         self.bandwidth_mbps = bandwidth_mbps
         self.region_nodes = {r: []  for r in self.regions}
         self.region_dict = {r.name: r for r in self.regions}
         self.node2neighbors = {}
+
+        self.cloud_regions = self.get_cloud_regions()
+        self.edge_zones = self.get_edge_regions()
+        self.num_regions_cloud = len(self.cloud_regions)
+        self.num_edge_zones = len(self.edge_zones)
+        self.region2neighbors = self.get_regions_neighbors(regions)
+
+        self.cloud_nodes = []
+        self.edge_nodes = []
+        self.dispatchers = []
+
+    def add_node_by_region_type(self, node):
+        if node.region in self.cloud_regions:
+            if node.curr_memory > 0:
+                self.cloud_nodes.append(node)
+            else:
+                self.dispatchers.append(node)
+        elif node.region in self.edge_zones:
+            self.edge_nodes.append(node)
+
+    def get_cloud_regions(self) -> [Region]:
+        cloud_regions = []
+        for region in self.regions:
+            if region.is_cloud():
+                cloud_regions.append(region)
+        return cloud_regions
+
+    def get_edge_regions(self) -> [Region]:
+        edge_regions = []
+        for region in self.regions:
+            if not region.is_cloud():
+                edge_regions.append(region)
+        return edge_regions
+
+    def get_regions_neighbors(self, regions_list:list):
+
+        regions = {region.name: region for region in regions_list}
+        # Initialize the proximity matrix with all values set to False
+        regions_neighbors = {region_name: {other_region: False for other_region in regions} for region_name in regions}
+
+        # Populate the matrix based on each region's neighbors
+        for region_name, region in regions.items():
+            # Determine the list of neighbors based on whether the region is cloud or edge
+            neighbors_to_add = region.neighbors if region.is_cloud() else regions[region.default_cloud].neighbors
+            neighbors_to_add = neighbors_to_add or []  # Default to empty list if neighbors_to_add is None
+
+            for neighbor_name in neighbors_to_add:
+                # Ensure the neighbor exists in the regions dictionary
+                if neighbor_name in regions:
+                    regions_neighbors[region_name][neighbor_name] = True
+                    regions_neighbors[neighbor_name][region_name] = True
+
+            # Link edge zones to their default cloud region
+            if not region.is_cloud() and region.default_cloud in regions:
+                regions_neighbors[region_name][region.default_cloud] = True
+                regions_neighbors[region.default_cloud][region_name] = True
+
+        return regions_neighbors
 
     def get_latency (self, x: Node, y: Node):
         if x == y:
@@ -86,20 +157,21 @@ class Infrastructure:
 
     def get_edge_nodes (self):
         nodes = []
-        for r in self.regions:
-            if not r.is_cloud():
-                # Ignore nodes not enabled for processing
-                reg_nodes = [n for n in self.region_nodes[r] if n.total_memory > 0]
-                nodes.extend(reg_nodes)
+        for r in self.edge_zones:
+            reg_nodes = [n for n in self.region_nodes[r] if n.total_memory > 0]
+            nodes.extend(reg_nodes)
         return nodes
+
+    def get_cloud_nodes_by_region(self, r):
+        return [n for n in self.region_nodes[r] if n.total_memory > 0]
+
 
     def get_cloud_nodes (self):
         nodes = []
-        for r in self.regions:
-            if r.is_cloud():
-                # Ignore nodes not enabled for processing
-                reg_nodes = [n for n in self.region_nodes[r] if n.total_memory > 0]
-                nodes.extend(reg_nodes)
+        for r in self.cloud_regions:
+            reg_nodes = [n for n in self.region_nodes[r] if n.total_memory > 0]
+            nodes.extend(reg_nodes)
+
         return nodes
 
     def get_nodes (self, ignore_non_processing=True):
@@ -109,21 +181,48 @@ class Infrastructure:
             nodes.extend(reg_nodes)
         return nodes
 
-    def get_region_nodes (self, reg):
+    def get_region_nodes(self, reg):
+        return self.region_nodes[self.get_region(reg)]
+
+    def get_nodes_by_region (self, reg):
         return self.region_nodes[reg]
 
-    def get_neighbors (self, node, node_choice_rng, max_peers=3):
+    def get_neighbors_node (self, node, node_choice_rng, max_peers=3):
         if node in self.node2neighbors:
             peers = self.node2neighbors[node]
         else:
-            peers = self.get_region_nodes(node.region).copy()
+            peers = self.get_nodes_by_region(node.region).copy()
             peers.remove(node)
             self.node2neighbors[node] = peers
 
         if max_peers > 0 and len(peers) > max_peers:
-            return node_choice_rng.choice(peers, max_peers) # TODO: random selection
+            return node_choice_rng.choice(peers, max_peers)
         else:
             return peers
+
+    def get_regions_by_type (self, reg_type):
+        nodes = []
+        for r in self.regions:
+            if not r.is_cloud() and reg_type == conf.EDGE:
+                nodes.append(r)
+            elif r.is_cloud() and reg_type == conf.CLOUD:
+                nodes.append(r)
+        return nodes
+
+    def get_neighbors_region (self, region, reg_choice_rng, max_peers=3):
+        if region in self.region2neighbors:
+            peers = self.region2neighbors[region]
+        else:
+            peers = self.get_regions_by_type(conf.NUM_REGIONS_EDGE).copy()
+            peers.remove(region)
+            self.region2neighbors[region] = peers
+
+        if max_peers > 0 and len(peers) > max_peers:
+            return reg_choice_rng.choice(peers, max_peers) # TODO: random selection
+        else:
+            return peers
+
+
 
     def __repr__ (self):
         s=""
@@ -132,4 +231,6 @@ class Infrastructure:
             for n in self.region_nodes[r]:
                 s += repr(n) + "\n"
         return s
+
+
 

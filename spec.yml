@@ -11,35 +11,92 @@ classes:
     max_resp_time: 5.0
     utility: 0.5 
     arrival_weight: 1.0
+
 nodes:
-  - name: edge1
-    region: edge
+  - name: edge_node_a
+    region: edge_zone_1
     memory: 2048
-    recharge: 0.0
-    battery_capacity: 1250
-    idle_power_consumption_rate: 1.1 #mAh/sec
-    max_power_consumption_rate: 2.2
-    co2_emission: 5.0 #%
-  - name: edge2
-    region: edge
+    #battery_capacity: 1820 #mAh
+
+    #co2_emission: 5.0 #%
+
+    #initial_soc: 100
+    #battery_voltage: 3.7
+    #idle_power_consumption_watt: 3
+    #max_power_consumption_watt: 7
+    #recharge_green_power_watt: 12
+
+
+  - name: edge_node_b
+    region: edge_zone_1
     memory: 2048
-    policy: basic
-    battery_capacity: 1250
-    #idle_power_consumption_rate: 1.1 #mAh/sec
-    #max_power_consumption_rate: 2.2
-    recharge: 0.0
-  - name: edge3
-    region: edge
+    #policy: basic
+    #battery_capacity: 1820
+
+
+    #initial_soc: 100
+    #battery_voltage: 3.7
+    #idle_power_consumption_watt: 3
+    #max_power_consumption_watt: 7
+    #recharge_green_power_watt: 12
+
+  - name: edge_node_c
+    region: edge_zone_1
     memory: 2048
-    recharge: 0.0
-    battery_capacity: 1250
-    #idle_power_consumption_rate: 1.1 #mAh/sec
-    #max_power_consumption_rate: 2.2
-  - name: cloud1
-    region: cloud
+    #battery_capacity: 1820
+
+
+    #initial_soc: 100
+    #battery_voltage: 3.7
+    #idle_power_consumption_watt: 3
+    #max_power_consumption_watt: 7
+    #recharge_green_power_watt: 12
+
+  - name: edge_node_d
+    region: edge_zone_2
+    memory: 2048
+
+  - name: edge_node_e
+    region: edge_zone_2
+    memory: 2048
+
+  - name: edge_node_f
+    region: edge_zone_2
+    memory: 2048
+
+  - name: cloud_node_a
+    region: cloud_region_a
     cost: 0.00001
     speedup: 1.1
     memory: 32000
+
+  - name: cloud_node_b
+    region: cloud_region_b
+    cost: 0.00001
+    speedup: 1.1
+    memory: 32000
+
+  - name: cloud_node_c
+    region: cloud_region_c
+    cost: 0.00001
+    speedup: 1.1
+    memory: 32000
+
+  - name: dispatcher_a
+    region: cloud_region_a
+    memory: 0
+    policy: dispatcher-policy
+
+  - name: dispatcher_b
+    region: cloud_region_b
+    memory: 0
+    policy: dispatcher-policy
+
+  - name: dispatcher_c
+    region: cloud_region_c
+    memory: 0
+    policy: dispatcher-policy
+
 functions:
   - name: f1
     memory: 1024
@@ -50,11 +107,11 @@ functions:
     duration_mean: 0.120
     duration_scv: 1.0
 arrivals:
-  - node: edge1
+  - node: edge_node_a
     function: f1
     classes:
       - best-effort
     rate: 0.1
-  - node: edge2
+  - node: edge_node_d
     function: f2
     #trace: traces/iat_660323aa6f1012c8eca3c7d8153cb436320b48ed84f82bf3e816b494ad8dfde2
