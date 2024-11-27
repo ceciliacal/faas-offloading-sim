@@ -1,17 +1,23 @@
 import os
+from asyncore import dispatcher
+
 import conf
 import math
 import sys
 import pulp as pl
+
+from infrastructure import Infrastructure
 from optimization import OptProblemParams
+from optimization_carbon_aware import OptCarbonAwareProblemParams
 
 warm_start = False
 
 
-def compute_deadline_satisfaction_probs(params: OptProblemParams):
+def compute_deadline_satisfaction_probs(params: OptCarbonAwareProblemParams):
     deadline_satisfaction_prob_local = {}
     deadline_satisfaction_prob_edge = {}
-    deadline_satisfaction_prob_cloud = {}
+    deadline_satisfaction_prob_cloud = {} #key:(region,f,c) - value:resp_time
+    dispatchers = params.cloud_regions_dipatchers
 
     # TODO: we are assuming exponential distribution
     # Probability of satisfying the deadline
@@ -24,15 +30,22 @@ def compute_deadline_satisfaction_probs(params: OptProblemParams):
             p += (1.0 - params.cold_start_p_local[f]) * (1.0 - math.exp(-1.0 / params.serv_time_local[f] * c.max_rt))
         deadline_satisfaction_prob_local[(f, c)] = p
 
-        p = 0.0
-        tx_time = f.inputSizeMean * 8 / 1000 / 1000 / params.bandwidth_cloud
-        if c.max_rt - params.init_time_cloud[f] - params.offload_time_cloud - tx_time > 0.0:
-            p += params.cold_start_p_cloud[f] * (1.0 - math.exp(-1.0 / params.serv_time_cloud[f] * (
-                        c.max_rt - params.init_time_cloud[f] - params.offload_time_cloud - tx_time)))
-        if c.max_rt - params.offload_time_cloud - tx_time > 0.0:
-            p += (1.0 - params.cold_start_p_cloud[f]) * (1.0 - math.exp(
-                -1.0 / params.serv_time_cloud[f] * (c.max_rt - params.offload_time_cloud - tx_time)))
-        deadline_satisfaction_prob_cloud[(f, c)] = p
+        for region, dispatcher in dispatchers.items():
+            if dispatcher.aggregated_region_memory > 0.0:
+                p = 0.0
+                try:
+                    tx_time = f.inputSizeMean * 8 / 1000 / 1000 / params.bandwidth_cloud[region]
+                    if c.max_rt - params.init_time_cloud[region][f] - params.offload_time_cloud[region] - tx_time > 0.0:
+                        p += params.cold_start_p_cloud[region][f] * (1.0 - math.exp(-1.0 / params.serv_time_cloud[region][f] * (
+                                    c.max_rt - params.init_time_cloud[region][f] - params.offload_time_cloud[region] - tx_time)))
+                    if c.max_rt - params.offload_time_cloud[region] - tx_time > 0.0:
+                        p += (1.0 - params.cold_start_p_cloud[region][f]) * (1.0 - math.exp(
+                            -1.0 / params.serv_time_cloud[region][f] * (c.max_rt - params.offload_time_cloud[region] - tx_time)))
+                except:
+                    pass
+                deadline_satisfaction_prob_cloud[(region.name,f, c)] = p
+            else:
+                deadline_satisfaction_prob_cloud = {rfc: 0 for rfc in params.reg_fun_classes()}
 
         if params.aggregated_edge_memory > 0.0:
             p = 0.0
@@ -52,11 +65,11 @@ def compute_deadline_satisfaction_probs(params: OptProblemParams):
 
     return deadline_satisfaction_prob_local, deadline_satisfaction_prob_cloud, deadline_satisfaction_prob_edge
 
-
-def update_probabilities(params: OptProblemParams, VERBOSE=False):
+def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
     F = params.functions
     C = params.classes
     F_C = [(f, c) for f in F for c in C]
+    dispatchers = params.cloud_regions_dipatchers
 
     EDGE_ENABLED = True if params.aggregated_edge_memory > 0.0 else False
 
@@ -70,13 +83,17 @@ def update_probabilities(params: OptProblemParams, VERBOSE=False):
     x = pl.LpVariable.dicts("X", (F, C), 0, None, pl.LpContinuous)
     y = pl.LpVariable.dicts("Y", (F, C), 0, None, pl.LpContinuous)
     pL = pl.LpVariable.dicts("PExec", (F, C), 0, 1, pl.LpContinuous)
-    pC = pl.LpVariable.dicts("PCloud", (F, C), 0, 1, pl.LpContinuous)
+    pC = {}
     pD = pl.LpVariable.dicts("PDrop", (F, C), 0, 1, pl.LpContinuous)
     if EDGE_ENABLED:
         pE = pl.LpVariable.dicts("PEdge", (F, C), 0, 1, pl.LpContinuous)
+    for region in dispatchers.keys():
+        region_name = region.name
+        pC[region_name] = pl.LpVariable.dicts(f"PCloud_{region_name}", (F, C), 0, 1, pl.LpContinuous)
 
     deadline_satisfaction_prob_local, deadline_satisfaction_prob_cloud, deadline_satisfaction_prob_edge = compute_deadline_satisfaction_probs(
         params)
+    #todo: E(P) * ro_CO2 (fai calcolo E(P))
 
     if VERBOSE > 1:
         print("------------------------------")
@@ -88,16 +105,40 @@ def update_probabilities(params: OptProblemParams, VERBOSE=False):
         print(f"Deadline Sat ProbE: {deadline_satisfaction_prob_edge}")
         print("------------------------------")
 
+        # Build the objective function
     if EDGE_ENABLED:
-        prob += (pl.lpSum([c.utility * params.arrival_rates[(f, c)] * \
-                           (pL[f][c] * deadline_satisfaction_prob_local[(f, c)] + \
-                            pE[f][c] * deadline_satisfaction_prob_edge[(f, c)] + \
-                            pC[f][c] * deadline_satisfaction_prob_cloud[(f, c)]) for f, c in F_C]) - \
-                 pl.lpSum([c.deadline_penalty * params.arrival_rates[(f, c)] * \
-                           (pL[f][c] * (1.0 - deadline_satisfaction_prob_local[(f, c)]) + \
-                            pE[f][c] * (1.0 - deadline_satisfaction_prob_edge[(f, c)]) + \
-                            pC[f][c] * (1.0 - deadline_satisfaction_prob_cloud[(f, c)])) for f, c in F_C]) - \
-                 pl.lpSum([c.drop_penalty * params.arrival_rates[(f, c)] * pD[f][c] for f, c in F_C]), "objUtilCost")
+        prob += (
+            pl.lpSum([
+                c.utility * params.arrival_rates[(f, c)] * (
+                        pL[f][c] * deadline_satisfaction_prob_local[(f, c)] +
+                        pE[f][c] * deadline_satisfaction_prob_edge[(f, c)] +
+                        pl.lpSum([
+                            pC[region.name][f][c] * deadline_satisfaction_prob_cloud[(region.name, f, c)]
+                            for region in dispatchers.keys()
+                        ])
+                )
+                for f, c in F_C
+            ])
+            -
+            pl.lpSum([
+                c.deadline_penalty * params.arrival_rates[(f, c)] * (
+                        pL[f][c] * (1.0 - deadline_satisfaction_prob_local[(f, c)]) +
+                        pE[f][c] * (1.0 - deadline_satisfaction_prob_edge[(f, c)]) +
+                        pl.lpSum([
+                            pC[region.name][f][c] * (1.0 - deadline_satisfaction_prob_cloud[(region.name, f, c)])
+                            for region in dispatchers.keys()
+                        ])
+                )
+                for f, c in F_C
+            ])
+            -
+            pl.lpSum([
+                c.drop_penalty * params.arrival_rates[(f, c)] * pD[f][c]
+                for f, c in F_C
+            ]),
+            "objUtilCost"
+        )
+
     else:
         prob += (pl.lpSum([c.utility * params.arrival_rates[(f, c)] * \
                            (pL[f][c] * deadline_satisfaction_prob_local[(f, c)] + \
@@ -105,15 +146,27 @@ def update_probabilities(params: OptProblemParams, VERBOSE=False):
                  pl.lpSum([c.deadline_penalty * params.arrival_rates[(f, c)] * \
                            (pL[f][c] * (1.0 - deadline_satisfaction_prob_local[(f, c)]) + \
                             pC[f][c] * (1.0 - deadline_satisfaction_prob_cloud[(f, c)])) for f, c in F_C]) - \
-                 pl.lpSum([c.drop_penalty * params.arrival_rates[(f, c)] * pD[f][c] for f, c in F_C]), "objUtilCost")
+                 pl.lpSum([c.drop_penalty * params.arrival_rates[(f, c)] * pD[f][c] for f, c in F_C]),
+                 "objUtilCost")
 
     # Probability
     if EDGE_ENABLED:
         for f, c in F_C:
-            prob += (pL[f][c] + pE[f][c] + pC[f][c] + pD[f][c] == 1.0)
+            prob += (
+                    pL[f][c] +
+                    pE[f][c] +
+                    pl.lpSum([pC[region.name][f][c] for region in dispatchers.keys()]) +
+                    pD[f][c]
+                    == 1.0
+            )
     else:
         for f, c in F_C:
-            prob += (pL[f][c] + pC[f][c] + pD[f][c] == 1.0)
+            prob += (
+                    pL[f][c] +
+                    pl.lpSum([pC[region.name][f][c] for region in dispatchers.keys()]) +
+                    pD[f][c]
+                    == 1.0
+            )
 
     # Memory
     prob += (pl.lpSum(
@@ -139,43 +192,25 @@ def update_probabilities(params: OptProblemParams, VERBOSE=False):
 
     # Max hourly budget
     if params.budget is not None and params.budget > 0.0:
-        prob += (pl.lpSum([params.cloud.cost * params.arrival_rates[(f, c)] * \
-                           pC[f][c] * params.serv_time_cloud[f] * f.memory / 1024 for f, c in
-                           params.fun_classes()]) <= params.budget / 3600)
+        prob += (pl.lpSum([dispatcher.cost * params.arrival_rates[(f, c)] *
+                           pC[region.name][f][c] * params.serv_time_cloud[region][f] * f.memory / 1024
+                           for region, dispatcher in dispatchers.items()
+                           for f, c in params.fun_classes()]) <= params.budget / 3600)
 
+
+    #Proximity matrix
+    #todo: metti proximity matrix
+    region = params.local_node.region
+    for other_region_name, is_neighbor in region.neighbors.items():
+        if not is_neighbor and conf.CLOUD in other_region_name:
+            for f, c in F_C:
+                prob += pC[other_region_name][f][c] == 0.0
 
     print("in update_probabilities: node = ", params.local_node.name,
           ", CO2_datetime = ", params.local_node.co2_footprint.co2_datetime,
           ", CO2_intensity = ", params.local_node.co2_footprint.co2_intensity)
-    # Energy constraint
-    '''
-    soc = params.local_node.battery.soc
-    recharge = params.local_node.battery.recharge_input
-    resources_soc_depletion = params.local_node.battery.resources_soc_depletion
-    offloading_soc_depletion = params.local_node.battery.offloading_soc_depletion
-    available_memory = params.usable_local_memory_coeff * params.local_node.total_memory
-    available_memory_edge_enabled = params.aggregated_edge_memory
 
-    #todo aggiungere co2_emission
-    prob += (soc + recharge -
-             pl.lpSum([f.memory * x[f][c] / available_memory for f, c in F_C]) * resources_soc_depletion -
-             pl.lpSum([2 * f.inputSizeMean * y[f][c] for f, c in F_C]) * offloading_soc_depletion -
 
-             pl.lpSum(
-                 [2 * f.inputSizeMean * params.arrival_rates[(f, c)] * pC[f][c] * params.serv_time_cloud[f] for f, c in
-                  F_C]) * offloading_soc_depletion
-             ) >= 0
-    if EDGE_ENABLED:
-        prob += (soc + recharge -
-                 pl.lpSum(
-                     [f.memory * x[f][c] / available_memory_edge_enabled for f, c in F_C]) * resources_soc_depletion -
-                 pl.lpSum([2 * f.inputSizeMean * y[f][c] for f, c in F_C]) * offloading_soc_depletion -
-                 pl.lpSum(
-                     [(2 * f.inputSizeMean) * params.arrival_rates[(f, c)] * pC[f][c] * params.serv_time_cloud[f] for
-                      f, c in params.fun_classes()]) * offloading_soc_depletion
-                 ) >= 0
-
-    '''
 
     status = solve(prob)
     if status != "Optimal":
@@ -192,17 +227,70 @@ def update_probabilities(params: OptProblemParams, VERBOSE=False):
         shares = {(f, c): pl.value(x[f][c]) for f, c in F_C}
         print(f"Shares: {shares}")
 
-    if EDGE_ENABLED:
+    decision_fc_probability = {}
+    for scheduler_decision in params.possible_decisions:
+        if "EXEC" in scheduler_decision.name:
+            decision_fc_probability[scheduler_decision] = pL
+        elif "EDGE" in scheduler_decision.name:
+            decision_fc_probability[scheduler_decision] = pE if EDGE_ENABLED else 0.0
+        elif "DROP" in scheduler_decision.name:
+            decision_fc_probability[scheduler_decision] = pD
+        elif "CLOUD" in scheduler_decision.name:
+            cloud_key = scheduler_decision.name[len(conf.OFFLOAD_CLOUD_DECISION):].lower()
+            decision_fc_probability[scheduler_decision] = pC[cloud_key]
+
+
+    print(decision_fc_probability)
+
+    probs = {}
+
+    for decision, f_c_probabilities in decision_fc_probability.items():
+        for function, classes in f_c_probabilities.items():
+            for service_class, probability in classes.items():
+                # Create the key based on function and service class
+                key = (function, service_class)
+
+                # If the key does not exist, initialize it with an empty dictionary
+                if key not in probs:
+                    probs[key] = {}
+
+                # Add the decision and its corresponding probability to the value dictionary
+                probs[key][decision] = probability.varValue
+    print(probs)
+
+
+    '''
+        for f, c in F_C:
+        bho[sched_dec for sched_dec in params.possible_decisions if "EXEC" in sched_dec.name]:(pl.value(pL[f][c]))
+        bho.append(pl.value(pE[f][c]))
+        bho.append(pl.value(pD[f][c]))
+        for region in dispatchers.keys():
+            bho.append(pl.value(pC[region][f][c]))
+
+
+
+    if EDGE_ENABLED:    #todo modifica come restituisci vettore probs
         probs = {(f, c): [pl.value(pL[f][c]),
                           pl.value(pC[f][c]),
                           pl.value(pE[f][c]),
                           pl.value(pD[f][c])] for f, c in F_C}
+
+        probs = {
+            (f, c): {
+                decision: prob
+                for decision, prob in zip(
+                    params.possible_decisions,
+                    pl.value(pC[f][c])
+                )
+            } for f, c in F_C}
+
+
     else:
         probs = {(f, c): [pl.value(pL[f][c]),
                           pl.value(pC[f][c]),
                           0.0,
                           pl.value(pD[f][c])] for f, c in F_C}
-
+    '''
     # Expected cost
     # ec = 0
     # ctput = 0
@@ -214,11 +302,30 @@ def update_probabilities(params: OptProblemParams, VERBOSE=False):
 
     # Workaround to avoid numerical issues
     for f, c in F_C:
+
+        s = 0
+        for decision, probability in probs[(f, c)].items():
+            s = s + probability
+
+        if s > 0:
+        # Scale each probability variable or expression by dividing through normalization
+            probs[(f, c)] = {decision: prob / s for decision, prob in probs[(f, c)].items()}
+
+        # Optional verbose logging
+        if VERBOSE > 0:
+            print(f"{f}-{c}: {probs[(f, c)]}")
+
+    return probs
+
+'''
+    for f, c in F_C:
         s = sum(probs[(f, c)])
         probs[(f, c)] = [x / s for x in probs[(f, c)]]
         if VERBOSE > 0:
             print(f"{f}-{c}: {probs[(f, c)]}")
     return probs
+'''
+
 
 
 def solve(problem):

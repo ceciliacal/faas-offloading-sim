@@ -6,7 +6,7 @@ import optimizer_nonlinear
 from optimization import OptProblemParams
 from optimization_carbon_aware import OptCarbonAwareProblemParams
 from policy import Policy, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS, \
-    SchedulerDecisionMultiRegionManager, SchedulerDecisionMultiRegion
+    SchedulerDecisionMultiRegionManager, SchedulerDecisionMultiRegion, SchedulerDecision
 
 ADAPTIVE_EDGE_MEMORY_COEFFICIENT = True
 
@@ -69,7 +69,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
         self.arrival_rates = {}
         self.estimated_service_time = {}
-        self.estimated_service_time_cloud = {region: {} for region in self.cloud_regions}
+        self.estimated_service_time_cloud = {}
         self.cold_start_prob_local = {}
 
         self.cold_start_prob_cloud = {(region, f): {} for region in self.cloud_regions for f in simulation.functions}
@@ -98,8 +98,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                                 + [f"{region.name}" for region in self.cloud_regions])
 
         print("probability_tag: ", self.probability_tag)
-        self.possible_decisions = list(decision.name if isinstance(decision, SchedulerDecisionMultiRegion) else str(decision)
-        for decision in SchedulerDecisionMultiRegionManager.get_decisions().values())
+        self.possible_decisions = list(SchedulerDecision)
 
         self.probs = {
             (f, c): {
@@ -113,41 +112,6 @@ class ProbabilisticCarbonAwarePolicy(Policy):
             for c in simulation.classes
         }
 
-        '''
-             self.probs = {
-            (f, c):#[
-                {"decision": decision, "probability": prob}
-                for decision, prob in zip(
-                    self.possible_decisions,
-                    [0.5, 0.5, 0.0] + [0.0] * self.num_regions_cloud
-                )
-            #]
-            for f in simulation.functions
-            for c in simulation.classes
-
-        }
-        '''
-
-
-
-        # Build a decision-to-index mapping for cloud region probabilities
-        '''
-        self.decision_to_index = {}
-        for key, value in self.probs.items():
-            for i, decision_entry in enumerate(value):
-                if conf.CLOUD in decision_entry["decision"]:
-                    region_index = int(decision_entry["decision"].split("_")[-1])
-                    self.decision_to_index[region_index] = i
-        '''
-
-
-        '''
-        self.probs = {
-            (f, c): [0.5, 0.5, 0.0] + [0.0] * self.num_regions_cloud
-            for f in simulation.functions
-            for c in simulation.classes
-        }
-        '''
 
         print("probs: ", self.probs)
 
@@ -157,14 +121,15 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         #probabilities = {item['decision']: item['probability'] for item in self.probs[(f, c)].copy()}
         # If the request has already been offloaded, cannot offload again
         if len(offloaded_from) > 0 and not self.allow_multi_offloading:
-            for decision, prob in probabilities:
-                if conf.EDGE or conf.CLOUD in decision:
-                    prob = 0
+            probabilities[SchedulerDecision.OFFLOAD_EDGE] = 0
+            for cloud_decision, prob in probabilities.items():
+                if conf.OFFLOAD_CLOUD_DECISION in cloud_decision.name:
+                    probabilities[cloud_decision] = 0
 
             # Renormalize probabilities if any have been zeroed out
             s = sum(probabilities.values())
             if s <= 0.0:
-                return (SchedulerDecisionMultiRegion.DROP, None)
+                return (SchedulerDecision.DROP, None)
             else:
                 #new_probs = [x / s for x in probabilities.values()]
                 probabilities = self.renormalize_probs(probabilities, s)
@@ -172,20 +137,20 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         #decision = self.rng.choice(self.possible_decisions, p=probabilities)
         # Convert dictionary to list in the correct order for rng.choice
         decision = self.rng.choice(list(probabilities.keys()), p=list(probabilities.values()))
-        if decision == SchedulerDecisionMultiRegion.EXEC:
+        if decision == SchedulerDecision.EXEC:
             self.curr_local_reqs += 1
 
         # Local rejection due to lack of resources
-        if decision == SchedulerDecisionMultiRegion.EXEC and not self.can_execute_locally(f):
+        if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
             self.curr_local_blocked_reqs += 1
 
             if self.local_rejection_fallback == "fgcs24" or self.local_rejection_fallback == "reschedule":
                 probabilities[conf.EXEC] = 0
 
                 if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
-                    for decision, prob in probabilities:
-                        if conf.CLOUD in decision:
-                            prob = 0
+                    for cloud_decision, prob in probabilities.items():
+                        if conf.OFFLOAD_CLOUD_DECISION in cloud_decision.name:
+                            probabilities[cloud_decision] = 0
 
                 s = sum(probabilities.values())
                 if not s > 0.0:
@@ -197,35 +162,34 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
                         cloud_decisions = []
                         cloud_probs = []
-                        for decision, prob in probabilities:
-                            if conf.CLOUD in decision:
-                                cloud_decisions.append(decision)
+                        for cloud_decision, prob in probabilities.items():
+                            if conf.OFFLOAD_CLOUD_DECISION in cloud_decision.name:
+                                cloud_decisions.append(cloud_decision)
                                 cloud_probs.append(prob)
 
-                        decision = self.rng_cloud_region(cloud_decisions, p=cloud_probs)
+                        cloud_region_decision = self.rng_cloud_region(cloud_decisions, p=cloud_probs)
 
-                        return (decision, None)
+                        return (cloud_region_decision, None)
                     else:
-                        return (SchedulerDecisionMultiRegion.DROP, None)
+                        return (SchedulerDecision.DROP, None)
 
                 probabilities = self.renormalize_probs(probabilities, s)
-                #decision_probs = [probabilities[tag] for tag in self.probability_tag]
                 return (self.rng.choice(list(probabilities.keys), p=list(probabilities.values)), None)
 
             elif self.local_rejection_fallback == "drop":
-                return (SchedulerDecisionMultiRegion.DROP, None)
+                return (SchedulerDecision.DROP, None)
             else:
                 raise RuntimeError(f"Unknown local rejection fallback: {self.local_rejection_fallback}")
 
 
-        if conf.CLOUD in decision and self.strict_budget_enforce and \
+        if conf.OFFLOAD_CLOUD_DECISION in decision.name and self.strict_budget_enforce and \
                 self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
-            return (SchedulerDecisionMultiRegion.DROP, None)
+            return (SchedulerDecision.DROP, None)
 
         return (decision, None)
 
     def renormalize_probs(self, probabilities, s):
-        for decision, prob in probabilities:
+        for decision, prob in probabilities.items():
             probabilities[decision] = prob / s
         return probabilities
 
@@ -237,6 +201,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         if arrivals > 0.0:
             # trigger the optimizer
             self.update_probabilities()
+            #pass
 
         self.stats_snapshot = self.simulation.stats.to_dict()
         self.last_update_time = self.simulation.t
@@ -471,6 +436,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
         params = OptCarbonAwareProblemParams(self.node,
                                   self.cloud_dispatchers,   #todo: modifica
+                                             self.possible_decisions,
                                   self.simulation.functions,
                                   self.simulation.classes,
                                   self.arrival_rates,

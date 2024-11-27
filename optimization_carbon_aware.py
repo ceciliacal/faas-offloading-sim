@@ -5,6 +5,7 @@ from faas import Node, Function, QoSClass
 class OptCarbonAwareProblemParams:
     local_node: Node
     cloud_regions_dipatchers: dict #dispatchers dictionary
+    possible_decisions: list
     functions: [Function]
     classes: [QoSClass]
     arrival_rates: dict
@@ -25,7 +26,14 @@ class OptCarbonAwareProblemParams:
     init_time_edge: dict = None
     bandwidth_edge: float = float("inf")
 
+
     def fun_classes(self):
         for f in self.functions:
             for c in self.classes:
                 yield (f,c)
+
+    def reg_fun_classes(self):
+        for r in self.cloud_regions_dipatchers.keys():
+            for f in self.functions:
+                for c in self.classes:
+                    yield (r.name,f,c)

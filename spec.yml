@@ -23,9 +23,7 @@ nodes:
     #initial_soc: 100
     #battery_voltage: 3.7
     #idle_power_consumption_watt: 3
-    #max_power_consumption_watt: 7
-    #recharge_green_power_watt: 12
-
+    processing_power_consumption_watt: 7 #Watt
 
   - name: edge_node_b
     region: edge_zone_1
@@ -37,7 +35,7 @@ nodes:
     #initial_soc: 100
     #battery_voltage: 3.7
     #idle_power_consumption_watt: 3
-    #max_power_consumption_watt: 7
+    max_power_consumption_watt: 7
     #recharge_green_power_watt: 12
 
   - name: edge_node_c
@@ -49,20 +47,23 @@ nodes:
     #initial_soc: 100
     #battery_voltage: 3.7
     #idle_power_consumption_watt: 3
-    #max_power_consumption_watt: 7
+    max_power_consumption_watt: 7
     #recharge_green_power_watt: 12
 
   - name: edge_node_d
     region: edge_zone_2
     memory: 2048
+    max_power_consumption_watt: 7
 
   - name: edge_node_e
     region: edge_zone_2
     memory: 2048
+    max_power_consumption_watt: 7
 
   - name: edge_node_f
     region: edge_zone_2
     memory: 2048
+    max_power_consumption_watt: 7
 
   - name: cloud_node_a
     region: cloud_region_a

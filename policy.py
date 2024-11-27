@@ -8,9 +8,57 @@ COLD_START_PROB_INITIAL_GUESS = 0.0
 
 class SchedulerDecision(Enum):
     EXEC = 1
-    OFFLOAD_CLOUD = 2
+    #OFFLOAD_CLOUD = 2
     OFFLOAD_EDGE = 3
     DROP = 4
+
+def add_enum_members(enum_class, regions:list):
+    """
+    Dynamically adds new members to an existing Enum class by creating a new Enum.
+
+    Args:
+        enum_class: The existing Enum class.
+        new_members: A dictionary of new members to add, where the key is the name, and the value is the value.
+
+    Returns:
+        A new Enum class with the added members.
+    """
+    new_members = {}
+    start_index = max(member.value for member in enum_class)
+
+    # Add dynamic cloud offloading options
+    for region in regions:
+        if region.is_cloud():
+            start_index = start_index + 1
+            decision_key = conf.OFFLOAD_CLOUD_DECISION + region.name.upper()
+            new_members[decision_key] = start_index
+
+    for name, value in new_members.items():
+        # Ensure the member name doesn't already exist
+        if name in enum_class.__members__:
+            raise ValueError(f"Member '{name}' already exists in {enum_class.__name__}.")
+
+        # Create a new member bypassing Enum's immutability restrictions
+        member = object.__new__(enum_class)
+        member._name_ = name
+        member._value_ = value
+
+        # Update Enum's internal mappings
+        setattr(enum_class, name, member)
+        enum_class._member_names_.append(name)
+        enum_class._member_map_[name] = member
+
+
+    print(enum_class)
+
+    '''
+     # Combine existing members with new ones
+    existing_members = {member.name: member.value for member in enum_class}
+    all_members = {**existing_members, **new_members}
+
+    # Create a new Enum class with the updated members
+    return Enum(enum_class.__name__, all_members)
+    '''
 
 
 class SchedulerDecisionMultiRegion(Enum):
@@ -31,23 +79,24 @@ class SchedulerDecisionMultiRegionManager:
         return cls._instance
 
     def _initialize_decisions(self, regions: list):
-        """Initialize decisions, including dynamic cloud offloading options."""
         # Fixed decisions
         self._decisions = {
-            SchedulerDecisionMultiRegion.EXEC.value: SchedulerDecisionMultiRegion.EXEC,
-            SchedulerDecisionMultiRegion.OFFLOAD_EDGE.value: SchedulerDecisionMultiRegion.OFFLOAD_EDGE,
-            SchedulerDecisionMultiRegion.DROP.value: SchedulerDecisionMultiRegion.DROP
+            SchedulerDecisionMultiRegion.EXEC.name: SchedulerDecisionMultiRegion.EXEC.value,
+            SchedulerDecisionMultiRegion.OFFLOAD_EDGE.name: SchedulerDecisionMultiRegion.OFFLOAD_EDGE.value,
+            SchedulerDecisionMultiRegion.DROP.name: SchedulerDecisionMultiRegion.DROP.value
         }
+
+        start_index = max(self._decisions.values())
 
         # Add dynamic cloud offloading options
         for region in regions:
             if region.is_cloud():
-                decision_key = f"OFFLOAD_{region.name.upper()}"
-                self._decisions[decision_key] = decision_key
+                start_index = start_index +1
+                decision_key = conf.OFFLOAD_CLOUD_DECISION+region.name.upper()
+                self._decisions[decision_key] = start_index
 
     @classmethod
     def get_decisions(cls):
-        """Access the singleton instance's decisions."""
         if cls._instance is None:
             raise ValueError("SchedulerDecisionManager has not been initialized with cloud regions.")
         return cls._instance._decisions
@@ -198,6 +247,7 @@ class CloudRegionDispatcherRandomPolicy(Policy):
         self.rng = simulation.cloud_node_random_choice
         node.aggregated_region_memory = sum(cloud_node.curr_memory for cloud_node in self.cloud_region_nodes)
         node.avg_speedup = (sum(cloud_node.speedup for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
+        node.aggregated_region_cost = (sum(cloud_node.cost for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
 
     def update(self):
         self.node.aggregated_region_memory = sum(cloud_node.curr_memory for cloud_node in self.cloud_region_nodes)
@@ -238,7 +288,7 @@ class CloudRegionDispatcherRandomPolicy(Policy):
         selected_node = self.rng.choice(self.cloud_region_nodes)
         print("[Random]: selected cloud node -> ", selected_node.name)
         #idem qui va decision offload_cloud_region_name ... etc
-        decision = "OFFLOAD_"+self.region.name.upper() #todo: mandare a nodo cloud interno a regione!
+        decision = conf.OFFLOAD_CLOUD_DECISION+self.region.name.upper() #todo: mandare a nodo cloud interno a regione!
         print("[Random]: decision -> ", decision)
         return (decision, selected_node)
 

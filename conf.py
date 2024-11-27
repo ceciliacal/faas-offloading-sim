@@ -59,6 +59,7 @@ EDGE_NEIGHBORS_PER_REGION = "edge_neighbors_per_region"
 DISPATCHER = "dispatcher"
 EXEC = "EXEC"
 DROP = "DROP"
+OFFLOAD_CLOUD_DECISION = "OFFLOAD_CLOUD_"
 
 import configparser
 

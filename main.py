@@ -49,6 +49,7 @@ def read_spec_file(spec_file_name, infra, config):
             speedup = n["speedup"] if "speedup" in n else 1.0
             cost = n["cost"] if "cost" in n else 0.0
             custom_policy = n["policy"] if "policy" in n else None
+            max_power_consumption_watt = n["max_power_consumption_watt"] if "max_power_consumption_watt" in n else 7.0 #Watt
 
             # Compute carbon emissions
             carbon_emission = co2_footprint.CO2footprint(node_name)
@@ -143,6 +144,7 @@ def read_traces_file(filename, col_datetime, col_co2intensity, start_date, end_d
     weekly_df = total_df[(total_df[col_datetime].dt.date >= start_date) & (total_df[col_datetime].dt.date <= end_date)]
     df = weekly_df[[col_datetime, col_co2intensity]]
     return df
+
 
 def regions_setup(config):
 

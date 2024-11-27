@@ -60,7 +60,9 @@ class Node:
         self.warm_pool = ContainerPool()
         self.kv_store = {}
 
+        self.max_power_consumption = 0.0
         self.co2_footprint = co2_footprint
+
 
     def __repr__(self):
         return self.name
@@ -82,12 +84,15 @@ class Dispatcher(Node):
                          cost, custom_sched_policy, peer_exposed_memory_fraction)
         self.aggregated_region_memory = 0.0
         self.avg_speedup = 0.0
+        self.aggregated_region_cost = 0.
+
 
         self.avg_node2completions:dict = {}  #key= function, value = avg #completions
         self.avg_execution_time_sum:dict = {}    #key = function, value = avg exec time sum
         self.avg_cold_starts:dict = {}   #key = function, value = avg #cold starts
 
         self.decision = "OFFLOAD_"+region.name.upper()
+
 
 @dataclass
 class QoSClass:

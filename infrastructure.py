@@ -7,7 +7,7 @@ class Region:
         self.name = name
         self.co2_traces_filename = co2_traces_filename
         self.datetime_co2intensity = datetime_co2intensity
-        self.neighbors = neighbors
+        self.neighbors = neighbors #dict with Region as key
         self.latency_sec = latency_sec
         self.bandwidth_mbps = bandwidth_mbps
 
@@ -46,6 +46,7 @@ class Infrastructure:
         self.num_regions_cloud = len(self.cloud_regions)
         self.num_edge_zones = len(self.edge_zones)
         self.region2neighbors = self.get_regions_neighbors(regions)
+        self.set_region_neighbors(regions)
 
         self.cloud_nodes = []
         self.edge_nodes = []
@@ -98,6 +99,11 @@ class Infrastructure:
                 regions_neighbors[region.default_cloud][region_name] = True
 
         return regions_neighbors
+
+    def set_region_neighbors(self, regions_list:list):
+        for region in regions_list:
+            region.neighbors = self.region2neighbors[region.name]
+
 
     def get_latency (self, x: Node, y: Node):
         if x == y:
@@ -187,7 +193,7 @@ class Infrastructure:
     def get_nodes_by_region (self, reg):
         return self.region_nodes[reg]
 
-    def get_neighbors_node (self, node, node_choice_rng, max_peers=3):
+    def get_neighbors_node (self, node, node_choice_rng, max_peers=2):
         if node in self.node2neighbors:
             peers = self.node2neighbors[node]
         else:

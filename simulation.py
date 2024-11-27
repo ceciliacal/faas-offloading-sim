@@ -1,10 +1,12 @@
 import configparser
 import sys
 import time
+from asyncore import dispatcher
 from heapq import heappop, heappush
 
 from numpy.random import SeedSequence, default_rng
 
+import conf
 import policy
 import probabilistic
 import probabilistic_carbon_aware
@@ -12,7 +14,7 @@ import stateful
 from arrivals import ArrivalProcess
 from faas import *
 from infrastructure import *
-from policy import SchedulerDecision
+from policy import SchedulerDecision, SchedulerDecisionMultiRegion, add_enum_members
 from stateful import key_locator
 from statistics import Stats
 from utils import plot
@@ -154,8 +156,8 @@ class Simulation:
                              default_rng(child_seeds[i + 2]))
                 i += 3
 
-        self.max_neighbors = self.config.getint(conf.SEC_SIM, conf.EDGE_NEIGHBORS, fallback=3)
-        self.max_edge_neighbors_per_region = self.config.getint(conf.SEC_CARBON, conf.EDGE_NEIGHBORS, fallback=3)
+        self.max_neighbors = self.config.getint(conf.SEC_SIM, conf.EDGE_NEIGHBORS, fallback=2)
+        self.max_edge_neighbors_per_region = self.config.getint(conf.SEC_CARBON, conf.EDGE_NEIGHBORS, fallback=2)
 
         # Other params
         self.init_time = {}
@@ -173,7 +175,7 @@ class Simulation:
 
         for node in self.infra.get_nodes(ignore_non_processing=False):
             if node.speedup > 0:
-                if conf.DISPATCHER in node.name:
+                if isinstance(node,Dispatcher):
                     # Use average regional initialization time for dispatcher nodes in cloud regions
                     speedup = avg_regional_init_time[node.region]
                 else:
@@ -223,8 +225,7 @@ class Simulation:
             return stateful.StateAwareOffloadingPolicy(self, node)
         elif configured_policy == "state-aware-always-offload":
             return stateful.AlwaysOffloadStatefulPolicy(self, node)
-        elif configured_policy == "probabilistic-energy-aware":
-            policy.SchedulerDecisionMultiRegionManager(self.infra.regions)
+        elif configured_policy == "probabilistic-carbon-aware":
             return probabilistic_carbon_aware.ProbabilisticCarbonAwarePolicy(self, node)
         elif configured_policy == "dispatcher-policy":
             return policy.CloudRegionDispatcherRandomPolicy(self, node)
@@ -257,6 +258,8 @@ class Simulation:
         self.node2policy = {}
 
         self.expiration_timeout = self.config.getfloat(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, fallback=600)
+
+        add_enum_members(SchedulerDecision, self.infra.regions)
 
 
         # Policy
@@ -560,7 +563,7 @@ class Simulation:
         # Policy
         sched_decision, target_node = node_policy.schedule(f, c, event.offloaded_from)
 
-        if sched_decision == SchedulerDecision.EXEC: #todo sistemare qua perche SchedulerDecision.EXEC dà 1 !!!
+        if sched_decision == SchedulerDecision.EXEC:
             duration, data_access_time = self.next_function_duration(f, n)
             # check warm or cold
             if f in n.warm_pool:
@@ -568,7 +571,8 @@ class Simulation:
                 init_time = 0
             else:
                 self.stats.update_memory_usage(event.node, self.t)
-                assert (n.curr_memory >= f.memory)
+                if n.curr_memory >= f.memory:
+                    assert (n.curr_memory >= f.memory)
                 n.curr_memory -= f.memory
                 self.stats.cold_starts[(f, n)] += 1
 
@@ -587,24 +591,7 @@ class Simulation:
             self.stats.penalty += c.drop_penalty
             if event.offloaded_from is not None and len(event.offloaded_from) > 0:
                 self.stats.dropped_offloaded[(f, c, n)] += 1
-        elif sched_decision == SchedulerDecision.OFFLOAD_CLOUD:
-            if target_node is not None:
-                remote_node = target_node
-            else:
-                #todo: choose dispatcher of neighbor region
-                # Pick the closest cloud node TODO SCELTA NODO X OFFLOAD_CLOUD
-                nodes_w_lat = [(_n, self.infra.get_latency(n, _n)) for _n in self.infra.get_cloud_nodes()]
-                if len(nodes_w_lat) < 1:
-                    remote_node = None
-                else:
-                    remote_node = sorted(nodes_w_lat, key=lambda x: x[1])[0][0]
-            if remote_node is None:
-                # drop
-                self.stats.dropped_reqs[(f, c, n)] += 1
-                self.stats.penalty += c.drop_penalty
-            else:
-                self.stats.offloaded[(f, c, n)] += 1
-                self.do_offload(event, remote_node)
+
         elif sched_decision == SchedulerDecision.OFFLOAD_EDGE:
             if target_node is not None:
                 remote_node = target_node
@@ -617,7 +604,32 @@ class Simulation:
             else:
                 self.stats.offloaded[(f, c, n)] += 1
                 self.do_offload(event, remote_node)
+        else:   #OFFLOAD_CLOUD
+            if target_node is not None:
+                remote_node = target_node
+            else:
+                region_name = sched_decision.name[len(conf.OFFLOAD_CLOUD_DECISION):].lower()
+                remote_node = None
+                for dispatcher in self.infra.dispatchers:
+                    if dispatcher.region.name == region_name:
+                        remote_node = dispatcher
+                        break
 
+                '''
+                nodes_w_lat = [(_n, self.infra.get_latency(n, _n)) for _n in self.infra.get_cloud_nodes()]
+                if len(nodes_w_lat) < 1:
+                    remote_node = None
+                else:
+                    remote_node = sorted(nodes_w_lat, key=lambda x: x[1])[0][0]
+                '''
+
+            if remote_node is None:
+                # drop
+                self.stats.dropped_reqs[(f, c, n)] += 1
+                self.stats.penalty += c.drop_penalty
+            else:
+                self.stats.offloaded[(f, c, n)] += 1
+                self.do_offload(event, remote_node)
         # Schedule next (if this is an external arrival)
         if external:
             self.__schedule_next_arrival(n, arv_proc)
