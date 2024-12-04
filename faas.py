@@ -47,6 +47,9 @@ class ContainerPool:
 
 class Node:
     def __init__(self, name, memory, speedup, region, co2_footprint,
+                 processing_power_consumption,
+                 tx_energy_consumption,
+                 rx_energy_consumption,
                  cost=0.0, custom_sched_policy=None, peer_exposed_memory_fraction=1.0):
         self.name = name
         self.total_memory = memory
@@ -60,8 +63,11 @@ class Node:
         self.warm_pool = ContainerPool()
         self.kv_store = {}
 
-        self.max_power_consumption = 0.0
         self.co2_footprint = co2_footprint
+
+        self.processing_power_consumption = processing_power_consumption / 1000   #kWatt
+        self.tx_energy_consumption = tx_energy_consumption  / 1e9            #Joule/byte
+        self.rx_energy_consumption = rx_energy_consumption  / 1e9
 
 
     def __repr__(self):
@@ -79,17 +85,27 @@ class Node:
 
 class Dispatcher(Node):
     def __init__(self, name, memory, speedup, region, co2_footprint,
+                 processing_power_consumption,
+                 tx_energy_consumption,
+                 rx_energy_consumption,
                  cost=0.0, custom_sched_policy="dispatcher-policy", peer_exposed_memory_fraction=0.0):
+
         super().__init__(name, memory, speedup, region, co2_footprint,
+                         processing_power_consumption,
+                         tx_energy_consumption,
+                         rx_energy_consumption,
                          cost, custom_sched_policy, peer_exposed_memory_fraction)
         self.aggregated_region_memory = 0.0
         self.avg_speedup = 0.0
-        self.aggregated_region_cost = 0.
-
+        self.aggregated_region_cost = 0.0
 
         self.avg_node2completions:dict = {}  #key= function, value = avg #completions
         self.avg_execution_time_sum:dict = {}    #key = function, value = avg exec time sum
         self.avg_cold_starts:dict = {}   #key = function, value = avg #cold starts
+
+        self.avg_processing_power_consumption = 0.0
+        self.avg_tx_energy_consumption = 0.0
+        self.avg_rx_energy_consumption = 0.0
 
         self.decision = "OFFLOAD_"+region.name.upper()
 
@@ -126,7 +142,9 @@ class Function:
     initMean: float = 0.500
     inputSizeMean: float = 100
     accessed_keys: [] = field(default_factory=lambda: [])
-    max_data_access_time: float = None 
+    max_data_access_time: float = None
+    outputSizeMean: float = 10
+
     
     def __repr__ (self):
         return self.name

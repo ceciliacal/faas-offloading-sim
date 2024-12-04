@@ -40,7 +40,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         for region in self.cloud_regions:
                     self.cloud_nodes[region] = [n for n in self.simulation.infra.get_nodes_by_region(region) if conf.DISPATCHER not in n.name]
 
-        print("cloud_dispatchers: ", self.cloud_dispatchers)
+        #print("cloud_dispatchers: ", self.cloud_dispatchers)
 
         self.local_cold_start_estimation = ColdStartEstimation.from_string(
             self.simulation.config.get(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY,
@@ -94,10 +94,14 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         self.edge_bw = float("inf")
         self.cold_start_prob_edge = {}
 
+        self.aggregated_edge_power_consumption = 0.0
+        self.aggregated_edge_energy_tx = 0.0
+        self.aggregated_edge_energy_rx = 0.0
+
         self.probability_tag = (["local", "edge", "drop"]
                                 + [f"{region.name}" for region in self.cloud_regions])
 
-        print("probability_tag: ", self.probability_tag)
+        #print("probability_tag: ", self.probability_tag)
         self.possible_decisions = list(SchedulerDecision)
 
         self.probs = {
@@ -113,7 +117,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         }
 
 
-        print("probs: ", self.probs)
+        #print("probs: ", self.probs)
 
 
     def schedule(self, f, c, offloaded_from):
@@ -314,7 +318,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         self.estimated_service_time_cloud = {}
 
         for f in self.simulation.functions:
-            if stats.node2completions[(f, self.node)] > 0: #todo qui ci vanno exec time esposti dal dispatcher
+            if stats.node2completions[(f, self.node)] > 0:
                 self.estimated_service_time[f] = stats.execution_time_sum[(f, self.node)] / \
                                                  stats.node2completions[(f, self.node)]
             else:
@@ -355,9 +359,24 @@ class ProbabilisticCarbonAwarePolicy(Policy):
             neighbor_probs, neighbors = self._get_edge_peers_probabilities()
             if len(neighbors) == 0:
                 self.aggregated_edge_memory = 0
+                self.aggregated_edge_power_consumption = 0
+                self.aggregated_edge_energy_tx = 0
+                self.aggregated_edge_energy_rx = 0
             else:
                 self.aggregated_edge_memory = max(1, sum([x.curr_memory * x.peer_exposed_memory_fraction for x in
                                                           neighbors]))
+
+                p = 0
+                tx = 0
+                rx = 0
+                num = len(neighbors)
+                for neighbor in neighbors:
+                    p = p + neighbor.processing_power_consumption
+                    tx = tx + neighbor.tx_energy_consumption
+                    rx = rx + neighbor.rx_energy_consumption
+                self.aggregated_edge_power_consumption = p / num
+                self.aggregated_edge_energy_tx = tx / num
+                self.aggregated_edge_energy_rx = rx / num
 
             self.edge_rtt = sum(
                 [self.simulation.infra.get_latency(self.node, x) * prob for x, prob in zip(neighbors, neighbor_probs)])
@@ -380,13 +399,16 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
             self.estimate_edge_cold_start_prob(stats, neighbors, neighbor_probs)
 
+
+            #todo: self.aggregated power consumption, co2, energy tx & rx
+
     def estimate_edge_cold_start_prob(self, stats, neighbors, neighbor_probs):
         peer_probs, peers = self._get_edge_peers_probabilities()
 
         if self.edge_cold_start_estimation == ColdStartEstimation.PACS:
             for f in self.simulation.functions:
                 total_offloaded_rate = max(0.001, \
-                                           sum([self.arrival_rates.get((f, x), 0.0) * self.probs[(f, x)][3] for x in
+                                           sum([self.arrival_rates.get((f, x), 0.0) * self.probs[(f, x)][SchedulerDecision.OFFLOAD_EDGE] for x in
                                                 self.simulation.classes]))
                 props1, _ = perfmodel.get_sls_warm_count_dist(total_offloaded_rate,
                                                               self.estimated_service_time_edge[f],
@@ -435,8 +457,8 @@ class ProbabilisticCarbonAwarePolicy(Policy):
             self.aggregated_edge_memory = 0
 
         params = OptCarbonAwareProblemParams(self.node,
-                                  self.cloud_dispatchers,   #todo: modifica
-                                             self.possible_decisions,
+                                  self.cloud_dispatchers,
+                                  self.possible_decisions,
                                   self.simulation.functions,
                                   self.simulation.classes,
                                   self.arrival_rates,
@@ -455,7 +477,11 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                                   self.edge_rtt,
                                   self.cold_start_prob_edge,
                                   self.init_time_edge,
-                                  self.edge_bw)
+                                  self.edge_bw,
+                                  self.aggregated_edge_power_consumption,
+                                  self.aggregated_edge_energy_tx,
+                                  self.aggregated_edge_energy_rx
+        )
 
         opt = self.get_optimizer()
         new_probs = opt.update_probabilities(params, self.simulation.verbosity)
@@ -515,7 +541,8 @@ class OfflineProbabilisticCarbonAwarePolicy(ProbabilisticCarbonAwarePolicy):
                                   self.edge_rtt,
                                   self.cold_start_prob_edge,
                                   self.init_time_edge,
-                                  self.edge_bw)
+                                  self.edge_bw
+                                  )
 
         self.probs = self.get_optimizer().update_probabilities(params, self.simulation.verbosity)
 

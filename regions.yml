@@ -4,9 +4,6 @@ regions:  #cloud regions
     neighbors:
       - "cloud_region_b"
       #- "cloud_region_c"
-    energy_tx: 5 #microJ/byte
-    energy_rx: 2.5 #microJ/byte
-
     latency_sec:
       cloud_region_a: 0.001
       cloud_region_b: 0.020

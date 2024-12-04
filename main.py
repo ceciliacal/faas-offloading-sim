@@ -49,7 +49,9 @@ def read_spec_file(spec_file_name, infra, config):
             speedup = n["speedup"] if "speedup" in n else 1.0
             cost = n["cost"] if "cost" in n else 0.0
             custom_policy = n["policy"] if "policy" in n else None
-            max_power_consumption_watt = n["max_power_consumption_watt"] if "max_power_consumption_watt" in n else 7.0 #Watt
+            processing_power_consumption = n["processing_power_consumption"] if "processing_power_consumption" in n else 0.0
+            tx_energy_consumption = n["tx_energy_consumption"] if "tx_energy_consumption" in n else 0.0
+            rx_energy_consumption = n["rx_energy_consumption"] if "rx_energy_consumption" in n else 0.0
 
             # Compute carbon emissions
             carbon_emission = co2_footprint.CO2footprint(node_name)
@@ -57,6 +59,9 @@ def read_spec_file(spec_file_name, infra, config):
             # Determine node type
             NodeClass = faas.Dispatcher if conf.DISPATCHER in node_name else faas.Node
             node = NodeClass(node_name, memory, speedup, reg, carbon_emission,
+                             processing_power_consumption,
+                             tx_energy_consumption,
+                             rx_energy_consumption,
                              cost=cost,
                              custom_sched_policy=custom_policy,
                              peer_exposed_memory_fraction=peer_exposed_memory_fraction)
@@ -84,9 +89,11 @@ def read_spec_file(spec_file_name, infra, config):
                 assert (p <= 1.0)
                 assert (p >= 0.0)
                 keys.append((key, p))
+            output_mean = f["output_mean"] if "output_mean" in f else 256
 
             fun = faas.Function(fname, memory, serviceMean=duration_mean, serviceSCV=duration_scv, initMean=init_mean,
-                                inputSizeMean=input_mean, accessed_keys=keys, max_data_access_time=max_data_access_time)
+                                inputSizeMean=input_mean, accessed_keys=keys, max_data_access_time=max_data_access_time,
+                                outputSizeMean=output_mean)
             function_names[fname] = fun
             functions.append(fun)
 
@@ -199,9 +206,8 @@ def init_simulation(config):
 
     regions = regions_setup(config)
 
-    print(regions)
+    #print(regions)
 
-    #my_latencies = {}
     bandwidth_mbps = {}
     latencies = {}
 
@@ -224,8 +230,8 @@ def init_simulation(config):
                 if key_pair not in bandwidth_mbps:
                     bandwidth_mbps[key_pair] = bandwidth
 
-    print("===latencies: ",latencies)
-    print("===bandwidth_mbps: ", bandwidth_mbps)
+    #print("===latencies: ",latencies)
+    #print("===bandwidth_mbps: ", bandwidth_mbps)
 
     # Infrastructure
     infra = Infrastructure(regions, latencies, bandwidth_mbps)

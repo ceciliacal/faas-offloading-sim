@@ -105,7 +105,7 @@ def read_co2_intensity(node):
         node.co2_footprint.co2_datetime = nth_row[conf.CO2_TRACES_COL_TIMESTAMP]
         node.co2_footprint.co2_intensity = nth_row[conf.CO2_TRACES_COL_INTENSITY_DIRECT]
         node.co2_footprint.count = n + 1
-        print("in update_co2_intensity: node: ",node.name," co2_datetime: ",node.co2_footprint.co2_datetime," co2_intensity: ",node.co2_footprint.co2_intensity," count: ",node.co2_footprint.count)
+        #print("in update_co2_intensity: node: ",node.name," co2_datetime: ",node.co2_footprint.co2_datetime," co2_intensity: ",node.co2_footprint.co2_intensity," count: ",node.co2_footprint.count)
     else:
         #print("df finito! n=",n," data: ",node.region.datetime_co2intensity.iloc[n-1][conf.CO2_TRACES_COL_TIMESTAMP])
         return
@@ -447,18 +447,18 @@ class Simulation:
 
             self.schedule(t + self.policy_update_interval, event)
             self.count_policy_update = self.count_policy_update+1
-            print("count_policy_update: ", self.count_policy_update,
-                  "t = ",t,
-                  " scheduled t = ",t + self.policy_update_interval)
+            #print("count_policy_update: ", self.count_policy_update,
+            #      "t = ",t,
+            #      " scheduled t = ",t + self.policy_update_interval)
         elif isinstance(event, CarbonIntensityUpdate):
             for n in self.node2policy:
                 read_co2_intensity(n)
                 #print("current time t = ",t)
             self.schedule(t + self.carbon_intensity_update_interval, event)
             self.count_carbon_intensity_update = self.count_carbon_intensity_update+1
-            print("count_carbon_intensity_update: ", self.count_carbon_intensity_update,
-                  "t = ", t,
-                  " scheduled t = ", t + self.carbon_intensity_update_interval)
+            #print("count_carbon_intensity_update: ", self.count_carbon_intensity_update,
+            #      "t = ", t,
+            #      " scheduled t = ", t + self.carbon_intensity_update_interval)
         elif isinstance(event, DispatcherUpdate):
             for n, p in self.node2policy.items():
                 if isinstance(n, Dispatcher):

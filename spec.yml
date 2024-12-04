@@ -1,87 +1,86 @@
 classes:
   - name: critical
     max_resp_time: 0.500
-    utility: 1.0 
+    utility: 1.0
     arrival_weight: 1.0
   - name: best-effort
     max_resp_time: 0.500
-    utility: 0.1 
+    utility: 0.1
     arrival_weight: 1.0
   - name: deferrable
     max_resp_time: 5.0
-    utility: 0.5 
+    utility: 0.5
     arrival_weight: 1.0
 
 nodes:
   - name: edge_node_a
     region: edge_zone_1
     memory: 2048
-    #battery_capacity: 1820 #mAh
-
-    #co2_emission: 5.0 #%
-
-    #initial_soc: 100
-    #battery_voltage: 3.7
-    #idle_power_consumption_watt: 3
-    processing_power_consumption_watt: 7 #Watt
+    processing_power_consumption: 7.0   #Watt
+    tx_energy_consumption: 50           #nanoJoule/byte (0.1 nJ/byte = 10^-9 Joule/byte)
+    rx_energy_consumption: 30
 
   - name: edge_node_b
     region: edge_zone_1
     memory: 2048
-    #policy: basic
-    #battery_capacity: 1820
-
-
-    #initial_soc: 100
-    #battery_voltage: 3.7
-    #idle_power_consumption_watt: 3
-    max_power_consumption_watt: 7
-    #recharge_green_power_watt: 12
+    processing_power_consumption: 7
+    tx_energy_consumption: 50
+    rx_energy_consumption: 30
 
   - name: edge_node_c
     region: edge_zone_1
     memory: 2048
-    #battery_capacity: 1820
-
-
-    #initial_soc: 100
-    #battery_voltage: 3.7
-    #idle_power_consumption_watt: 3
-    max_power_consumption_watt: 7
-    #recharge_green_power_watt: 12
+    processing_power_consumption: 7
+    tx_energy_consumption: 50
+    rx_energy_consumption: 30
 
   - name: edge_node_d
     region: edge_zone_2
     memory: 2048
-    max_power_consumption_watt: 7
+    processing_power_consumption: 7
+    tx_energy_consumption: 50
+    rx_energy_consumption: 30
 
   - name: edge_node_e
     region: edge_zone_2
     memory: 2048
-    max_power_consumption_watt: 7
+    processing_power_consumption: 7
+    tx_energy_consumption: 50
+    rx_energy_consumption: 30
 
   - name: edge_node_f
     region: edge_zone_2
     memory: 2048
-    max_power_consumption_watt: 7
+    processing_power_consumption: 7
+    tx_energy_consumption: 50
+    rx_energy_consumption: 30
 
   - name: cloud_node_a
     region: cloud_region_a
     cost: 0.00001
     speedup: 1.1
     memory: 32000
+    processing_power_consumption: 7   #Watt #CONVERSIONI in faas.py in kW e J/byte
+    tx_energy_consumption: 5
+    rx_energy_consumption: 3          #nanoJoule/byte (1 nJ/byte = 10^-9 Joule/byte)
 
   - name: cloud_node_b
     region: cloud_region_b
     cost: 0.00001
     speedup: 1.1
     memory: 32000
+    processing_power_consumption: 7
+    tx_energy_consumption: 5
+    rx_energy_consumption: 3
 
   - name: cloud_node_c
     region: cloud_region_c
     cost: 0.00001
     speedup: 1.1
     memory: 32000
+    processing_power_consumption: 7
+    tx_energy_consumption: 5
+    rx_energy_consumption: 3
 
   - name: dispatcher_a
     region: cloud_region_a

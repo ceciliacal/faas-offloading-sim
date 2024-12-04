@@ -25,6 +25,7 @@ class OptProblemParams:
     init_time_edge: dict = None
     bandwidth_edge: float = float("inf")
 
+
     def fun_classes(self):
         for f in self.functions:
             for c in self.classes:

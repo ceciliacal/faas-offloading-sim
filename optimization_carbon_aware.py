@@ -25,6 +25,9 @@ class OptCarbonAwareProblemParams:
     cold_start_p_edge: dict = None
     init_time_edge: dict = None
     bandwidth_edge: float = float("inf")
+    aggregated_edge_power_consumption: float = float("inf")
+    aggregated_edge_energy_tx: float = float("inf")
+    aggregated_edge_energy_rx: float = float("inf")
 
 
     def fun_classes(self):

@@ -249,12 +249,16 @@ class CloudRegionDispatcherRandomPolicy(Policy):
         node.avg_speedup = (sum(cloud_node.speedup for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.aggregated_region_cost = (sum(cloud_node.cost for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
 
+        node.avg_processing_power_consumption = (sum(cloud_node.processing_power_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
+        node.avg_tx_energy_consumption = (sum(cloud_node.tx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
+        node.avg_rx_energy_consumption = (sum(cloud_node.rx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
+
+
     def update(self):
         self.node.aggregated_region_memory = sum(cloud_node.curr_memory for cloud_node in self.cloud_region_nodes)
-        print("--dispatcher: ",self.node.name,"--")
-        print("update policy dispatcher -> aggregated_region_memory: ",self.node.aggregated_region_memory)
+        #print("--dispatcher: ",self.node.name,"--")
+        #print("update policy dispatcher -> aggregated_region_memory: ",self.node.aggregated_region_memory)
 
-        #si rinnovano a ogni update? calcolo cumulativo oppure no? verificare
         stats = self.simulation.stats
         num_nodes = len(self.cloud_region_nodes)
         exec_time_sum_per_function = 0
@@ -275,9 +279,9 @@ class CloudRegionDispatcherRandomPolicy(Policy):
             self.node.avg_cold_starts[f] = avg_cold_starts
 
 
-            print("update policy dispatcher -> self.node.avg_node2completions[f] = ",self.node.avg_node2completions)
-            print("update policy dispatcher ->self.node.avg_exec_time[f] = ",self.node.avg_execution_time_sum)
-            print("update policy dispatcher ->self.node.avg_cold_starts[f] = ",self.node.avg_cold_starts)
+            #print("update policy dispatcher -> self.node.avg_node2completions[f] = ",self.node.avg_node2completions)
+            #print("update policy dispatcher ->self.node.avg_exec_time[f] = ",self.node.avg_execution_time_sum)
+            #print("update policy dispatcher ->self.node.avg_cold_starts[f] = ",self.node.avg_cold_starts)
 
 
 
