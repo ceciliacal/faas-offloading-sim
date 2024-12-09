@@ -5,8 +5,7 @@ import lp_optimizer_carbon_aware
 import optimizer_nonlinear
 from optimization import OptProblemParams
 from optimization_carbon_aware import OptCarbonAwareProblemParams
-from policy import Policy, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS, \
-    SchedulerDecisionMultiRegionManager, SchedulerDecisionMultiRegion, SchedulerDecision
+from policy import Policy, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS, SchedulerDecision
 
 ADAPTIVE_EDGE_MEMORY_COEFFICIENT = True
 
@@ -97,6 +96,9 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         self.aggregated_edge_power_consumption = 0.0
         self.aggregated_edge_energy_tx = 0.0
         self.aggregated_edge_energy_rx = 0.0
+        self.co2_green_threshold = 150.0
+
+
 
         self.probability_tag = (["local", "edge", "drop"]
                                 + [f"{region.name}" for region in self.cloud_regions])
@@ -104,12 +106,13 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         #print("probability_tag: ", self.probability_tag)
         self.possible_decisions = list(SchedulerDecision)
 
+        cloud_prob = float(0.5/self.num_regions_cloud)
         self.probs = {
             (f, c): {
                 decision: prob
                 for decision, prob in zip(
                     self.possible_decisions,
-                    [0.5, 0.5, 0.0] + [0.0] * self.num_regions_cloud
+                    [0.5, 0.0, 0.0] + [cloud_prob] * self.num_regions_cloud
                 )
             }
             for f in simulation.functions
@@ -122,7 +125,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
     def schedule(self, f, c, offloaded_from):
         probabilities = self.probs[(f, c)].copy()
-        #probabilities = {item['decision']: item['probability'] for item in self.probs[(f, c)].copy()}
+
         # If the request has already been offloaded, cannot offload again
         if len(offloaded_from) > 0 and not self.allow_multi_offloading:
             probabilities[SchedulerDecision.OFFLOAD_EDGE] = 0
@@ -138,9 +141,14 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                 #new_probs = [x / s for x in probabilities.values()]
                 probabilities = self.renormalize_probs(probabilities, s)
 
-        #decision = self.rng.choice(self.possible_decisions, p=probabilities)
-        # Convert dictionary to list in the correct order for rng.choice
         decision = self.rng.choice(list(probabilities.keys()), p=list(probabilities.values()))
+        printable_probs = {}
+        for dec, p in probabilities.items():
+            printable_probs[dec.name] = p
+        print("[schedule] decision: ", decision, "probabilities: ",printable_probs)
+        #print("[schedule] probabilities: ", probabilities, "decision: ",decision)
+
+
         if decision == SchedulerDecision.EXEC:
             self.curr_local_reqs += 1
 
@@ -149,12 +157,12 @@ class ProbabilisticCarbonAwarePolicy(Policy):
             self.curr_local_blocked_reqs += 1
 
             if self.local_rejection_fallback == "fgcs24" or self.local_rejection_fallback == "reschedule":
-                probabilities[conf.EXEC] = 0
+                probabilities[SchedulerDecision.EXEC] = 0
 
                 if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
                     for cloud_decision, prob in probabilities.items():
                         if conf.OFFLOAD_CLOUD_DECISION in cloud_decision.name:
-                            probabilities[cloud_decision] = 0
+                            probabilities[decision] = 0
 
                 s = sum(probabilities.values())
                 if not s > 0.0:
@@ -178,7 +186,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                         return (SchedulerDecision.DROP, None)
 
                 probabilities = self.renormalize_probs(probabilities, s)
-                return (self.rng.choice(list(probabilities.keys), p=list(probabilities.values)), None)
+                return (self.rng.choice(list(probabilities.keys()), p=list(probabilities.values())), None)
 
             elif self.local_rejection_fallback == "drop":
                 return (SchedulerDecision.DROP, None)
@@ -277,7 +285,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
                 elif self.cloud_cold_start_estimation == ColdStartEstimation.NAIVE:
                     if node_compl > 0:
-                        self.cold_start_prob_cloud[(region, f)] = node_cs / node_compl
+                        self.cold_start_prob_cloud[(region, f)] = node_cs / node_compl #todo perche e giuallo?
                     else:
                         self.cold_start_prob_cloud[(region, f)] = COLD_START_PROB_INITIAL_GUESS
 
@@ -480,7 +488,8 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                                   self.edge_bw,
                                   self.aggregated_edge_power_consumption,
                                   self.aggregated_edge_energy_tx,
-                                  self.aggregated_edge_energy_rx
+                                  self.aggregated_edge_energy_rx,
+                                  self.co2_green_threshold
         )
 
         opt = self.get_optimizer()

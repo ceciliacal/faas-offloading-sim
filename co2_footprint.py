@@ -8,3 +8,12 @@ class CO2footprint:
         self.co2_datetime = co2_datetime
         self.co2_intensity = co2_intensity
         self.count = count
+
+    def __repr__(self):
+        return (
+            f"CO2footprint("
+            f"node_name='{self.node_name}', "
+            f"co2_datetime={self.co2_datetime}, "
+            f"co2_intensity={self.co2_intensity}, "
+            f"count={self.count})"
+        )

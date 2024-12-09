@@ -28,6 +28,7 @@ class OptCarbonAwareProblemParams:
     aggregated_edge_power_consumption: float = float("inf")
     aggregated_edge_energy_tx: float = float("inf")
     aggregated_edge_energy_rx: float = float("inf")
+    co2_green_threshold: float = float("inf")
 
 
     def fun_classes(self):

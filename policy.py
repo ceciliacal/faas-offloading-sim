@@ -287,13 +287,13 @@ class CloudRegionDispatcherRandomPolicy(Policy):
 
     def schedule(self, f, c, offloaded_from):
 
-        print("[Random]: region -> ", self.region," offloaded_from -> ", offloaded_from)
-        print("[Random]: available could nodes -> ", self.cloud_region_nodes)
+        #print("[Random]: region -> ", self.region," offloaded_from -> ", offloaded_from)
+        #print("[Random]: available could nodes -> ", self.cloud_region_nodes)
         selected_node = self.rng.choice(self.cloud_region_nodes)
-        print("[Random]: selected cloud node -> ", selected_node.name)
+        #print("[Random]: selected cloud node -> ", selected_node.name)
         #idem qui va decision offload_cloud_region_name ... etc
         decision = conf.OFFLOAD_CLOUD_DECISION+self.region.name.upper() #todo: mandare a nodo cloud interno a regione!
-        print("[Random]: decision -> ", decision)
+        #print("[Random]: decision -> ", decision)
         return (decision, selected_node)
 
 

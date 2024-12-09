@@ -328,6 +328,10 @@ class Simulation:
                 self.stats_file = open(stats_print_filename, "w")
 
         if self.carbon_intensity_update_interval > 0.0:
+            #todo metti prima read di read_co2_intensity(n)
+            for n in (self.infra.get_nodes(ignore_non_processing=False)):
+                read_co2_intensity(n)
+            self.count_carbon_intensity_update = self.count_carbon_intensity_update+1
             self.schedule(self.carbon_intensity_update_interval, CarbonIntensityUpdate())
         if self.policy_dispatcher_update_interval > 0.0:    #for cloud nodes status update
             self.schedule(self.policy_dispatcher_update_interval, DispatcherUpdate())
@@ -431,6 +435,7 @@ class Simulation:
         elif isinstance(event, PolicyUpdate):
             for n, p in self.node2policy.items():
                 upd_t0 = time.time()
+                #print("node co2: "+n.co2_footprint)
                 p.update()
                 self.stats.update_policy_upd_time(n, time.time() - upd_t0)
 
