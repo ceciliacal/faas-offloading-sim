@@ -145,13 +145,15 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         printable_probs = {}
         for dec, p in probabilities.items():
             printable_probs[dec.name] = p
-        print("[schedule] decision: ", decision, "probabilities: ",printable_probs)
+        print("[schedule -  node ",self.node,"] decision: ", decision, "probabilities: ",printable_probs)
         #print("[schedule] probabilities: ", probabilities, "decision: ",decision)
 
 
         if decision == SchedulerDecision.EXEC:
             self.curr_local_reqs += 1
 
+        #if (self.node.name == "edge_node_a"):
+        #    print("sono nodo a")
         # Local rejection due to lack of resources
         if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
             self.curr_local_blocked_reqs += 1
@@ -406,9 +408,6 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                 self.init_time_edge[f] = inittime
 
             self.estimate_edge_cold_start_prob(stats, neighbors, neighbor_probs)
-
-
-            #todo: self.aggregated power consumption, co2, energy tx & rx
 
     def estimate_edge_cold_start_prob(self, stats, neighbors, neighbor_probs):
         peer_probs, peers = self._get_edge_peers_probabilities()

@@ -14,7 +14,7 @@ import stateful
 from arrivals import ArrivalProcess
 from faas import *
 from infrastructure import *
-from policy import SchedulerDecision, SchedulerDecisionMultiRegion, add_enum_members
+from policy import SchedulerDecision, add_enum_members
 from stateful import key_locator
 from statistics import Stats
 from utils import plot
@@ -149,7 +149,7 @@ class Simulation:
         self.cloud_node_random_choice = default_rng(child_seeds[6])
         #self.edge_region_choice = default_rng(child_seeds[6])
 
-        i = 5
+        i = 7
         for n, arvs in self.node2arrivals.items():
             for arv in arvs:
                 arv.init_rng(default_rng(child_seeds[i]), default_rng(child_seeds[i + 1]),
@@ -256,11 +256,15 @@ class Simulation:
         self.events = []
         self.t = 0.0
         self.node2policy = {}
+        #self.is_variant_enabled = self.config.getboolean(conf.SEC_SIM, conf.ENABLE_VARIANTS, fallback=False)
 
         self.expiration_timeout = self.config.getfloat(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, fallback=600)
 
-        add_enum_members(SchedulerDecision, self.infra.regions)
-
+        add_enum_members(SchedulerDecision, self.infra.regions, self.functions)
+        self.variants = {}
+        for function in self.functions:
+            for var in function.variants:
+                self.variants[function] = var
 
         # Policy
         policy_name = self.config.get(conf.SEC_POLICY, conf.POLICY_NAME, fallback="basic")
@@ -328,7 +332,6 @@ class Simulation:
                 self.stats_file = open(stats_print_filename, "w")
 
         if self.carbon_intensity_update_interval > 0.0:
-            #todo metti prima read di read_co2_intensity(n)
             for n in (self.infra.get_nodes(ignore_non_processing=False)):
                 read_co2_intensity(n)
             self.count_carbon_intensity_update = self.count_carbon_intensity_update+1
@@ -512,7 +515,7 @@ class Simulation:
             self.resp_time_samples[(f, c, n)].append(rt)
         self.stats.completions[(f, c, n)] += 1
         self.stats.node2completions[(f, n)] += 1
-        self.stats.execution_time_sum[(f, n)] += duration
+        self.stats.execution_time_sum[(f, n)] += duration #todo: modifica x vars
         self.stats.raw_utility += c.utility
         if c.max_rt <= 0.0 or rt <= c.max_rt:
             self.stats.utility += c.utility
@@ -567,9 +570,10 @@ class Simulation:
 
         # Policy
         sched_decision, target_node = node_policy.schedule(f, c, event.offloaded_from)
-
+        #if (n.name == "edge_node_a"):
+        #    print("sono nodo a")
         if sched_decision == SchedulerDecision.EXEC:
-            duration, data_access_time = self.next_function_duration(f, n)
+            duration, data_access_time = self.next_function_duration(f, n) #todo modifica x vars
             # check warm or cold
             if f in n.warm_pool:
                 n.warm_pool.remove(f)
@@ -580,6 +584,7 @@ class Simulation:
                     assert (n.curr_memory >= f.memory)
                 n.curr_memory -= f.memory
                 self.stats.cold_starts[(f, n)] += 1
+                #todo: modifica x variants? si! mutualmente esclusive x f1
 
                 # if node is a cloud processing node, update stats (exec time & num completions)
                 region = n.region

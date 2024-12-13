@@ -47,13 +47,6 @@ class Stats:
 
         self.budget = self.sim.config.getfloat(conf.SEC_POLICY, conf.HOURLY_BUDGET, fallback=-1.0)
 
-        #todo: quando ci stanno i completions vado ad aggiornare queste statistiche, che poi in "update" il dispatcher
-        # (NB: update del dispatcher con granularita molto piu fine, deve simulare aggiornamento real time su stato dei
-        # nodi cloud della sua regione) rielabora (facendo aggregazioni: media o somma -> cioè calcola prob_cold_start
-        # medio per ogni reg e expected exec time medio x ogni funz ) e poi nell'update metrics di
-        # probabilistic_energy_aware vado a recuperare queste statistiche esposte dal dispatcher, su cui calcolo
-        # expected exec time & probability cold start
-        #self.cloud_arrivals = {x: 0 for x in [(f,c,n) for f in functions for c in classes for n in infra.get_nodes(ignore_non_processing=True)]}
         self.execution_time_sum_cloud_nodes = {(r, f, n): 0 for r in infra.regions for f in functions for n in infra.get_cloud_nodes_by_region(r)}
         self.completions_cloud_nodes = {(r, f, n): 0 for r in infra.regions for f in functions for n in infra.get_cloud_nodes_by_region(r)}
         self.cold_starts_cloud_nodes = {(r, f, n): 0 for r in infra.regions for f in functions for n in infra.get_cloud_nodes_by_region(r)}

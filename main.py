@@ -9,6 +9,7 @@ from numpy.random import SeedSequence
 import co2_footprint
 import faas
 from arrivals import PoissonArrivalProcess, TraceArrivalProcess, MAPArrivalProcess
+from faas import FunctionVariant
 from infrastructure import *
 from simulation import Simulation
 
@@ -72,6 +73,8 @@ def read_spec_file(spec_file_name, infra, config):
             infra.add_node_by_region_type(node)
 
         functions = []
+        function_variants = []
+
         function_names = {}
         for f in spec["functions"]:
             fname = f["name"]
@@ -90,12 +93,29 @@ def read_spec_file(spec_file_name, infra, config):
                 assert (p >= 0.0)
                 keys.append((key, p))
             output_mean = f["output_mean"] if "output_mean" in f else 256
+            variants = []
+
+            #Check for speedup, if present, to add function variants
+            for variant in f.get("speedup", []):
+                variant_name = "var_"+str(variant)
+                speedup = variant
+
+                variant = FunctionVariant(variant_name, speedup)
+                variants.append(variant)
+                function_variants.append(variant)
 
             fun = faas.Function(fname, memory, serviceMean=duration_mean, serviceSCV=duration_scv, initMean=init_mean,
                                 inputSizeMean=input_mean, accessed_keys=keys, max_data_access_time=max_data_access_time,
-                                outputSizeMean=output_mean)
+                                outputSizeMean=output_mean, variants=variants)
             function_names[fname] = fun
             functions.append(fun)
+
+        #per omogeneità, ogni funzione ha almeno una variante con speedup 1.0
+        for function in functions:
+            if len(function.variants)==0:
+                function.variants.append(f["name"]+"_var_"+str(variant),1.0)
+            else:
+                assert (variant.speedup == 1.0 in function.variants for variant in function.variants)
 
         node2arrivals = {}
         for f in spec["arrivals"]:
@@ -206,7 +226,7 @@ def init_simulation(config):
 
     regions = regions_setup(config)
 
-    #print(regions)
+    #todo: questa parte sarà da copiare in "default_infra" x experiments
 
     bandwidth_mbps = {}
     latencies = {}

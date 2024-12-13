@@ -102,20 +102,26 @@ functions:
     memory: 1024
     duration_mean: 0.240
     duration_scv: 1.0
+    speedup:
+      - 1.0
+      - 0.5
+      - 0.2
   - name: f2
     memory: 512
     duration_mean: 0.120
     duration_scv: 1.0
+    speedup:
+        - 1.0
 arrivals:
   - node: edge_node_c
     function: f1
     classes:
       - best-effort
     rate: 0.1
-  - node: edge_node_c
-    function: f2
-    classes:
-      - best-effort
-    rate: 0.1
+  #- node: edge_node_c
+  #  function: f2
+  #  classes:
+  #    - best-effort
+  #  rate: 0.1
 
     #trace: traces/iat_660323aa6f1012c8eca3c7d8153cb436320b48ed84f82bf3e816b494ad8dfde2

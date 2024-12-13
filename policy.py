@@ -12,7 +12,7 @@ class SchedulerDecision(Enum):
     OFFLOAD_EDGE = 3
     DROP = 4
 
-def add_enum_members(enum_class, regions:list):
+def add_enum_members(enum_class, regions:list, functions:list):
     """
     Dynamically adds new members to an existing Enum class by creating a new Enum.
 
@@ -50,56 +50,6 @@ def add_enum_members(enum_class, regions:list):
 
 
     print(enum_class)
-
-    '''
-     # Combine existing members with new ones
-    existing_members = {member.name: member.value for member in enum_class}
-    all_members = {**existing_members, **new_members}
-
-    # Create a new Enum class with the updated members
-    return Enum(enum_class.__name__, all_members)
-    '''
-
-
-class SchedulerDecisionMultiRegion(Enum):
-    EXEC = 1
-    OFFLOAD_EDGE = 3
-    DROP = 4
-    # Cloud options will be added dynamically
-
-
-class SchedulerDecisionMultiRegionManager:
-    _instance = None
-    _decisions = None
-
-    def __new__(cls, cloud_regions=None):
-        if cls._instance is None:
-            cls._instance = super(SchedulerDecisionMultiRegionManager, cls).__new__(cls)
-            cls._instance._initialize_decisions(cloud_regions)
-        return cls._instance
-
-    def _initialize_decisions(self, regions: list):
-        # Fixed decisions
-        self._decisions = {
-            SchedulerDecisionMultiRegion.EXEC.name: SchedulerDecisionMultiRegion.EXEC.value,
-            SchedulerDecisionMultiRegion.OFFLOAD_EDGE.name: SchedulerDecisionMultiRegion.OFFLOAD_EDGE.value,
-            SchedulerDecisionMultiRegion.DROP.name: SchedulerDecisionMultiRegion.DROP.value
-        }
-
-        start_index = max(self._decisions.values())
-
-        # Add dynamic cloud offloading options
-        for region in regions:
-            if region.is_cloud():
-                start_index = start_index +1
-                decision_key = conf.OFFLOAD_CLOUD_DECISION+region.name.upper()
-                self._decisions[decision_key] = start_index
-
-    @classmethod
-    def get_decisions(cls):
-        if cls._instance is None:
-            raise ValueError("SchedulerDecisionManager has not been initialized with cloud regions.")
-        return cls._instance._decisions
 
 
 class ColdStartEstimation(Enum):
@@ -284,7 +234,7 @@ class CloudRegionDispatcherRandomPolicy(Policy):
             #print("update policy dispatcher ->self.node.avg_cold_starts[f] = ",self.node.avg_cold_starts)
 
 
-
+    #todo: schedule interno è randomico + se nodo cloud droppa request come lo so?
     def schedule(self, f, c, offloaded_from):
 
         #print("[Random]: region -> ", self.region," offloaded_from -> ", offloaded_from)

@@ -21,7 +21,7 @@ def compute_deadline_satisfaction_probs(params: OptCarbonAwareProblemParams):
 
     # TODO: we are assuming exponential distribution
     # Probability of satisfying the deadline
-    for f,c in params.fun_classes():
+    for f,c in params.fun_classes():    #todo service time depends on variant
         p = 0.0
         if c.max_rt - params.init_time_local[f] > 0.0:
             p += params.cold_start_p_local[f]*(1.0 - math.exp(-1.0/params.serv_time_local[f]*(c.max_rt - params.init_time_local[f])))
@@ -95,7 +95,7 @@ def compute_energy_consumption(params):
             m_f = f.memory
             m_u = params.usable_local_memory_coeff
             co2 = params.local_node.co2_footprint.co2_intensity
-            serv_time_local = params.serv_time_local[f]
+            serv_time_local = params.serv_time_local[f] #todo [f][v]
 
             param_local_energy_consumption = (
                                                 power_cons      *
@@ -200,6 +200,7 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
     C = params.classes
     F_C = [(f, c) for f in F for c in C]
     dispatchers = params.cloud_regions_dipatchers
+    #V = params.variants #dictionary
 
     EDGE_ENABLED = True if params.aggregated_edge_memory > 0.0 else False
 
@@ -212,16 +213,31 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
     prob = pl.LpProblem("MyProblem", pl.LpMaximize)
     x = pl.LpVariable.dicts("X", (F, C), 0, None, pl.LpContinuous)
     y = pl.LpVariable.dicts("Y", (F, C), 0, None, pl.LpContinuous)
-    pL = pl.LpVariable.dicts("PExec", (F, C), 0, 1, pl.LpContinuous)
     pC = {}
     pD = pl.LpVariable.dicts("PDrop", (F, C), 0, 1, pl.LpContinuous)
+    pL = pl.LpVariable.dicts("PExec", (F, C), 0, 1, pl.LpContinuous)
+
+    '''
+    pL = {}
+    for f in F:
+        pL[f] = pl.LpVariable.dicts(
+            f"PExec_{f}",
+            (C, V[f]),
+            0,
+            1,
+            pl.LpContinuous
+        )
+    '''
 
 
     if EDGE_ENABLED:
         pE = pl.LpVariable.dicts("PEdge", (F, C), 0, 1, pl.LpContinuous)
+
     for region in dispatchers.keys():
         region_name = region.name
         pC[region_name] = pl.LpVariable.dicts(f"PCloud_{region_name}", (F, C), 0, 1, pl.LpContinuous)
+
+
 
     deadline_satisfaction_prob_local, deadline_satisfaction_prob_cloud, deadline_satisfaction_prob_edge = compute_deadline_satisfaction_probs(
         params)

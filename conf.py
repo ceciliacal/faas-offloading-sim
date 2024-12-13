@@ -61,6 +61,8 @@ EXEC = "EXEC"
 DROP = "DROP"
 OFFLOAD_CLOUD_DECISION = "OFFLOAD_CLOUD_"
 
+ENABLE_VARIANTS = "ENABLE_VARIANTS"
+
 import configparser
 
 def parse_config_file(config_file):

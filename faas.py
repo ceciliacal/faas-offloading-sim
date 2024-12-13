@@ -144,7 +144,7 @@ class Function:
     accessed_keys: [] = field(default_factory=lambda: [])
     max_data_access_time: float = None
     outputSizeMean: float = 10
-
+    variants: [] = field(default_factory=lambda: [])
     
     def __repr__ (self):
         return self.name
@@ -157,6 +157,16 @@ class Function:
 
     def __le__(self,other):
         return self.name <= other.name
+
+class FunctionVariant:
+    def __init__(self, name, speedup=None):
+        self.name = name
+        self.speedup = speedup
+
+    def __repr__(self):
+        return f"FunctionVariant(name={self.name}, speedup={self.speedup})"
+
+
 
 @dataclass
 class Container:
