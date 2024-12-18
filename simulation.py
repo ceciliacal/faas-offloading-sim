@@ -119,6 +119,7 @@ class Simulation:
     functions: [Function]
     classes: [QoSClass]
     node2arrivals: dict
+    function_variants: dict
 
 
     def __post_init__(self):
@@ -260,7 +261,7 @@ class Simulation:
 
         self.expiration_timeout = self.config.getfloat(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, fallback=600)
 
-        add_enum_members(SchedulerDecision, self.infra.regions, self.functions)
+        add_enum_members(SchedulerDecision, self.infra.regions)
         self.variants = {}
         for function in self.functions:
             for var in function.variants:
@@ -435,7 +436,7 @@ class Simulation:
             self.handle_arrival(event)
         elif isinstance(event, Completion):
             self.handle_completion(event)
-        elif isinstance(event, PolicyUpdate):
+        elif isinstance(event, PolicyUpdate): #todo: cfr dove hai aggiornato stats x variants
             for n, p in self.node2policy.items():
                 upd_t0 = time.time()
                 #print("node co2: "+n.co2_footprint)
@@ -503,8 +504,12 @@ class Simulation:
         dat = event.data_access_time
         #print(f"Completed {f}-{c}: {rt}")
 
+        #todo: controllare gestione varianti qui!
+
         # Account for the time needed to send back the result
         if event.offloaded_from != None:
+            if f.name == "f1_var_0.2":
+                print("emergency!!!")
             curr_node = n
             for remote_node in reversed(event.offloaded_from):
                 rt += self.infra.get_latency(curr_node, remote_node)
@@ -514,8 +519,8 @@ class Simulation:
         if (f, c, n) in self.resp_time_samples:
             self.resp_time_samples[(f, c, n)].append(rt)
         self.stats.completions[(f, c, n)] += 1
+        self.stats.execution_time_sum[(f, n)] += duration
         self.stats.node2completions[(f, n)] += 1
-        self.stats.execution_time_sum[(f, n)] += duration #todo: modifica x vars
         self.stats.raw_utility += c.utility
         if c.max_rt <= 0.0 or rt <= c.max_rt:
             self.stats.utility += c.utility
@@ -547,6 +552,8 @@ class Simulation:
             self.stats.completions_cloud_nodes[(region, f, n)] += 1
 
     def do_offload(self, arrival, target_node):
+        if arrival.function.name == "f1_var_0.2":
+            print("emergency in do offload!!!")
         latency = self.infra.get_latency(arrival.node, target_node)
         transfer_time = arrival.function.inputSizeMean * 8 / 1000 / 1000 / self.infra.get_bandwidth(arrival.node,
                                                                                                     target_node)
@@ -568,12 +575,18 @@ class Simulation:
         if external:
             self.stats.ext_arrivals[(f, c, n)] += 1
 
+
         # Policy
         sched_decision, target_node = node_policy.schedule(f, c, event.offloaded_from)
-        #if (n.name == "edge_node_a"):
-        #    print("sono nodo a")
-        if sched_decision == SchedulerDecision.EXEC:
-            duration, data_access_time = self.next_function_duration(f, n) #todo modifica x vars
+
+        if sched_decision == SchedulerDecision.EXEC_VAR:
+
+            assert n.region.is_cloud() == False
+            assert len(event.offloaded_from) == 0
+
+            f = f.active_variant
+            # todo qui CRITICO!!! riesegui con breakpoint nel Completion!
+            duration, data_access_time = self.next_function_duration(f, n)
             # check warm or cold
             if f in n.warm_pool:
                 n.warm_pool.remove(f)
@@ -584,7 +597,27 @@ class Simulation:
                     assert (n.curr_memory >= f.memory)
                 n.curr_memory -= f.memory
                 self.stats.cold_starts[(f, n)] += 1
-                #todo: modifica x variants? si! mutualmente esclusive x f1
+
+                init_time = self.init_time[(f, n)]
+
+            arrival_time = self.t if event.original_arrival_time is None else event.original_arrival_time
+            self.schedule(float(self.t + init_time + duration),
+                          Completion(arrival_time, f, c, n, init_time > 0, duration, None,
+                                     data_access_time))
+
+        elif sched_decision == SchedulerDecision.EXEC:
+
+            duration, data_access_time = self.next_function_duration(f, n)
+            # check warm or cold
+            if f in n.warm_pool:
+                n.warm_pool.remove(f)
+                init_time = 0
+            else:
+                self.stats.update_memory_usage(event.node, self.t)
+                if n.curr_memory >= f.memory:
+                    assert (n.curr_memory >= f.memory)
+                n.curr_memory -= f.memory
+                self.stats.cold_starts[(f, n)] += 1
 
                 # if node is a cloud processing node, update stats (exec time & num completions)
                 region = n.region
@@ -592,6 +625,7 @@ class Simulation:
                     self.stats.cold_starts_cloud_nodes[(region, f, n)] += 1
 
                 init_time = self.init_time[(f, n)]
+
             arrival_time = self.t if event.original_arrival_time is None else event.original_arrival_time
             self.schedule(float(self.t + init_time + duration),
                           Completion(arrival_time, f, c, n, init_time > 0, duration, event.offloaded_from,
@@ -601,8 +635,11 @@ class Simulation:
             self.stats.penalty += c.drop_penalty
             if event.offloaded_from is not None and len(event.offloaded_from) > 0:
                 self.stats.dropped_offloaded[(f, c, n)] += 1
+                print("drop - self.stats.dropped_reqs[(f, c, n)] += 1")
+
 
         elif sched_decision == SchedulerDecision.OFFLOAD_EDGE:
+            assert f.is_default == True
             if target_node is not None:
                 remote_node = target_node
             else:
@@ -610,11 +647,13 @@ class Simulation:
             if remote_node is None:
                 # drop
                 self.stats.dropped_reqs[(f, c, n)] += 1
+                print("edge - self.stats.dropped_reqs[(f, c, n)] += 1")
                 self.stats.penalty += c.drop_penalty
             else:
                 self.stats.offloaded[(f, c, n)] += 1
                 self.do_offload(event, remote_node)
         else:   #OFFLOAD_CLOUD
+            assert f.is_default == True
             if target_node is not None:
                 remote_node = target_node
             else:
@@ -623,7 +662,7 @@ class Simulation:
                 for dispatcher in self.infra.dispatchers:
                     if dispatcher.region.name == region_name:
                         remote_node = dispatcher
-                        break
+                        break   #todo: mettere che se lontano droppo richiesta
 
                 '''
                 nodes_w_lat = [(_n, self.infra.get_latency(n, _n)) for _n in self.infra.get_cloud_nodes()]
@@ -636,6 +675,8 @@ class Simulation:
             if remote_node is None:
                 # drop
                 self.stats.dropped_reqs[(f, c, n)] += 1
+                print("cloud - self.stats.dropped_reqs[(f, c, n)] += 1")
+
                 self.stats.penalty += c.drop_penalty
             else:
                 self.stats.offloaded[(f, c, n)] += 1

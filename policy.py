@@ -8,11 +8,11 @@ COLD_START_PROB_INITIAL_GUESS = 0.0
 
 class SchedulerDecision(Enum):
     EXEC = 1
-    #OFFLOAD_CLOUD = 2
+    EXEC_VAR = 2
     OFFLOAD_EDGE = 3
     DROP = 4
 
-def add_enum_members(enum_class, regions:list, functions:list):
+def add_enum_members(enum_class, regions:list):
     """
     Dynamically adds new members to an existing Enum class by creating a new Enum.
 

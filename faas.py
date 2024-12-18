@@ -145,6 +145,10 @@ class Function:
     max_data_access_time: float = None
     outputSizeMean: float = 10
     variants: [] = field(default_factory=lambda: [])
+    is_default: bool = False
+    active_variant = None
+    has_variants: bool = False
+
     
     def __repr__ (self):
         return self.name
@@ -162,6 +166,7 @@ class FunctionVariant:
     def __init__(self, name, speedup=None):
         self.name = name
         self.speedup = speedup
+        self.is_default = False
 
     def __repr__(self):
         return f"FunctionVariant(name={self.name}, speedup={self.speedup})"

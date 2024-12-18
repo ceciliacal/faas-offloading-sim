@@ -51,6 +51,8 @@ class Stats:
         self.completions_cloud_nodes = {(r, f, n): 0 for r in infra.regions for f in functions for n in infra.get_cloud_nodes_by_region(r)}
         self.cold_starts_cloud_nodes = {(r, f, n): 0 for r in infra.regions for f in functions for n in infra.get_cloud_nodes_by_region(r)}
 
+        self.execution_time_sum_variants = {(f,v,n): 0 for f in functions for v in f.variants for n in self.nodes}
+
     def to_dict (self):
         stats = {}
         raw = vars(self)

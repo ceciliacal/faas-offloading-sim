@@ -17,70 +17,70 @@ nodes:
     region: edge_zone_1
     memory: 2048
     processing_power_consumption: 7.0   #Watt
-    tx_energy_consumption: 50           #nanoJoule/byte (0.1 nJ/byte = 10^-9 Joule/byte)
-    rx_energy_consumption: 30
+    tx_energy_consumption: 50.0          #nanoJoule/byte (0.1 nJ/byte = 10^-9 Joule/byte)
+    rx_energy_consumption: 30.0
 
   - name: edge_node_b
     region: edge_zone_1
     memory: 2048
-    processing_power_consumption: 7
-    tx_energy_consumption: 50
-    rx_energy_consumption: 30
+    processing_power_consumption: 7.0
+    tx_energy_consumption: 50.0
+    rx_energy_consumption: 30.0
 
   - name: edge_node_c
     region: edge_zone_1
     memory: 2048
-    processing_power_consumption: 7
-    tx_energy_consumption: 50
-    rx_energy_consumption: 30
+    processing_power_consumption: 7.0
+    tx_energy_consumption: 50.0
+    rx_energy_consumption: 30.0
 
   - name: edge_node_d
     region: edge_zone_2
     memory: 2048
-    processing_power_consumption: 7
+    processing_power_consumption: 7.0
     tx_energy_consumption: 50
     rx_energy_consumption: 30
 
   - name: edge_node_e
     region: edge_zone_2
     memory: 2048
-    processing_power_consumption: 7
-    tx_energy_consumption: 50
-    rx_energy_consumption: 30
+    processing_power_consumption: 7.0
+    tx_energy_consumption: 50.0
+    rx_energy_consumption: 30.0
 
   - name: edge_node_f
     region: edge_zone_2
     memory: 2048
-    processing_power_consumption: 7
-    tx_energy_consumption: 50
-    rx_energy_consumption: 30
+    processing_power_consumption: 7.0
+    tx_energy_consumption: 50.0
+    rx_energy_consumption: 30.0
 
   - name: cloud_node_a
     region: cloud_region_a
     cost: 0.00001
     speedup: 1.1
     memory: 32000
-    processing_power_consumption: 1000   #Watt #CONVERSIONI in faas.py in kW e J/byte
-    tx_energy_consumption: 5
-    rx_energy_consumption: 3          #nanoJoule/byte (1 nJ/byte = 10^-9 Joule/byte)
+    processing_power_consumption: 1000.0  #Watt #CONVERSIONI in faas.py in kW e J/byte
+    tx_energy_consumption: 5.0
+    rx_energy_consumption: 3.0          #nanoJoule/byte (1 nJ/byte = 10^-9 Joule/byte)
 
   - name: cloud_node_b
     region: cloud_region_b
     cost: 0.00001
     speedup: 1.1
     memory: 32000
-    processing_power_consumption: 1000
-    tx_energy_consumption: 5
-    rx_energy_consumption: 3
+    processing_power_consumption: 1000.0
+    tx_energy_consumption: 5.0
+    rx_energy_consumption: 3.0
 
   - name: cloud_node_c
     region: cloud_region_c
     cost: 0.00001
     speedup: 1.1
     memory: 32000
-    processing_power_consumption: 1000
-    tx_energy_consumption: 5
-    rx_energy_consumption: 3
+    processing_power_consumption: 1000.0
+    tx_energy_consumption: 5.0
+    rx_energy_consumption: 3.0
 
   - name: dispatcher_a
     region: cloud_region_a
@@ -99,7 +99,7 @@ nodes:
 
 functions:
   - name: f1
-    memory: 1024
+    memory: 256
     duration_mean: 0.240
     duration_scv: 1.0
     speedup:
@@ -113,7 +113,7 @@ functions:
     speedup:
         - 1.0
 arrivals:
-  - node: edge_node_c
+  - node: edge_node_a
     function: f1
     classes:
       - best-effort
