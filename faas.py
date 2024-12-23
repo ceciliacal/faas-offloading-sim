@@ -163,10 +163,10 @@ class Function:
         return self.name <= other.name
 
 class FunctionVariant:
-    def __init__(self, name, speedup=None):
+    def __init__(self, name, speedup, utility):
         self.name = name
         self.speedup = speedup
-        self.is_default = False
+        self.utility = utility
 
     def __repr__(self):
         return f"FunctionVariant(name={self.name}, speedup={self.speedup})"

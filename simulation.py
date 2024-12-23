@@ -436,7 +436,7 @@ class Simulation:
             self.handle_arrival(event)
         elif isinstance(event, Completion):
             self.handle_completion(event)
-        elif isinstance(event, PolicyUpdate): #todo: cfr dove hai aggiornato stats x variants
+        elif isinstance(event, PolicyUpdate):
             for n, p in self.node2policy.items():
                 upd_t0 = time.time()
                 #print("node co2: "+n.co2_footprint)
@@ -504,12 +504,8 @@ class Simulation:
         dat = event.data_access_time
         #print(f"Completed {f}-{c}: {rt}")
 
-        #todo: controllare gestione varianti qui!
-
         # Account for the time needed to send back the result
         if event.offloaded_from != None:
-            if f.name == "f1_var_0.2":
-                print("emergency!!!")
             curr_node = n
             for remote_node in reversed(event.offloaded_from):
                 rt += self.infra.get_latency(curr_node, remote_node)
@@ -552,8 +548,7 @@ class Simulation:
             self.stats.completions_cloud_nodes[(region, f, n)] += 1
 
     def do_offload(self, arrival, target_node):
-        if arrival.function.name == "f1_var_0.2":
-            print("emergency in do offload!!!")
+
         latency = self.infra.get_latency(arrival.node, target_node)
         transfer_time = arrival.function.inputSizeMean * 8 / 1000 / 1000 / self.infra.get_bandwidth(arrival.node,
                                                                                                     target_node)
@@ -585,7 +580,7 @@ class Simulation:
             assert len(event.offloaded_from) == 0
 
             f = f.active_variant
-            # todo qui CRITICO!!! riesegui con breakpoint nel Completion!
+
             duration, data_access_time = self.next_function_duration(f, n)
             # check warm or cold
             if f in n.warm_pool:
@@ -635,11 +630,11 @@ class Simulation:
             self.stats.penalty += c.drop_penalty
             if event.offloaded_from is not None and len(event.offloaded_from) > 0:
                 self.stats.dropped_offloaded[(f, c, n)] += 1
-                print("drop - self.stats.dropped_reqs[(f, c, n)] += 1")
+                #print("drop - self.stats.dropped_reqs[(f, c, n)] += 1")
 
 
         elif sched_decision == SchedulerDecision.OFFLOAD_EDGE:
-            assert f.is_default == True
+            #assert f.is_default == True
             if target_node is not None:
                 remote_node = target_node
             else:

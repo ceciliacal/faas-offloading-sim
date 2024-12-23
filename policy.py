@@ -149,10 +149,6 @@ class Policy:
 class BasicPolicy(Policy):
 
     def schedule(self, f, c, offloaded_from):
-        print("in update_probabilities: node = ", self.node.name, ", CO2_datetime = ",
-              self.node.co2_footprint.co2_datetime, ", CO2_intensity = ",
-              self.node.co2_footprint.co2_intensity)
-
         if self.can_execute_locally(f):
             return (SchedulerDecision.EXEC, None)
         else:
@@ -234,7 +230,6 @@ class CloudRegionDispatcherRandomPolicy(Policy):
             #print("update policy dispatcher ->self.node.avg_cold_starts[f] = ",self.node.avg_cold_starts)
 
 
-    #todo: schedule interno è randomico + se nodo cloud droppa request come lo so?
     def schedule(self, f, c, offloaded_from):
 
         #print("[Random]: region -> ", self.region," offloaded_from -> ", offloaded_from)

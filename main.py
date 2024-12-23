@@ -92,65 +92,27 @@ def read_spec_file(spec_file_name, infra, config):
                 assert (p >= 0.0)
                 keys.append((key, p))
             output_mean = f["output_mean"] if "output_mean" in f else 256
-            variants = []
+            # Create variants
+            speedups = f.get("speedup", [])
+            utilities = f.get("utility", [])
+            assert len(speedups) == len(utilities), "Number of Speedup and utility don't match dimension"
+            variants = [FunctionVariant(f"{fname}_var_{speedup}", speedup, utility)
+                        for speedup, utility in zip(speedups, utilities)]
 
+            # Initialize the function
+            function = faas.Function(
+                name=fname, memory=memory, serviceMean=duration_mean, serviceSCV=duration_scv,
+                initMean=init_mean, inputSizeMean=input_mean, accessed_keys=keys,
+                max_data_access_time=max_data_access_time, outputSizeMean=output_mean,
+                variants=variants, is_default=True
+            )
 
-            #Check for speedup, if present, to add function variants
-            for speedup_value in f.get("speedup", []):
-                variant_name = fname+"_var_"+str(speedup_value)
-                speedup = speedup_value
+            function_names[fname] = function
+            functions.append(function)
 
-                variant = FunctionVariant(variant_name, speedup)
-                variants.append(variant)
+        add_default_variant(functions)
+        function_variants = process_variants(functions, function_names)
 
-
-            fun = faas.Function(fname, memory, serviceMean=duration_mean, serviceSCV=duration_scv, initMean=init_mean,
-                                inputSizeMean=input_mean, accessed_keys=keys, max_data_access_time=max_data_access_time,
-                                outputSizeMean=output_mean, variants=variants, is_default= True)
-            function_names[fname] = fun
-            functions.append(fun)
-
-        #per omogeneità, ogni funzione ha almeno una variante con speedup 1.0
-        for function in functions:
-            if len(function.variants)==0:
-                function.variants.append(FunctionVariant(function.name+"_var_"+str(variant),1.0))
-            else:
-                assert any(variant.speedup == 1.0 for variant in function.variants), \
-                    "Every function must have at least one variant with speedup 1.0"
-
-        function_variants = {}
-        tmp_list_variants = []
-        for f in functions:
-            default_function_count = 0
-            variants_for_function = []
-
-            for variant in f.variants:
-                current_variant_speedup = variant.speedup
-
-                #creo funzioni da inserire nella lista di functions, che sarebbero le varianti
-                if current_variant_speedup != 1.0:
-                    lighter_function = faas.Function(variant.name, f.memory, serviceMean=f.serviceMean*current_variant_speedup,
-                                                     serviceSCV=f.serviceSCV, initMean=f.initMean,
-                                    inputSizeMean=f.inputSizeMean, accessed_keys=f.accessed_keys, max_data_access_time=f.max_data_access_time,
-                                    outputSizeMean=f.outputSizeMean, is_default=False)
-                    function_names[lighter_function] = lighter_function
-                    tmp_list_variants.append(lighter_function)
-                    variants_for_function.append(lighter_function)
-
-                if current_variant_speedup == 1.0:
-                    f.active_variant = variant
-                    variant.is_default = True
-                    default_function_count += 1
-
-            if len(variants_for_function) > 0:
-                f.has_variants = True
-            #variants_for_function.append(f)
-            function_variants[f] = variants_for_function
-
-        assert default_function_count == 1, \
-                    "A function can have at most one variant with speedup 1.0"
-
-        functions.extend(tmp_list_variants)
         node2arrivals = {}
         for f in spec["arrivals"]:
             node = node_names[f["node"]]
@@ -194,6 +156,46 @@ def read_spec_file(spec_file_name, infra, config):
             node2arrivals[node].append(arv)
 
     return classes, functions, node2arrivals, function_variants
+
+# Function to ensure every function has a default variant
+def add_default_variant(functions):
+    for function in functions:
+        if not function.variants:
+            function.variants.append(FunctionVariant(f"{function.name}_var_1.0", 1.0, 1.0))
+        else:
+            assert any(variant.speedup == 1.0 for variant in function.variants), \
+                "Every function must have at least one default variant with speedup 1.0"
+
+# Function to create function variants
+def process_variants(functions, function_names):
+    tmp_list_variants = []
+    function_variants = {}
+
+    for function in functions:
+        variants_for_function = []
+
+        for variant in function.variants:
+            if variant.speedup != 1.0:
+                lighter_function = faas.Function(
+                    name=variant.name, memory=function.memory,
+                    serviceMean=function.serviceMean * variant.speedup,
+                    serviceSCV=function.serviceSCV, initMean=function.initMean,
+                    inputSizeMean=function.inputSizeMean, accessed_keys=function.accessed_keys,
+                    max_data_access_time=function.max_data_access_time,
+                    outputSizeMean=function.outputSizeMean, is_default=False
+                )
+                function_names[lighter_function.name] = lighter_function
+                tmp_list_variants.append(lighter_function)
+                variants_for_function.append(lighter_function)
+            else:
+                function.active_variant = variant
+
+        function.has_variants = bool(variants_for_function)
+        function_variants[function] = variants_for_function
+
+    functions.extend(tmp_list_variants)
+    return function_variants
+
 
 def read_traces_file(filename, col_datetime, col_co2intensity, start_date, end_date):
 
