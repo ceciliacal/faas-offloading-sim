@@ -134,12 +134,14 @@ class Simulation:
         self.external_arrivals_allowed = True
 
         self.verbosity = self.config.getint(conf.SEC_SIM, conf.VERBOSITY, fallback=0)
+        self.is_approximate_computing_enabled = self.config.getboolean(conf.SEC_SIM, conf.ENABLE_APPROXIMATE_COMPUTING, fallback=False)
+
 
 
         # Seeds
         n_arrival_processes = sum([len(arrival_procs) for arrival_procs in self.node2arrivals.values()])
         # Spawn off child SeedSequences to pass to child processes.
-        child_seeds = self.seed_sequence.spawn(7 + 3 * n_arrival_processes)
+        child_seeds = self.seed_sequence.spawn(8 + 3 * n_arrival_processes)
         self.service_rng = default_rng(child_seeds[0])
         self.node_choice_rng = default_rng(child_seeds[1])
         self.policy_rng1 = default_rng(child_seeds[2])
@@ -148,9 +150,11 @@ class Simulation:
 
         self.cloud_region_choice = default_rng(child_seeds[5])
         self.cloud_node_random_choice = default_rng(child_seeds[6])
+        self.rng_variant = default_rng(child_seeds[7])
+
         #self.edge_region_choice = default_rng(child_seeds[6])
 
-        i = 7
+        i = 8
         for n, arvs in self.node2arrivals.items():
             for arv in arvs:
                 arv.init_rng(default_rng(child_seeds[i]), default_rng(child_seeds[i + 1]),
@@ -189,6 +193,8 @@ class Simulation:
     def new_policy(self, configured_policy, node):
         if configured_policy == "basic":
             return policy.BasicPolicy(self, node)
+        if configured_policy == "basic-multi-region":
+            return policy.BasicPolicyMultiRegion(self, node)
         if configured_policy == "basic-budget":
             return policy.BasicBudgetAwarePolicy(self, node)
         if configured_policy == "basic-edge":
@@ -220,6 +226,8 @@ class Simulation:
             return policy.GreedyPolicyWithCostMinimization(self, node)
         elif configured_policy == "random":
             return probabilistic.RandomPolicy(self, node)
+        elif configured_policy == "random-multi-region":
+            return probabilistic_carbon_aware.RandomPolicy(self, node)
         elif configured_policy == "random-stateful":
             return stateful.RandomStatefulOffloadingPolicy(self, node)
         elif configured_policy == "state-aware":
@@ -230,6 +238,8 @@ class Simulation:
             return probabilistic_carbon_aware.ProbabilisticCarbonAwarePolicy(self, node)
         elif configured_policy == "dispatcher-policy":
             return policy.CloudRegionDispatcherRandomPolicy(self, node)
+        elif configured_policy == "random":
+            return probabilistic.RandomPolicy(self, node)
         else:
             raise RuntimeError(f"Unknown policy: {configured_policy}")
 
@@ -257,15 +267,12 @@ class Simulation:
         self.events = []
         self.t = 0.0
         self.node2policy = {}
-        #self.is_variant_enabled = self.config.getboolean(conf.SEC_SIM, conf.ENABLE_VARIANTS, fallback=False)
 
         self.expiration_timeout = self.config.getfloat(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, fallback=600)
 
         add_enum_members(SchedulerDecision, self.infra.regions)
-        self.variants = {}
-        for function in self.functions:
-            for var in function.variants:
-                self.variants[function] = var
+        self.of_alpha = self.config.getfloat(conf.SEC_POLICY, conf.ALPHA, fallback=0.0)
+        self.of_beta = self.config.getfloat(conf.SEC_POLICY, conf.BETA, fallback=0.0)
 
         # Policy
         policy_name = self.config.get(conf.SEC_POLICY, conf.POLICY_NAME, fallback="basic")
@@ -541,11 +548,20 @@ class Simulation:
         if self.external_arrivals_allowed:
             self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n))
 
-        #if node is a cloud processing node, update stats (exec time & num completions)
         region = n.region
+        self.stats.co2_emission_nodes[(region, n)] += n.co2_footprint.co2_intensity
+        self.stats.co2_emission_total += n.co2_footprint.co2_intensity
+        self.stats.total_processing_time += duration
+        if self.stats.total_processing_time > 0:
+            self.stats.emission_intensity = self.stats.co2_emission_total / self.stats.total_processing_time
+
+        #if node is a cloud processing node, update stats (exec time & num completions)
+
         if region.is_cloud() and not isinstance(n, Dispatcher):
             self.stats.execution_time_sum_cloud_nodes[(region, f, n)] += duration
             self.stats.completions_cloud_nodes[(region, f, n)] += 1
+
+
 
     def do_offload(self, arrival, target_node):
 
@@ -657,15 +673,7 @@ class Simulation:
                 for dispatcher in self.infra.dispatchers:
                     if dispatcher.region.name == region_name:
                         remote_node = dispatcher
-                        break   #todo: mettere che se lontano droppo richiesta
-
-                '''
-                nodes_w_lat = [(_n, self.infra.get_latency(n, _n)) for _n in self.infra.get_cloud_nodes()]
-                if len(nodes_w_lat) < 1:
-                    remote_node = None
-                else:
-                    remote_node = sorted(nodes_w_lat, key=lambda x: x[1])[0][0]
-                '''
+                        break
 
             if remote_node is None:
                 # drop
@@ -699,5 +707,21 @@ class Simulation:
                     data_access_time += extra_latency
                 self.stats.data_access_count[(k, f, n)] += 1
         return float(duration + data_access_time), float(data_access_time)
+
+    def pick_closest_cloud_region(self, n: Node):
+        nodes_w_lat = [(_n, self.infra.get_latency(n, _n)) for _n in self.infra.dispatchers]
+        if len(nodes_w_lat) < 1:
+            remote_node = None
+            scheduler_decision = SchedulerDecision.DROP
+        else:
+            remote_node = sorted(nodes_w_lat, key=lambda x: x[1])[0][0]
+            region = remote_node.region
+            scheduler_decision = None
+            possible_decisions = list(SchedulerDecision)
+            for dec in possible_decisions:
+                if region.upper() in dec.name:
+                    scheduler_decision = dec
+                    break
+        return scheduler_decision, remote_node
 
 

@@ -8,13 +8,50 @@ import map as MAP
 ARRIVAL_DISTRIBUTIONS = ["exp","mmpp","erlang","hyper"]
 
 # Returns an open NamedTemporaryFile
-def generate_temp_spec (n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=True,
-                   n_classes=4, cloud_cost=0.00005, cloud_speedup=1.0, n_edges=5):
+def generate_temp_spec (n_functions=1, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=True,
+                   n_classes=1, cloud_cost=0.00005, cloud_speedup=1.0, n_edges=5):
 
-    classes = [{'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 1.0}, {'name': 'standard', 'max_resp_time': 0.5, 'utility': 0.01, 'arrival_weight': 7.0}, {'name': 'batch', 'max_resp_time': 99.0, 'utility': 1.0, 'arrival_weight': 1.0}, {'name': 'criticalP', 'max_resp_time': 0.5, 'utility': 1.0, 'penalty': 0.75, 'arrival_weight': 1.0}]
-    nodes = [{'name': 'edge1', 'region': 'edge', 'memory': 4096}, {'name': 'edge2', 'region': 'edge', 'memory': 4096}, {'name': 'edge3', 'region': 'edge', 'memory': 4096}, {'name': 'edge4', 'region': 'edge', 'memory': 4096}, {'name': 'edge5', 'region': 'edge', 'memory': 4096}, {'name': 'cloud1', 'region': 'cloud', 'cost': cloud_cost, 'speedup': cloud_speedup, 'memory': 128000}]
-    functions = [{'name': 'f1', 'memory': 512, 'duration_mean': 0.4, 'duration_scv': 1.0, 'init_mean': 0.5}, {'name': 'f2', 'memory': 512, 'duration_mean': 0.2, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f3', 'memory': 128, 'duration_mean': 0.3, 'duration_scv': 1.0, 'init_mean': 0.6}, {'name': 'f4', 'memory': 1024, 'duration_mean': 0.25, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f5', 'memory': 256, 'duration_mean': 0.45, 'duration_scv': 1.0, 'init_mean': 0.5}]
-   
+    #classes = [{'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 1.0}, {'name': 'standard', 'max_resp_time': 0.5, 'utility': 0.01, 'arrival_weight': 7.0}, {'name': 'batch', 'max_resp_time': 99.0, 'utility': 1.0, 'arrival_weight': 1.0}, {'name': 'criticalP', 'max_resp_time': 0.5, 'utility': 1.0, 'penalty': 0.75, 'arrival_weight': 1.0}]
+    #nodes = [{'name': 'edge1', 'region': 'edge', 'memory': 4096}, {'name': 'edge2', 'region': 'edge', 'memory': 4096}, {'name': 'edge3', 'region': 'edge', 'memory': 4096}, {'name': 'edge4', 'region': 'edge', 'memory': 4096}, {'name': 'edge5', 'region': 'edge', 'memory': 4096}, {'name': 'cloud1', 'region': 'cloud', 'cost': cloud_cost, 'speedup': cloud_speedup, 'memory': 128000}]
+    #functions = [{'name': 'f1', 'memory': 512, 'duration_mean': 0.4, 'duration_scv': 1.0, 'init_mean': 0.5}, {'name': 'f2', 'memory': 512, 'duration_mean': 0.2, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f3', 'memory': 128, 'duration_mean': 0.3, 'duration_scv': 1.0, 'init_mean': 0.6}, {'name': 'f4', 'memory': 1024, 'duration_mean': 0.25, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f5', 'memory': 256, 'duration_mean': 0.45, 'duration_scv': 1.0, 'init_mean': 0.5}]
+
+    classes = [{'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 1.0},
+               #{'name': 'standard', 'max_resp_time': 0.5, 'utility': 0.01, 'arrival_weight': 7.0},
+               #{'name': 'batch', 'max_resp_time': 99.0, 'utility': 1.0, 'arrival_weight': 1.0},
+               #{'name': 'criticalP', 'max_resp_time': 0.5, 'utility': 1.0, 'penalty': 0.75, 'arrival_weight': 1.0}
+               ]
+
+    nodes = [
+        {'name': 'edge_node_a', 'region': 'edge_zone_1', 'memory': 2048,
+         'processing_power_consumption': 7.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
+        {'name': 'edge_node_b', 'region': 'edge_zone_1', 'memory': 2048,
+         'processing_power_consumption': 7.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
+        {'name': 'edge_node_c', 'region': 'edge_zone_1', 'memory': 2048,
+         'processing_power_consumption': 7.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
+        {'name': 'edge_node_d', 'region': 'edge_zone_2', 'memory': 2048,
+         'processing_power_consumption': 7.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
+        {'name': 'edge_node_e', 'region': 'edge_zone_2', 'memory': 2048,
+         'processing_power_consumption': 7.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
+        {'name': 'edge_node_f', 'region': 'edge_zone_2', 'memory': 2048,
+         'processing_power_consumption': 7.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
+        {'name': 'cloud_node_a', 'region': 'cloud_region_a', 'cost': 0.00001, 'speedup': 1.1, 'memory': 32000,
+         'processing_power_consumption': 1000.0, 'tx_energy_consumption': 5.0, 'rx_energy_consumption': 3.0},
+        {'name': 'cloud_node_b', 'region': 'cloud_region_b', 'cost': 0.00001, 'speedup': 1.1, 'memory': 32000,
+         'processing_power_consumption': 1000.0, 'tx_energy_consumption': 5.0, 'rx_energy_consumption': 3.0},
+        {'name': 'cloud_node_c', 'region': 'cloud_region_c', 'cost': 0.00001, 'speedup': 1.1, 'memory': 32000,
+         'processing_power_consumption': 1000.0, 'tx_energy_consumption': 5.0, 'rx_energy_consumption': 3.0},
+        {'name': 'dispatcher_a', 'region': 'cloud_region_a', 'memory': 0, 'policy': 'dispatcher-policy'},
+        {'name': 'dispatcher_b', 'region': 'cloud_region_b', 'memory': 0, 'policy': 'dispatcher-policy'},
+        {'name': 'dispatcher_c', 'region': 'cloud_region_c', 'memory': 0, 'policy': 'dispatcher-policy'}
+    ]
+
+    functions = [{'name': 'f1', 'memory': 512, 'duration_mean': 0.4, 'duration_scv': 1.0, 'init_mean': 0.5, 'speedup':{1.0,0.5,0.2}, 'utility':{1.0,0.0,0.0000002}},
+                 #{'name': 'f2', 'memory': 512, 'duration_mean': 0.2, 'duration_scv': 1.0, 'init_mean': 0.25},
+                 #{'name': 'f3', 'memory': 128, 'duration_mean': 0.3, 'duration_scv': 1.0, 'init_mean': 0.6},
+                 #{'name': 'f4', 'memory': 1024, 'duration_mean': 0.25, 'duration_scv': 1.0, 'init_mean': 0.25},
+                 #{'name': 'f5', 'memory': 256, 'duration_mean': 0.45, 'duration_scv': 1.0, 'init_mean': 0.5}
+                 ]
+
     #Extend functions list if needed
     if n_functions > len(functions):
         i=0
@@ -190,6 +227,103 @@ def write_spec (outf, functions, classes, nodes, load_coeff=1.0, dynamic_rate_co
     outf.write(yaml.dump(spec))
     #print(yaml.dump(spec))
     outf.flush()
+
+def write_regions_yaml(outf, regions_data):
+    yaml.dump({'regions': regions_data}, outf)
+    outf.flush()
+
+def generate_temp_regions_yaml():
+    # Create a temporary file and write the regions YAML data
+    temp_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
+    write_regions_yaml(temp_file, regions_data)
+    temp_file.close()
+    return temp_file.name
+
+regions_data = [
+    {
+        "name": "cloud_region_a",
+        "co2_traces_file": "co2_traces/FR_2023_hourly.csv",
+        "neighbors": ["cloud_region_b"],
+        "latency_sec": {
+            "cloud_region_a": 0.0001,
+            "cloud_region_b": 0.0020,
+            "cloud_region_c": 0.0100
+        },
+        "bandwidth_mbps": {
+            "cloud_region_a": 100000.0,
+            "cloud_region_b": 50000.0,
+            "cloud_region_c": 10000.0
+        },
+        "zones": [
+            {
+                "name": "edge_zone_1",
+                "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
+                "latency_sec": {
+                    "cloud_region_a": 0.1,
+                    "cloud_region_b": 0.3,
+                    "cloud_region_c": 0.4,
+                    "edge_zone_1": 0.5
+                },
+                "bandwidth_mbps": {
+                    "cloud_region_a": 50000.0,
+                    "cloud_region_b": 2500.0,
+                    "cloud_region_c": 10000.0,
+                    "edge_zone_1": 100.0
+                }
+            }
+        ]
+    },
+    {
+        "name": "cloud_region_b",
+        "co2_traces_file": "co2_traces/FR_2023_hourly.csv",
+        "neighbors": ["cloud_region_a"],
+        "latency_sec": {
+            "cloud_region_a": 0.0020,
+            "cloud_region_b": 0.0001,
+            "cloud_region_c": 0.0100
+        },
+        "bandwidth_mbps": {
+            "cloud_region_a": 50000.0,
+            "cloud_region_b": 100000.0,
+            "cloud_region_c": 10000.0
+        },
+        "zones": [
+            {
+                "name": "edge_zone_2",
+                "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
+                "latency_sec": {
+                    "cloud_region_a": 0.0010,
+                    "cloud_region_b": 0.0010,
+                    "cloud_region_c": 0.0010,
+                    "edge_zone_2": 0.0005
+                },
+                "bandwidth_mbps": {
+                    "cloud_region_a": 50000.0,
+                    "cloud_region_b": 50000.0,
+                    "cloud_region_c": 50000.0,
+                    "edge_zone_2": 100000.0
+                }
+            }
+        ]
+    },
+    {
+        "name": "cloud_region_c",
+        "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
+        "neighbors": [],
+        "latency_sec": {
+            "cloud_region_a": 0.100,
+            "cloud_region_b": 0.100,
+            "cloud_region_c": 0.001
+        },
+        "bandwidth_mbps": {
+            "cloud_region_a": 1000.0,
+            "cloud_region_b": 1000.0,
+            "cloud_region_c": 10000.0
+        },
+        "zones": []
+    }
+]
+
 
 if __name__ == "__main__":
     with open("spec.yml", "w") as outf:

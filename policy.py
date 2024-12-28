@@ -154,6 +154,23 @@ class BasicPolicy(Policy):
         else:
             return (SchedulerDecision.OFFLOAD_CLOUD, None)
 
+class BasicPolicyMultiRegion(Policy):
+
+    def schedule(self, f, c, offloaded_from):
+        if self.can_execute_locally(f):
+            if not self.simulation.is_approximate_computing_enabled:
+                return (SchedulerDecision.EXEC, None)
+            else:
+                if f.has_variants:
+                    # returns the variant with the minimum speedup
+                    lightest_variant = min(f.variants, key=lambda variant: variant.speedup)
+                    f.active_variant = lightest_variant.self_function
+                    return SchedulerDecision.EXEC_VAR, None
+                return SchedulerDecision.EXEC, None
+        else:
+            scheduler_decision, remote_node = self.simulation.pick_closest_cloud_region(self.node)
+            return scheduler_decision, remote_node
+
 class BasicBudgetAwarePolicy(Policy):
 
     def schedule(self, f, c, offloaded_from):

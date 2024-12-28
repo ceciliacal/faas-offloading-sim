@@ -1,5 +1,6 @@
 import math
 import sys
+from tabnanny import check
 
 import numpy as np
 import pandas as pd
@@ -110,7 +111,6 @@ def read_spec_file(spec_file_name, infra, config):
             function_names[fname] = function
             functions.append(function)
 
-        add_default_variant(functions)
         function_variants = process_variants(functions, function_names)
 
         node2arrivals = {}
@@ -157,40 +157,39 @@ def read_spec_file(spec_file_name, infra, config):
 
     return classes, functions, node2arrivals, function_variants
 
-# Function to ensure every function has a default variant
-def add_default_variant(functions):
-    for function in functions:
-        if not function.variants:
-            function.variants.append(FunctionVariant(f"{function.name}_var_1.0", 1.0, 1.0))
-        else:
-            assert any(variant.speedup == 1.0 for variant in function.variants), \
-                "Every function must have at least one default variant with speedup 1.0"
 
-# Function to create function variants
+#Function variants creation
 def process_variants(functions, function_names):
     tmp_list_variants = []
     function_variants = {}
 
     for function in functions:
+
+        assert any(variant.speedup == 1.0 for variant in function.variants), \
+            "Every function must have at least one default variant with speedup 1.0"
+
         variants_for_function = []
 
         for variant in function.variants:
             if variant.speedup != 1.0:
                 lighter_function = faas.Function(
                     name=variant.name, memory=function.memory,
-                    serviceMean=function.serviceMean * variant.speedup,
-                    serviceSCV=function.serviceSCV, initMean=function.initMean,
+                    serviceMean= function.serviceMean * variant.speedup,
+                    serviceSCV=function.serviceSCV * variant.speedup, initMean=function.initMean,
                     inputSizeMean=function.inputSizeMean, accessed_keys=function.accessed_keys,
                     max_data_access_time=function.max_data_access_time,
                     outputSizeMean=function.outputSizeMean, is_default=False
                 )
                 function_names[lighter_function.name] = lighter_function
                 tmp_list_variants.append(lighter_function)
+                variant.self_function = lighter_function
                 variants_for_function.append(lighter_function)
             else:
                 function.active_variant = variant
 
         function.has_variants = bool(variants_for_function)
+        # once checked that default variant is configured, remove the default among the variants
+        function.variants = [v for v in function.variants if v.speedup != 1.0]
         function_variants[function] = variants_for_function
 
     functions.extend(tmp_list_variants)
@@ -306,6 +305,11 @@ def main():
     config = conf.parse_config_file(config_file)
     simulation = init_simulation(config)
     final_stats = simulation.run()
+    print("co2_emission_nodes: ", final_stats.co2_emission_nodes)
+    print("co2_emission_total: ",final_stats.co2_emission_total)
+    print("emission_intensity: ",final_stats.emission_intensity)
+    print("total_processing_time: ",final_stats.total_processing_time)
+
 
 
 if __name__ == "__main__":

@@ -61,7 +61,9 @@ EXEC = "EXEC"
 DROP = "DROP"
 OFFLOAD_CLOUD_DECISION = "OFFLOAD_CLOUD_"
 
-ENABLE_VARIANTS = "ENABLE_VARIANTS"
+ENABLE_APPROXIMATE_COMPUTING = "enable-approximate-computing"
+ALPHA = "of-alpha"
+BETA = "of-beta"
 
 import configparser
 

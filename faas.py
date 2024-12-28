@@ -133,6 +133,18 @@ class QoSClass:
     def __le__(self,other):
         return self.name <= other.name
 
+
+class FunctionVariant:
+    def __init__(self, name, speedup, utility):
+        self.name = name
+        self.speedup = speedup
+        self.utility = utility
+        self.self_function = None
+
+    def __repr__(self):
+        return f"FunctionVariant(name={self.name}, speedup={self.speedup})"
+
+
 @dataclass
 class Function:
     name: str
@@ -144,7 +156,7 @@ class Function:
     accessed_keys: [] = field(default_factory=lambda: [])
     max_data_access_time: float = None
     outputSizeMean: float = 10
-    variants: [] = field(default_factory=lambda: [])
+    variants: [FunctionVariant] = field(default_factory=lambda: [])
     is_default: bool = False
     active_variant = None
     has_variants: bool = False
@@ -162,14 +174,7 @@ class Function:
     def __le__(self,other):
         return self.name <= other.name
 
-class FunctionVariant:
-    def __init__(self, name, speedup, utility):
-        self.name = name
-        self.speedup = speedup
-        self.utility = utility
 
-    def __repr__(self):
-        return f"FunctionVariant(name={self.name}, speedup={self.speedup})"
 
 
 

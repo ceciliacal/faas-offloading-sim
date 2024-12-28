@@ -16,42 +16,42 @@ nodes:
   - name: edge_node_a
     region: edge_zone_1
     memory: 2048
-    processing_power_consumption: 7.0   #Watt
+    processing_power_consumption: 100.0   #Watt
     tx_energy_consumption: 50.0          #nanoJoule/byte (0.1 nJ/byte = 10^-9 Joule/byte)
     rx_energy_consumption: 30.0
 
   - name: edge_node_b
     region: edge_zone_1
     memory: 2048
-    processing_power_consumption: 7.0
+    processing_power_consumption: 100.0
     tx_energy_consumption: 50.0
     rx_energy_consumption: 30.0
 
   - name: edge_node_c
     region: edge_zone_1
     memory: 2048
-    processing_power_consumption: 7.0
+    processing_power_consumption: 100.0
     tx_energy_consumption: 50.0
     rx_energy_consumption: 30.0
 
   - name: edge_node_d
     region: edge_zone_2
     memory: 2048
-    processing_power_consumption: 7.0
+    processing_power_consumption: 100.0
     tx_energy_consumption: 50.0
     rx_energy_consumption: 30.0
 
   - name: edge_node_e
     region: edge_zone_2
     memory: 2048
-    processing_power_consumption: 7.0
+    processing_power_consumption: 100.0
     tx_energy_consumption: 50.0
     rx_energy_consumption: 30.0
 
   - name: edge_node_f
     region: edge_zone_2
     memory: 2048
-    processing_power_consumption: 7.0
+    processing_power_consumption: 100.0
     tx_energy_consumption: 50.0
     rx_energy_consumption: 30.0
 
@@ -60,7 +60,7 @@ nodes:
     cost: 0.00001
     speedup: 1.1
     memory: 32000
-    processing_power_consumption: 1000.0  #Watt #CONVERSIONI in faas.py in kW e J/byte
+    processing_power_consumption: 800.0  #Watt #CONVERSIONI in faas.py in kW e J/byte
     tx_energy_consumption: 5.0
     rx_energy_consumption: 3.0          #nanoJoule/byte (1 nJ/byte = 10^-9 Joule/byte)
 
@@ -69,7 +69,7 @@ nodes:
     cost: 0.00001
     speedup: 1.1
     memory: 32000
-    processing_power_consumption: 1000.0
+    processing_power_consumption: 800.0
     tx_energy_consumption: 5.0
     rx_energy_consumption: 3.0
 
@@ -78,7 +78,7 @@ nodes:
     cost: 0.00001
     speedup: 1.1
     memory: 32000
-    processing_power_consumption: 1000.0
+    processing_power_consumption: 800.0
     tx_energy_consumption: 5.0
     rx_energy_consumption: 3.0
 
@@ -107,12 +107,12 @@ functions:
     duration_scv: 1.0
     speedup:
       - 1.0
-      - 0.5
-      - 0.2
+      #- 0.5
+      #- 0.2
     utility:
       - 1.0
-      - 0.5
-      - 0.2
+      #- 1.0
+      #- 1.0
   #- name: f2
     #memory: 512
     #duration_mean: 0.120
@@ -131,4 +131,3 @@ arrivals:
   #    - best-effort
   #  rate: 0.1
 
-    #trace: traces/iat_660323aa6f1012c8eca3c7d8153cb436320b48ed84f82bf3e816b494ad8dfde2

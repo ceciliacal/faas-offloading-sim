@@ -51,6 +51,14 @@ class Stats:
         self.completions_cloud_nodes = {(r, f, n): 0 for r in infra.regions for f in functions for n in infra.get_cloud_nodes_by_region(r)}
         self.cold_starts_cloud_nodes = {(r, f, n): 0 for r in infra.regions for f in functions for n in infra.get_cloud_nodes_by_region(r)}
 
+        self.co2_emission_nodes = {(r, n): 0.0 for r in infra.regions for n in infra.get_nodes_by_region(r)}
+        self.co2_emission_total = 0.0
+        self.total_processing_time = 0.0
+        self.emission_intensity = 0.0
+        if self.total_processing_time > 0:
+            self.emission_intensity =  self.co2_emission_total/self.total_processing_time
+
+
     def to_dict (self):
         stats = {}
         raw = vars(self)
