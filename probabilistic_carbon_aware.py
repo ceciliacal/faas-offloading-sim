@@ -11,6 +11,7 @@ from policy import Policy, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS, S
 ADAPTIVE_EDGE_MEMORY_COEFFICIENT = True
 
 
+
 class ProbabilisticCarbonAwarePolicy(Policy):
 
     def __init__(self, simulation, node, strict_budget_enforce=False):
@@ -95,13 +96,13 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
         self.possible_decisions = list(SchedulerDecision)
 
-        cloud_prob = float(0.5/self.num_regions_cloud)
+        cloud_prob = float(1/(1+self.num_regions_cloud))
         self.probs = {
             (f, c): {
                 decision: prob
                 for decision, prob in zip(
                     self.possible_decisions,
-                    [0.5, 0.0, 0.0, 0.0] + [cloud_prob] * self.num_regions_cloud
+                    [cloud_prob] + [0.0, 0.0, 0.0] + [cloud_prob] * self.num_regions_cloud
                 )
             }
             for f in simulation.functions
@@ -139,10 +140,21 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         cloud_eP = compute_cloud_energy(f, dispatcher_node, 0.1, node.tx_energy_consumption, node.rx_energy_consumption)
         node.g_co2_emissions[f][decision] = cloud_eP
 
+    def pick_greener_cloud_region(self):
+        dispatchers = self.simulation.infra.dispatchers
+        remote_node = min(dispatchers, key=lambda d: d.co2_footprint.co2_intensity)
+        sched_decision = f"{conf.OFFLOAD_CLOUD_DECISION}{remote_node.region.name.upper()}"
+        return sched_decision, remote_node
+
     def schedule(self, f, c, offloaded_from):
         probabilities = self.probs[(f, c)].copy()
         if len(self.variants_probs) > 0:
             variants_probs = self.variants_probs[f].copy()
+
+        printable_probs = {}
+        for dec, p in probabilities.items():
+            printable_probs[dec.name] = p
+        #print("[schedule] - probs: ", printable_probs)
 
         # If the request has already been offloaded, cannot offload again
         if len(offloaded_from) > 0:
@@ -159,9 +171,6 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                 probabilities = self.renormalize_probs(probabilities, s)
 
         decision = self.rng.choice(list(probabilities.keys()), p=list(probabilities.values()))
-        printable_probs = {}
-        for dec, p in probabilities.items():
-            printable_probs[dec.name] = p
 
         print("[schedule - node ",self.node,"] decision: ", decision)
 
@@ -195,12 +204,12 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
             if self.local_rejection_fallback == "fgcs24" or self.local_rejection_fallback == "reschedule":
 
-                probabilities[SchedulerDecision.EXEC] = 0
+                probabilities[SchedulerDecision.EXEC] = 0.0
 
                 if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
                     for cloud_decision, prob in probabilities.items():
                         if conf.OFFLOAD_CLOUD_DECISION in cloud_decision.name:
-                            probabilities[decision] = 0
+                            probabilities[decision] = 0.0
 
                 s = sum(probabilities.values())
                 if not s > 0.0:
@@ -218,9 +227,9 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                                 cloud_decisions.append(cloud_decision)
                                 cloud_probs.append(prob)
 
-                        cloud_region_decision = self.rng_cloud_region(cloud_decisions, p=cloud_probs)
+                        decision, dispatcher = self.pick_greener_cloud_region()
 
-                        return (cloud_region_decision, None)
+                        return (decision, dispatcher)
                     else:
                         return (SchedulerDecision.DROP, None)
 

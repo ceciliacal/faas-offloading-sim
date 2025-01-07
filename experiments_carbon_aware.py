@@ -6,11 +6,7 @@ import pandas as pd
 import numpy as np
 import yaml
 
-from spec import generate_temp_spec, generate_random_temp_spec, generate_regions_yaml, \
-    generate_random_temp_spec_variants
-import faas
-import conf
-from arrivals import PoissonArrivalProcess, TraceArrivalProcess, MAPArrivalProcess
+from spec import generate_regions_yaml, generate_random_temp_spec_variants
 from simulation import Simulation
 from infrastructure import *
 from main import read_spec_file
@@ -119,13 +115,13 @@ def default_infra(edge_cloud_latency=0.100, is_edge_green=True):
 
 
 def _experiment (config, seed_sequence, infra, spec_file_name, return_resp_times_stats=False):
-    classes, functions, node2arrivals, function_variants  = read_spec_file (spec_file_name, infra, config)
+    classes, functions, node2arrivals, function_variants, variants  = read_spec_file (spec_file_name, infra, config)
     #generate_latencies(infra, default_rng(seed_sequence.spawn(1)[0]))
 
     with tempfile.NamedTemporaryFile() as rtf:
         if return_resp_times_stats:
             config.set(conf.SEC_SIM, conf.RESP_TIMES_FILE, rtf.name)
-        sim = Simulation(config, seed_sequence, infra, functions, classes, node2arrivals, function_variants)
+        sim = Simulation(config, seed_sequence, infra, functions, classes, node2arrivals, function_variants, variants)
         final_stats = sim.run()
         del(sim)
 

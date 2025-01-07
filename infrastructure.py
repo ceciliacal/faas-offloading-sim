@@ -206,15 +206,6 @@ class Infrastructure:
         else:
             return peers
 
-    def get_regions_by_type (self, reg_type):
-        nodes = []
-        for r in self.regions:
-            if not r.is_cloud() and reg_type == conf.EDGE:
-                nodes.append(r)
-            elif r.is_cloud() and reg_type == conf.CLOUD:
-                nodes.append(r)
-        return nodes
-
     def get_dispatcher_by_region_name(self, reg_name):
         for dispatcher in self.dispatchers:
             if dispatcher.region.name == reg_name:
