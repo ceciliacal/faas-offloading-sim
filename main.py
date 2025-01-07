@@ -1,6 +1,5 @@
 import math
 import sys
-from tabnanny import check
 
 import numpy as np
 import pandas as pd
@@ -155,7 +154,7 @@ def read_spec_file(spec_file_name, infra, config):
                 node2arrivals[node] = []
             node2arrivals[node].append(arv)
 
-    return classes, functions, node2arrivals, function_variants
+    return classes, functions, node2arrivals, function_variants, variants
 
 
 #Function variants creation
@@ -293,9 +292,9 @@ def init_simulation(config):
 
     # Read spec file
     spec_file_name = config.get(conf.SEC_SIM, conf.SPEC_FILE, fallback=None)
-    classes, functions, node2arrivals, function_variants = read_spec_file(spec_file_name, infra, config)
+    classes, functions, node2arrivals, function_variants, variants = read_spec_file(spec_file_name, infra, config)
 
-    sim = Simulation(config, seed_sequence, infra, functions, classes, node2arrivals, function_variants)
+    sim = Simulation(config, seed_sequence, infra, functions, classes, node2arrivals, function_variants, variants)
     return sim
 
 
@@ -305,7 +304,7 @@ def main():
     config = conf.parse_config_file(config_file)
     simulation = init_simulation(config)
     final_stats = simulation.run()
-    print("co2_emission_nodes: ", final_stats.co2_emission_nodes)
+    print("co2_emission_nodes: ", final_stats.co2_emission_per_node)
     print("co2_emission_total: ",final_stats.co2_emission_total)
     print("emission_intensity: ",final_stats.emission_intensity)
     print("total_processing_time: ",final_stats.total_processing_time)

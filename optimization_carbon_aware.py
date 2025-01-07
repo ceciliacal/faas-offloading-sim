@@ -4,7 +4,7 @@ from faas import Node, Function, QoSClass
 @dataclass
 class OptCarbonAwareProblemParams:
     local_node: Node
-    cloud_regions_dipatchers: dict #dispatchers dictionary
+    cloud_regions_dispatchers: dict #dispatchers dictionary
     possible_decisions: list
     functions: [Function]
     classes: [QoSClass]
@@ -18,6 +18,8 @@ class OptCarbonAwareProblemParams:
     cold_start_p_cloud: dict
     offload_time_cloud: dict #rtt cloud
     bandwidth_cloud: dict
+    #energy_consumption_per_function: dict
+    #energy_consumption_per_variant: dict
     usable_local_memory_coeff: float = 1.0
     budget: float = -1
     aggregated_edge_memory: float = 0
@@ -35,13 +37,14 @@ class OptCarbonAwareProblemParams:
 
 
 
+
     def fun_classes(self):
         for f in self.functions:
             for c in self.classes:
                 yield (f,c)
 
     def reg_fun_classes(self):
-        for r in self.cloud_regions_dipatchers.keys():
+        for r in self.cloud_regions_dispatchers.keys():
             for f in self.functions:
                 for c in self.classes:
                     yield (r.name,f,c)

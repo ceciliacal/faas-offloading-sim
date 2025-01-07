@@ -2,6 +2,7 @@ from enum import Enum, auto
 from pacsltk import perfmodel
 
 import conf
+from co2_footprint import compute_local_energy, compute_cloud_energy, compute_local_variant_energy, compute_edge_energy
 from faas import Dispatcher
 
 COLD_START_PROB_INITIAL_GUESS = 0.0
@@ -36,7 +37,8 @@ def add_enum_members(enum_class, regions:list):
     for name, value in new_members.items():
         # Ensure the member name doesn't already exist
         if name in enum_class.__members__:
-            raise ValueError(f"Member '{name}' already exists in {enum_class.__name__}.")
+            return
+            #raise ValueError(f"Member '{name}' already exists in {enum_class.__name__}.")
 
         # Create a new member bypassing Enum's immutability restrictions
         member = object.__new__(enum_class)
@@ -62,7 +64,8 @@ class ColdStartEstimation(Enum):
     @classmethod
     def from_string(cls,s):
 
-        s = s.name.lower()
+        #s = s.name.lower()
+        s = s.lower()
         if s == "no":
             return ColdStartEstimation.NO
         elif s == "naive" or s == "":
@@ -129,13 +132,6 @@ class Policy:
             probs = [1.0/n for x in peers]
         return probs, peers
 
-    def _get_edge_region_peers(self, region):
-        if self.__region_peers is None:
-            self.__region_peers = self.simulation.infra.get_neighbors_region(region,
-                                                                             self.simulation.edge_region_choice,
-                                                                             self.simulation.max_edge_neighbors_per_region)
-        return self.__region_peers
-
     # Picks a node for Edge offloading
     def pick_edge_node (self, fun, qos):
         # Pick peers based on resource availability
@@ -144,6 +140,27 @@ class Policy:
             return None
         return self.simulation.node_choice_rng.choice(peers, p=probs)
 
+    def compute_g_co2_decision(self, current_node, f, c, scheduler_decision):
+        if scheduler_decision == SchedulerDecision.EXEC:
+            current_node.g_co2_emissions[f][SchedulerDecision.EXEC] = compute_local_energy(
+                f, current_node, 1.0, f.serviceMean)
+        elif scheduler_decision == SchedulerDecision.EXEC_VAR:
+            v = f.active_variant
+            current_node.g_co2_emissions[v][SchedulerDecision.EXEC_VAR] = compute_local_variant_energy(
+                v, current_node, 1.0, v.serviceMean)
+        elif scheduler_decision == SchedulerDecision.OFFLOAD_EDGE:
+            remote_node = self.pick_edge_node(f, c)
+            current_node.g_co2_emissions[f][scheduler_decision] = compute_edge_energy(
+                f, remote_node.curr_memory * remote_node.peer_exposed_memory_fraction, remote_node.processing_power_consumption,
+                f.serviceMean, current_node.tx_energy_consumption, remote_node.rx_energy_consumption,
+                current_node.rx_energy_consumption, remote_node.tx_energy_consumption,
+                remote_node.co2_footprint.co2_intensity)
+        elif conf.OFFLOAD_CLOUD_DECISION in scheduler_decision.name:
+            region_name = self.simulation.get_region_name_by_scheduler_decision(scheduler_decision)
+            remote_node = self.simulation.pick_cloud_remote_node_by_region(region_name)
+            current_node.g_co2_emissions[f][scheduler_decision] = compute_cloud_energy(f, remote_node, f.serviceMean,
+                                                                                       current_node.tx_energy_consumption,
+                                                                                       current_node.rx_energy_consumption)
 
 
 class BasicPolicy(Policy):
@@ -154,22 +171,36 @@ class BasicPolicy(Policy):
         else:
             return (SchedulerDecision.OFFLOAD_CLOUD, None)
 
+
 class BasicPolicyMultiRegion(Policy):
 
     def schedule(self, f, c, offloaded_from):
-        if self.can_execute_locally(f):
-            if not self.simulation.is_approximate_computing_enabled:
-                return (SchedulerDecision.EXEC, None)
+        scheduler_decision_cloud, remote_node_cloud = self.simulation.pick_closest_cloud_region(self.node)
+
+        if not self.simulation.is_approximate_computing_enabled:
+            if self.can_execute_locally(f):
+                scheduler_decision, remote_node = SchedulerDecision.EXEC, None
             else:
-                if f.has_variants:
-                    # returns the variant with the minimum speedup
-                    lightest_variant = min(f.variants, key=lambda variant: variant.speedup)
-                    f.active_variant = lightest_variant.self_function
-                    return SchedulerDecision.EXEC_VAR, None
-                return SchedulerDecision.EXEC, None
+                scheduler_decision, remote_node = scheduler_decision_cloud, remote_node_cloud
         else:
-            scheduler_decision, remote_node = self.simulation.pick_closest_cloud_region(self.node)
-            return scheduler_decision, remote_node
+            if f.has_variants:
+                # returns the variant with the minimum speedup
+                lightest_variant = min(f.variants, key=lambda variant: variant.speedup)
+                lightest_variant_func = lightest_variant.self_function
+                if self.can_execute_locally(lightest_variant_func):
+                    f.active_variant = lightest_variant_func
+                    scheduler_decision, remote_node = SchedulerDecision.EXEC_VAR, None
+                else:
+                    scheduler_decision, remote_node = scheduler_decision_cloud, remote_node_cloud
+
+            else:
+                if self.can_execute_locally(f):
+                    scheduler_decision, remote_node = SchedulerDecision.EXEC, None
+                else:
+                    scheduler_decision, remote_node = scheduler_decision_cloud, remote_node_cloud
+
+        self.compute_g_co2_decision(self.node, f, c, scheduler_decision)
+        return scheduler_decision, remote_node
 
 class BasicBudgetAwarePolicy(Policy):
 
@@ -216,31 +247,25 @@ class CloudRegionDispatcherRandomPolicy(Policy):
         node.avg_tx_energy_consumption = (sum(cloud_node.tx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.avg_rx_energy_consumption = (sum(cloud_node.rx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
 
-
     def update(self):
         self.node.aggregated_region_memory = sum(cloud_node.curr_memory for cloud_node in self.cloud_region_nodes)
-        #print("--dispatcher: ",self.node.name,"--")
-        #print("update policy dispatcher -> aggregated_region_memory: ",self.node.aggregated_region_memory)
-
         stats = self.simulation.stats
         num_nodes = len(self.cloud_region_nodes)
-        exec_time_sum_per_function = 0
-        completions_per_function = 0
-        cold_starts_per_function = 0
-        for f in self.simulation.functions:
-            for n in self.cloud_region_nodes:
-                exec_time_sum_per_function = exec_time_sum_per_function + stats.execution_time_sum_cloud_nodes[(self.region,f,n)]
-                completions_per_function = completions_per_function + stats.completions_cloud_nodes[(self.region,f,n)]
-                cold_starts_per_function = cold_starts_per_function + stats.cold_starts_cloud_nodes[(self.region,f,n)]
 
-            avg_completions = completions_per_function / num_nodes
-            avg_exec_time = exec_time_sum_per_function / num_nodes
-            avg_cold_starts = cold_starts_per_function / num_nodes
+        for f in self.simulation.functions:
+            #accumulate stats across all cloud region nodes for f
+            exec_time_sum = sum(
+                stats.execution_time_sum_cloud_nodes[(self.region, f, n)] for n in self.cloud_region_nodes)
+            completions_sum = sum(stats.completions_cloud_nodes[(self.region, f, n)] for n in self.cloud_region_nodes)
+            cold_starts_sum = sum(stats.cold_starts_cloud_nodes[(self.region, f, n)] for n in self.cloud_region_nodes)
+
+            avg_completions = completions_sum / num_nodes
+            avg_exec_time = exec_time_sum / num_nodes
+            avg_cold_starts = cold_starts_sum / num_nodes
 
             self.node.avg_node2completions[f] = avg_completions
             self.node.avg_execution_time_sum[f] = avg_exec_time
             self.node.avg_cold_starts[f] = avg_cold_starts
-
 
             #print("update policy dispatcher -> self.node.avg_node2completions[f] = ",self.node.avg_node2completions)
             #print("update policy dispatcher ->self.node.avg_exec_time[f] = ",self.node.avg_execution_time_sum)
@@ -248,14 +273,8 @@ class CloudRegionDispatcherRandomPolicy(Policy):
 
 
     def schedule(self, f, c, offloaded_from):
-
-        #print("[Random]: region -> ", self.region," offloaded_from -> ", offloaded_from)
-        #print("[Random]: available could nodes -> ", self.cloud_region_nodes)
         selected_node = self.rng.choice(self.cloud_region_nodes)
-        #print("[Random]: selected cloud node -> ", selected_node.name)
-        #idem qui va decision offload_cloud_region_name ... etc
-        decision = conf.OFFLOAD_CLOUD_DECISION+self.region.name.upper() #todo: mandare a nodo cloud interno a regione!
-        #print("[Random]: decision -> ", decision)
+        decision = conf.OFFLOAD_CLOUD_DECISION+self.region.name.upper()
         return (decision, selected_node)
 
 

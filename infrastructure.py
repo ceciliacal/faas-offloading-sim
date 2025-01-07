@@ -215,20 +215,10 @@ class Infrastructure:
                 nodes.append(r)
         return nodes
 
-    def get_neighbors_region (self, region, reg_choice_rng, max_peers=3):
-        if region in self.region2neighbors:
-            peers = self.region2neighbors[region]
-        else:
-            peers = self.get_regions_by_type(conf.NUM_REGIONS_EDGE).copy()
-            peers.remove(region)
-            self.region2neighbors[region] = peers
-
-        if max_peers > 0 and len(peers) > max_peers:
-            return reg_choice_rng.choice(peers, max_peers) # TODO: random selection
-        else:
-            return peers
-
-
+    def get_dispatcher_by_region_name(self, reg_name):
+        for dispatcher in self.dispatchers:
+            if dispatcher.region.name == reg_name:
+                return dispatcher
 
     def __repr__ (self):
         s=""

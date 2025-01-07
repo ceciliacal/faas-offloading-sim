@@ -3,6 +3,7 @@ import sys
 import time
 from asyncore import dispatcher
 from heapq import heappop, heappush
+from itertools import chain
 
 from numpy.random import SeedSequence, default_rng
 
@@ -96,7 +97,7 @@ OFFLOADING_OVERHEAD = 0.005
 ARRIVAL_TRACE_PERIOD = 60.0
 
 
-def read_co2_intensity(node):
+def read_co2_intensity(node, is_co2_trace_over):
     n = node.co2_footprint.count
     if n <= len(node.region.datetime_co2intensity) - 1:
 
@@ -107,9 +108,16 @@ def read_co2_intensity(node):
         node.co2_footprint.count = n + 1
         #print("in update_co2_intensity: node: ",node.name," co2_datetime: ",node.co2_footprint.co2_datetime," co2_intensity: ",node.co2_footprint.co2_intensity," count: ",node.co2_footprint.count)
     else:
-        #print("df finito! n=",n," data: ",node.region.datetime_co2intensity.iloc[n-1][conf.CO2_TRACES_COL_TIMESTAMP])
-        return
+        is_co2_trace_over[node] = True
+        #print("df finito! n=",node," data: ",node.region.datetime_co2intensity.iloc[n-1][conf.CO2_TRACES_COL_TIMESTAMP])
 
+def initialize_co2_emissions(functions, infra):
+    for node in chain(infra.edge_nodes,infra.cloud_nodes):
+        for function in functions:
+            if function not in node.g_co2_emissions:
+                node.g_co2_emissions[function] = {}
+            for decision in list(SchedulerDecision):
+                node.g_co2_emissions[function][decision] = 0.0
 
 @dataclass
 class Simulation:
@@ -119,7 +127,8 @@ class Simulation:
     functions: [Function]
     classes: [QoSClass]
     node2arrivals: dict
-    function_variants: dict
+    function_variants: dict #key: Function value: Function
+    variants: [FunctionVariant]
 
 
     def __post_init__(self):
@@ -273,18 +282,24 @@ class Simulation:
         add_enum_members(SchedulerDecision, self.infra.regions)
         self.of_alpha = self.config.getfloat(conf.SEC_POLICY, conf.ALPHA, fallback=0.0)
         self.of_beta = self.config.getfloat(conf.SEC_POLICY, conf.BETA, fallback=0.0)
+        self.is_co2_trace_over = {node: False for node in self.infra.get_nodes(ignore_non_processing=False)} #todo aggiusta qua
+
+        initialize_co2_emissions(self.functions, self.infra)
+        for n in (self.infra.get_nodes(ignore_non_processing=False)):
+            read_co2_intensity(n, self.is_co2_trace_over)
 
         # Policy
         policy_name = self.config.get(conf.SEC_POLICY, conf.POLICY_NAME, fallback="basic")
+        for n in self.infra.dispatchers:
+            _policy = n.custom_sched_policy if n.custom_sched_policy is not None else "dispatcher-policy"
+            self.node2policy[n] = self.new_policy(_policy, n)
         for n in self.infra.edge_nodes:
             _policy = n.custom_sched_policy if n.custom_sched_policy is not None else policy_name
             self.node2policy[n] = self.new_policy(_policy, n)
         for n in self.infra.cloud_nodes:
             _policy = n.custom_sched_policy if n.custom_sched_policy is not None else "cloud"
             self.node2policy[n] = self.new_policy(_policy, n)
-        for n in self.infra.dispatchers:
-            _policy = n.custom_sched_policy if n.custom_sched_policy is not None else "dispatcher-policy"
-            self.node2policy[n] = self.new_policy(_policy, n)
+
 
         self.key_migration_policy = None
         stateful_policy_name = self.config.get(conf.SEC_STATEFUL, conf.POLICY_NAME, fallback="none")
@@ -340,8 +355,6 @@ class Simulation:
                 self.stats_file = open(stats_print_filename, "w")
 
         if self.carbon_intensity_update_interval > 0.0:
-            for n in (self.infra.get_nodes(ignore_non_processing=False)):
-                read_co2_intensity(n)
             self.count_carbon_intensity_update = self.count_carbon_intensity_update+1
             self.schedule(self.carbon_intensity_update_interval, CarbonIntensityUpdate())
         if self.policy_dispatcher_update_interval > 0.0:    #for cloud nodes status update
@@ -394,25 +407,21 @@ class Simulation:
         iat = arrival_proc.next_iat()
         f = arrival_proc.function
 
-        if iat >= 0.0 and self.t + iat < self.close_the_door_time:
+        if iat >= 0.0 and self.t + iat < self.close_the_door_time and not self.is_co2_trace_over[node]:
             self.schedule(self.t + iat, Arrival(node, f, c, arrival_proc))
         else:
+            # Close the arrival process if scheduling is not possible
             arrival_proc.close()
             self.node2arrivals[node].remove(arrival_proc)
-            if len(self.node2arrivals[node]) == 0:
-                del (self.node2arrivals[node])
+            if not self.node2arrivals[node]:  # Remove the node if no arrivals are left
+                del self.node2arrivals[node]
 
-        if len(self.node2arrivals) == 0:
-            # Little hack: remove all expiration from the event list (we do not
-            # need to wait for them)
-            for item in self.events:
-                if isinstance(item[1], CheckExpiredContainers) \
-                        or isinstance(item[1], PolicyUpdate) \
-                        or isinstance(item[1], CarbonIntensityUpdate) \
-                        or isinstance(item[1], DispatcherUpdate) \
-                        or isinstance(item[1], ArrivalRateUpdate) \
-                        or isinstance(item[1], StatPrinter):
-                    item[1].canceled = True
+        # Check if all arrivals are done, then clean up events
+        if not self.node2arrivals:
+            for _, event in self.events:
+                if isinstance(event, (CheckExpiredContainers, PolicyUpdate, CarbonIntensityUpdate,
+                                      DispatcherUpdate, ArrivalRateUpdate, StatPrinter)):
+                    event.canceled = True
             self.external_arrivals_allowed = False
 
     def schedule(self, t, event):
@@ -468,8 +477,8 @@ class Simulation:
             #      " scheduled t = ",t + self.policy_update_interval)
         elif isinstance(event, CarbonIntensityUpdate):
             for n in self.node2policy:
-                read_co2_intensity(n)
-                #print("current time t = ",t)
+                if not self.is_co2_trace_over[n]:
+                    read_co2_intensity(n, self.is_co2_trace_over)
             self.schedule(t + self.carbon_intensity_update_interval, event)
             self.count_carbon_intensity_update = self.count_carbon_intensity_update+1
             #print("count_carbon_intensity_update: ", self.count_carbon_intensity_update,
@@ -524,10 +533,18 @@ class Simulation:
         self.stats.completions[(f, c, n)] += 1
         self.stats.execution_time_sum[(f, n)] += duration
         self.stats.node2completions[(f, n)] += 1
-        self.stats.raw_utility += c.utility
+        variant_utility = 1.0
+        if not f.is_default:
+            for v in self.variants:
+                if v.name == f.name:
+                    variant_utility = v.utility
+                    break
+
+        self.stats.raw_utility += c.utility * variant_utility
         if c.max_rt <= 0.0 or rt <= c.max_rt:
-            self.stats.utility += c.utility
-            self.stats.utility_detail[(f, c, n)] += c.utility
+            self.stats.utility += c.utility * variant_utility
+            self.stats.utility_detail[(f, c, n)] += c.utility * variant_utility
+
         elif c.max_rt > 0.0:
             self.stats.violations[(f, c, n)] += 1
             self.stats.penalty += c.deadline_penalty
@@ -549,14 +566,8 @@ class Simulation:
             self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n))
 
         region = n.region
-        self.stats.co2_emission_nodes[(region, n)] += n.co2_footprint.co2_intensity
-        self.stats.co2_emission_total += n.co2_footprint.co2_intensity
-        self.stats.total_processing_time += duration
-        if self.stats.total_processing_time > 0:
-            self.stats.emission_intensity = self.stats.co2_emission_total / self.stats.total_processing_time
-
-        #if node is a cloud processing node, update stats (exec time & num completions)
-
+        self.stats.total_processing_time += rt
+        self.stats.emission_intensity = self.stats.co2_emission_total / self.stats.total_processing_time
         if region.is_cloud() and not isinstance(n, Dispatcher):
             self.stats.execution_time_sum_cloud_nodes[(region, f, n)] += duration
             self.stats.completions_cloud_nodes[(region, f, n)] += 1
@@ -585,7 +596,6 @@ class Simulation:
         self.stats.arrivals[(f, c, n)] += 1
         if external:
             self.stats.ext_arrivals[(f, c, n)] += 1
-
 
         # Policy
         sched_decision, target_node = node_policy.schedule(f, c, event.offloaded_from)
@@ -616,9 +626,15 @@ class Simulation:
                           Completion(arrival_time, f, c, n, init_time > 0, duration, None,
                                      data_access_time))
 
+            self.stats.co2_emission_function2node[(f, n)] += n.g_co2_emissions[f][sched_decision]
+            self.stats.co2_emission_total += n.g_co2_emissions[f][sched_decision]
+            self.stats.co2_emission_per_node[n] += n.g_co2_emissions[f][sched_decision]
+
         elif sched_decision == SchedulerDecision.EXEC:
 
             duration, data_access_time = self.next_function_duration(f, n)
+            region = n.region
+
             # check warm or cold
             if f in n.warm_pool:
                 n.warm_pool.remove(f)
@@ -631,7 +647,6 @@ class Simulation:
                 self.stats.cold_starts[(f, n)] += 1
 
                 # if node is a cloud processing node, update stats (exec time & num completions)
-                region = n.region
                 if region.is_cloud() and not isinstance(n, Dispatcher):
                     self.stats.cold_starts_cloud_nodes[(region, f, n)] += 1
 
@@ -641,13 +656,47 @@ class Simulation:
             self.schedule(float(self.t + init_time + duration),
                           Completion(arrival_time, f, c, n, init_time > 0, duration, event.offloaded_from,
                                      data_access_time))
+
+
+            #if node is the "local" node the request was directly sent to, store local processing co2 emissions
+            if event.offloaded_from is not None and len(event.offloaded_from)>0:
+                if region.is_cloud():
+                    if not isinstance(n, Dispatcher):
+                        #se sono nodo cloud, mi serve: 1 nodo da cui è partio l'arrival originario
+                        # 2 il dispatcher della mia regione
+                        # 3 la scheduling decision x la mia regione
+                        initial_node = event.offloaded_from[0]
+                        curr_cloud_node_dispatcher = None
+                        for remote_node in event.offloaded_from:
+                            if isinstance(remote_node, Dispatcher):
+                                curr_cloud_node_dispatcher = remote_node
+                        assert curr_cloud_node_dispatcher is not None, "Function must has been offloaded via dispatcher"
+                        assert curr_cloud_node_dispatcher.region.name == n.region.name, "Dispatcher and node must have same region"
+                        offloading_decision = None
+                        for dec in list(SchedulerDecision):
+                            if curr_cloud_node_dispatcher.region.name.upper() in dec.name:
+                                offloading_decision = dec
+                                break
+                        self.stats.co2_emission_function2node[(f, n)] += initial_node.g_co2_emissions[f][offloading_decision]
+                        self.stats.co2_emission_total += initial_node.g_co2_emissions[f][offloading_decision]
+                        self.stats.co2_emission_per_node[n] += initial_node.g_co2_emissions[f][offloading_decision]
+                        #print("self.stats.energy_consumption_per_function[(f, n)]: ", self.stats.co2_emission_function2node[(f, n)], " -  initial_node.g_co2_emissions[f][offloading_decision]: ", initial_node.g_co2_emissions[f][offloading_decision])
+                else: #edge node
+                    assert not n.region.is_cloud(), "This is expected to be an edge node"
+                    initial_node = event.offloaded_from[0]
+                    self.stats.co2_emission_function2node[(f, n)] += initial_node.g_co2_emissions[f][SchedulerDecision.OFFLOAD_EDGE]
+                    self.stats.co2_emission_total += initial_node.g_co2_emissions[f][SchedulerDecision.OFFLOAD_EDGE]
+                    self.stats.co2_emission_per_node[n] += initial_node.g_co2_emissions[f][SchedulerDecision.OFFLOAD_EDGE]
+            else:
+                self.stats.co2_emission_function2node[(f, n)] += n.g_co2_emissions[f][sched_decision]
+                self.stats.co2_emission_total += n.g_co2_emissions[f][sched_decision]
+                self.stats.co2_emission_per_node[n] += n.g_co2_emissions[f][sched_decision]
+
         elif sched_decision == SchedulerDecision.DROP:
             self.stats.dropped_reqs[(f, c, n)] += 1
             self.stats.penalty += c.drop_penalty
             if event.offloaded_from is not None and len(event.offloaded_from) > 0:
                 self.stats.dropped_offloaded[(f, c, n)] += 1
-                #print("drop - self.stats.dropped_reqs[(f, c, n)] += 1")
-
 
         elif sched_decision == SchedulerDecision.OFFLOAD_EDGE:
             #assert f.is_default == True
@@ -668,12 +717,8 @@ class Simulation:
             if target_node is not None:
                 remote_node = target_node
             else:
-                region_name = sched_decision.name[len(conf.OFFLOAD_CLOUD_DECISION):].lower()
-                remote_node = None
-                for dispatcher in self.infra.dispatchers:
-                    if dispatcher.region.name == region_name:
-                        remote_node = dispatcher
-                        break
+                region_name = self.get_region_name_by_scheduler_decision(sched_decision)
+                remote_node = self.pick_cloud_remote_node_by_region(region_name)
 
             if remote_node is None:
                 # drop
@@ -684,9 +729,19 @@ class Simulation:
             else:
                 self.stats.offloaded[(f, c, n)] += 1
                 self.do_offload(event, remote_node)
+
         # Schedule next (if this is an external arrival)
         if external:
             self.__schedule_next_arrival(n, arv_proc)
+
+    def get_region_name_by_scheduler_decision(self, sched_decision):
+        return sched_decision.name[len(conf.OFFLOAD_CLOUD_DECISION):].lower()
+
+    def pick_cloud_remote_node_by_region(self, region_name):
+        #region_name = sched_decision.name[len(conf.OFFLOAD_CLOUD_DECISION):].lower()
+        for dispatcher in self.infra.dispatchers:
+            if dispatcher.region.name == region_name:
+                return dispatcher
 
     def next_function_duration(self, f: Function, n: Node):
         # execution time
@@ -719,7 +774,7 @@ class Simulation:
             scheduler_decision = None
             possible_decisions = list(SchedulerDecision)
             for dec in possible_decisions:
-                if region.upper() in dec.name:
+                if region.name.upper() in dec.name:
                     scheduler_decision = dec
                     break
         return scheduler_decision, remote_node

@@ -5,7 +5,7 @@ import conf
 import math
 import pulp as pl
 
-
+from co2_footprint import compute_cloud_energy, compute_edge_energy, compute_local_variant_energy, compute_local_energy
 from optimization_carbon_aware import OptCarbonAwareProblemParams
 
 warm_start = False
@@ -16,14 +16,11 @@ def compute_deadline_satisfaction_probs(params: OptCarbonAwareProblemParams):
     deadline_satisfaction_prob_local_variants = {}  #key:(f,v,c) - value:resp_time
     deadline_satisfaction_prob_edge = {}
     deadline_satisfaction_prob_cloud = {} #key:(region,f,c) - value:resp_time
-    dispatchers = params.cloud_regions_dipatchers
+    dispatchers = params.cloud_regions_dispatchers
 
     # TODO: we are assuming exponential distribution
     # Probability of satisfying the deadline
     for f,c in params.fun_classes():
-
-        #if f.name == "f1" and c.name == "best-effort":
-        #    print("test")
 
         # Default variant local execution
         p = 0.0
@@ -80,144 +77,83 @@ def compute_deadline_satisfaction_probs(params: OptCarbonAwareProblemParams):
         else:
             deadline_satisfaction_prob_edge = {fc: 0 for fc in params.fun_classes()}
 
-    print("node: ",params.local_node.name)
-    print("deadline_satisfaction_prob_local_variants :", deadline_satisfaction_prob_local_variants)
-    print("deadline_satisfaction_prob_local: ", deadline_satisfaction_prob_local)
-    print("deadline_satisfaction_prob_cloud: ", deadline_satisfaction_prob_cloud)
-    print("deadline_satisfaction_prob_edge :", deadline_satisfaction_prob_edge)
+    #print("node: ",params.local_node.name)
+    #print("deadline_satisfaction_prob_local_variants :", deadline_satisfaction_prob_local_variants)
+    #print("deadline_satisfaction_prob_local: ", deadline_satisfaction_prob_local)
+    #print("deadline_satisfaction_prob_cloud: ", deadline_satisfaction_prob_cloud)
+    #print("deadline_satisfaction_prob_edge :", deadline_satisfaction_prob_edge)
 
     return deadline_satisfaction_prob_local, deadline_satisfaction_prob_local_variants, deadline_satisfaction_prob_cloud, deadline_satisfaction_prob_edge
 
 
 def compute_energy_consumption(params):
+    dispatchers = params.cloud_regions_dispatchers
 
-    dispatchers = params.cloud_regions_dipatchers
-
-    eP_local = {}
-    eP_local_variants = {}
-    eP_offloading_edge = {}
-    eP_offlading_cloud = {}
-
-    min_co2_intensity = min(list(dispatcher.co2_footprint.co2_intensity for dispatcher in dispatchers.values()))
-
+    # CO2 drop value
+    min_co2_intensity = min(dispatcher.co2_footprint.co2_intensity for dispatcher in dispatchers.values())
     co2_drop = min_co2_intensity / max(
         float(params.local_node.co2_footprint.co2_intensity),
         *(float(dispatcher.co2_footprint.co2_intensity) for dispatcher in dispatchers.values())
     )
 
-    for f, c in params.fun_classes():
+    eP_local = {}
+    eP_local_variants = {}
+    eP_offloading_edge = {}
+    eP_offloading_cloud = {}
 
-        #eP_local default
-        eP_local[(f, c)] = 0.0
-        if params.local_node.curr_memory > 0.0:
-            power_cons_local = params.local_node.processing_power_consumption
-            m_f = f.memory
-            m_u = params.usable_local_memory_coeff*params.local_node.curr_memory
-            co2_local = params.local_node.co2_footprint.co2_intensity
-            serv_time_local = params.serv_time_local[f]
+    for f in params.functions:
+        # Local energy
+        eP_local[f] = compute_local_energy(
+            function=f,
+            node=params.local_node,
+            usable_local_memory_coeff=params.usable_local_memory_coeff,
+            serv_time_local=params.serv_time_local[f]
+        )
 
-            param_local_energy_consumption = (
-                    power_cons_local *
-                    float(m_f / m_u) *
-                    serv_time_local *
-                    float(co2_local / 3600.0)*1000
-            )
-            eP_local[(f, c)] = param_local_energy_consumption
+        # Local variant energy
+        if f.has_variants:
+            for v in params.variants[f]:
+                eP_local_variants[(f, v)] = compute_local_variant_energy(
+                    function_variant=v,
+                    node=params.local_node,
+                    usable_local_memory_coeff=params.usable_local_memory_coeff,
+                    serv_time_local_variant=params.serv_time_local[v]
+                )
 
-            #eP_local variants
-            if f.has_variants:
-                for v in params.variants[f]:
-                    eP_local_variants[(f, v, c)] = 0.0
+        # Edge energy
+        eP_offloading_edge[f] = compute_edge_energy(
+            function=f,
+            aggregated_edge_memory=params.aggregated_edge_memory,
+            aggregated_edge_power_consumption=params.aggregated_edge_power_consumption,
+            serv_time_edge=params.serv_time_edge[f],
+            local_tx_energy=params.local_node.tx_energy_consumption,
+            edge_rx_energy=params.aggregated_edge_energy_rx,
+            local_rx_energy=params.local_node.rx_energy_consumption,
+            edge_tx_energy=params.aggregated_edge_energy_tx,
+            co2_edge=params.local_node.co2_footprint.co2_intensity
+        )
 
-                    if params.usable_local_memory_coeff > 0.0:
-                        power_cons_v = params.local_node.processing_power_consumption
-                        m_f = f.memory
-                        m_u = params.usable_local_memory_coeff*params.local_node.curr_memory
-                        #co2_v = 50000.0
-                        co2_v = params.local_node.co2_footprint.co2_intensity
-                        serv_time_local_v = params.serv_time_local[v]
-
-                        param_local_energy_consumption_variant = (
-                                                            power_cons_v      *
-                                                            float(m_f/m_u)  *
-                                                            serv_time_local_v *
-                                                            float(co2_v/3600.0)*1000
-                                                            )
-                        eP_local_variants[(f, v, c)] = param_local_energy_consumption_variant
-
-        # eP_Edge
-        eP_offloading_edge[(f, c)] = 0.0
-        if params.aggregated_edge_memory > 0.0:
-            power_cons_e = params.aggregated_edge_power_consumption
-            m_f = f.memory
-            m_e = params.aggregated_edge_memory
-            co2_e = params.local_node.co2_footprint.co2_intensity #todo da cambiare se ho più regioni edge
-            serv_time_edge = params.serv_time_edge[f]
-            data_size_input = f.inputSizeMean #* 8 / 1000 / 1000
-            data_size_output = f.outputSizeMean #* 8 / 1000 / 1000
-            energy_tx_local = params.local_node.tx_energy_consumption
-            energy_rx_e = params.aggregated_edge_energy_rx
-            energy_rx_local = params.local_node.rx_energy_consumption
-            energy_tx_e = params.aggregated_edge_energy_tx
-
-            param_edge_energy_consumption = (
-                                               ((power_cons_e * float(m_f / m_e) * serv_time_edge)  +
-                                                data_size_input * (energy_tx_local + energy_rx_e)   +
-                                                data_size_output * (energy_tx_e + energy_rx_local)) *
-                                                float(co2_e / 3600.0)*1000
-                                              )
-            eP_offloading_edge[(f, c)] = param_edge_energy_consumption
-
-        # eP_offloading_cloud
+        # Cloud energy
         for region, dispatcher in dispatchers.items():
+            if region not in eP_offloading_cloud:
+                eP_offloading_cloud[region.name] = {}
 
-            co2_Ci = dispatcher.co2_footprint.co2_intensity
-            #if region.name == "cloud_region_b" or region.name == "cloud_region_b":
-            #    co2 = 500000000000.0
+            eP_offloading_cloud[region.name][f] = compute_cloud_energy(
+                function=f,
+                dispatcher=dispatcher,
+                serv_time_cloud=params.serv_time_cloud[region][f],
+                local_tx_energy=params.local_node.tx_energy_consumption,
+                local_rx_energy=params.local_node.rx_energy_consumption
+            )
 
+    return eP_local, eP_local_variants, eP_offloading_cloud, eP_offloading_edge, co2_drop
 
-            if region not in eP_offlading_cloud:
-                eP_offlading_cloud[region] = {}
-
-            eP_offlading_cloud[region][(f, c)] = 0.0
-
-            if dispatcher.aggregated_region_memory > 0.0:
-                power_cons_Ci = dispatcher.avg_processing_power_consumption
-                m_f = f.memory
-                m_Ci = dispatcher.aggregated_region_memory
-                serv_time_Ci = params.serv_time_cloud[region][f]
-                data_size_input = f.inputSizeMean #* 8 / 1000 / 1000
-                data_size_output = f.outputSizeMean #* 8 / 1000 / 1000
-                energy_tx_local = params.local_node.tx_energy_consumption
-                energy_rx_Ci = dispatcher.avg_rx_energy_consumption
-                energy_rx_local = params.local_node.rx_energy_consumption
-                energy_tx_Ci = dispatcher.avg_tx_energy_consumption
-
-                param_cloud_energy_consumption = (
-                                                    ((power_cons_Ci * float(m_f/m_Ci) * serv_time_Ci)       +
-                                                     data_size_input * (energy_tx_local + energy_rx_Ci)     +
-                                                     data_size_output * (energy_tx_Ci + energy_rx_local))   *
-                                                     float(co2_Ci/3600.0)*1000
-                                                    )
-
-                eP_offlading_cloud[region][(f, c)] = param_cloud_energy_consumption
-
-    #print("node: ",params.local_node.name)
-    #print("eP_local :", eP_local)
-    #print("eP_offloading_edge: ",eP_offloading_edge)
-    #print("eP_offlading_cloud: ",eP_offlading_cloud)
-    #print("eP_local_variants :", eP_local_variants)
-    #for region, dispatcher in dispatchers.items():
-    #    co2 = dispatcher.co2_footprint.co2_intensity
-    #    print("region: ", region, "co2: ", co2)
-
-    return eP_local, eP_local_variants, eP_offlading_cloud, eP_offloading_edge, co2_drop
 
 def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
     F = params.functions
     C = params.classes
     F_C = [(f, c) for f in F for c in C]
-    dispatchers = params.cloud_regions_dipatchers
+    dispatchers = params.cloud_regions_dispatchers
     regions = dispatchers.keys()
     V = params.variants
 
@@ -270,8 +206,6 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
      ) = compute_deadline_satisfaction_probs(params)
 
     eP_local, eP_local_variants, eP_offlading_cloud, eP_offloading_edge, co2_drop = compute_energy_consumption(params)
-    #co2_drop = 0.8
-
 
     if VERBOSE > 1:
         print("------------------------------")
@@ -322,12 +256,12 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
             beta * (
             pl.lpSum([
                 params.arrival_rates[(f, c)] * (
-                        pL[f][c] * (eP_local[(f, c)]) +
-                        pl.lpSum([pL_variants[f][v][c] * (eP_local_variants[(f, v, c)]) for v in V[f]]
+                        pL[f][c] * (eP_local[f]) +
+                        pl.lpSum([pL_variants[f][v][c] * (eP_local_variants[(f, v)]) for v in V[f]]
                                  if f.has_variants else 0.0) +
-                        pE[f][c] * (eP_offloading_edge[(f, c)]) +
+                        pE[f][c] * (eP_offloading_edge[f]) +
                         pD[f][c] * (co2_drop) +
-                        pl.lpSum([pC[region.name][f][c] * (eP_offlading_cloud[region][(f, c)]) for region in regions])
+                        pl.lpSum([pC[region.name][f][c] * (eP_offlading_cloud[region.name][f]) for region in regions])
                 )
                 for f, c in F_C
             ])),
@@ -337,7 +271,7 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
     else:
         prob += (
             alfa * (
-                    pl.lpSum([  #todo: metti v.utility * c.utility
+                    pl.lpSum([
                         c.utility * params.arrival_rates[(f, c)] * (
                                 pL[f][c] * deadline_satisfaction_prob_local[(f, c)] +
                                 pl.lpSum([pL_variants[f][v][c] * deadline_satisfaction_prob_local_variants[(f, v, c)]
@@ -366,10 +300,10 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
             beta * (
             pl.lpSum([
                 params.arrival_rates[(f, c)] * (
-                        pL[f][c] * (eP_local[(f, c)]) +
-                        pl.lpSum([pL_variants[f][v][c] * (eP_local_variants[(f, v, c)]) for v in V[f]] if f.has_variants else 0.0) +
-                        pD[f][c] * (co2_drop) + #todo mettere - penalty x vars approx
-                        pl.lpSum([pC[region.name][f][c] * (eP_offlading_cloud[region][(f, c)]) for region in regions])
+                        pL[f][c] * (eP_local[f]) +
+                        pl.lpSum([pL_variants[f][v][c] * (eP_local_variants[(f, v)]) for v in V[f]] if f.has_variants else 0.0) +
+                        pD[f][c] * (co2_drop) +
+                        pl.lpSum([pC[region.name][f][c] * (eP_offlading_cloud[region.name][f]) for region in regions])
                 )
                 for f, c in F_C
             ])),
@@ -455,15 +389,18 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
         #print("[lp_optimizer] pD: ", f, "-", c, "  ", pl.value(pD[f][c]))
     decision_fc_probability = {}
     decision_fc_probability_var = {}
+    decision_eP = {}
+
     for scheduler_decision in params.possible_decisions:
         if "EXEC" == scheduler_decision.name:
             decision_fc_probability[scheduler_decision] = pL
+            decision_eP[scheduler_decision] = eP_local
         elif "VAR" in scheduler_decision.name:
             decision_fc_probability_var = pL_variants
             decision_fc_probability[scheduler_decision] = {}
             for f in F:
-
                     decision_fc_probability[scheduler_decision][f] = {}
+                    decision_eP[scheduler_decision] = eP_local_variants
                     for c in C:
                         sum_prob_variants = 0.0
                         if f.has_variants:
@@ -473,47 +410,50 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
                         decision_fc_probability[scheduler_decision][f][c] = sum_prob_variants
         elif "EDGE" in scheduler_decision.name:
             decision_fc_probability[scheduler_decision] = pE if EDGE_ENABLED else 0.0
+            decision_eP[scheduler_decision] = eP_offloading_edge
         elif "DROP" in scheduler_decision.name:
             decision_fc_probability[scheduler_decision] = pD
         elif "CLOUD" in scheduler_decision.name:
             cloud_key = scheduler_decision.name[len(conf.OFFLOAD_CLOUD_DECISION):].lower()
             decision_fc_probability[scheduler_decision] = pC[cloud_key]
+            decision_eP[scheduler_decision] = eP_offlading_cloud[cloud_key]
 
     probs = {}
 
+    # populating probs with updated values
     for decision, f_c_probabilities in decision_fc_probability.items():
         for function, classes in f_c_probabilities.items():
             for service_class, probability in classes.items():
                 # Create the key based on function and service class
                 key = (function, service_class)
-
-                # If the key does not exist, initialize it with an empty dictionary
                 if key not in probs:
                     probs[key] = {}
 
-                # Add the decision and its corresponding probability to the value dictionary
+                # Add the decision and its corresponding probability to each (f,c) pair
                 probs[key][decision] = pl.value(probability)
 
 
-
-
-    # Workaround to avoid numerical issues
+    # workaround to avoid numerical issues
     for f, c in F_C:
-
         s = 0
         for decision, probability in probs[(f, c)].items():
             s = s + probability
-
         if s > 0:
             probs[(f, c)] = {decision: prob / s for decision, prob in probs[(f, c)].items()}
-
         if VERBOSE > 0:
             print(f"{f}-{c}: {probs[(f, c)]}")
 
-    #print("decision_fc_probability_var: ",decision_fc_probability_var)
+    # populating local node's updated emissions calculation
+    for f in F:
+        exec_var_key = next((decision for decision in decision_eP if "VAR" in decision.name), None)
+        for decision, eP in decision_eP.items():
+            if "VAR" not in decision.name:
+                params.local_node.g_co2_emissions[f][decision] = eP[f]
+        if f.has_variants and exec_var_key:
+            for v in V[f]:
+                params.local_node.g_co2_emissions[v][exec_var_key] = decision_eP.get(exec_var_key, {}).get((f, v), 0.0)
+
     return probs, decision_fc_probability_var
-
-
 
 
 

@@ -34,27 +34,6 @@ nodes:
     tx_energy_consumption: 50.0
     rx_energy_consumption: 30.0
 
-  - name: edge_node_d
-    region: edge_zone_2
-    memory: 2048
-    processing_power_consumption: 100.0
-    tx_energy_consumption: 50.0
-    rx_energy_consumption: 30.0
-
-  - name: edge_node_e
-    region: edge_zone_2
-    memory: 2048
-    processing_power_consumption: 100.0
-    tx_energy_consumption: 50.0
-    rx_energy_consumption: 30.0
-
-  - name: edge_node_f
-    region: edge_zone_2
-    memory: 2048
-    processing_power_consumption: 100.0
-    tx_energy_consumption: 50.0
-    rx_energy_consumption: 30.0
-
   - name: cloud_node_a
     region: cloud_region_a
     cost: 0.00001
@@ -73,32 +52,18 @@ nodes:
     tx_energy_consumption: 5.0
     rx_energy_consumption: 3.0
 
-  - name: cloud_node_c
-    region: cloud_region_c
-    cost: 0.00001
-    speedup: 1.1
-    memory: 32000
-    processing_power_consumption: 800.0
-    tx_energy_consumption: 5.0
-    rx_energy_consumption: 3.0
 
   - name: dispatcher_a
     region: cloud_region_a
     memory: 0
     policy: dispatcher-policy
-    #cost: 1.0
+    cost: 2.5
 
   - name: dispatcher_b
     region: cloud_region_b
     memory: 0
     policy: dispatcher-policy
-    #cost: 1.0
-
-  - name: dispatcher_c
-    region: cloud_region_c
-    memory: 0
-    policy: dispatcher-policy
-    #cost: 1.0
+    cost: 0.5
 
 functions:
   - name: f1

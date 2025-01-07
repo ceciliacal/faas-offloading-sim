@@ -1,6 +1,8 @@
 from dataclasses import dataclass,field
 
 
+
+
 class ContainerPool:
 
     def __init__ (self):
@@ -50,7 +52,7 @@ class Node:
                  processing_power_consumption,
                  tx_energy_consumption,
                  rx_energy_consumption,
-                 cost=0.0, custom_sched_policy=None, peer_exposed_memory_fraction=1.0):
+                 cost=0.0, custom_sched_policy=None, peer_exposed_memory_fraction=1.0, g_co2_emissions = None):
         self.name = name
         self.total_memory = memory
         self.curr_memory = memory
@@ -65,10 +67,10 @@ class Node:
 
         self.co2_footprint = co2_footprint
 
-        self.processing_power_consumption = processing_power_consumption / 1000   #kWatt
+        self.processing_power_consumption = processing_power_consumption #/ 1000   #kWatt
         self.tx_energy_consumption = tx_energy_consumption  / 1e9            #Joule/byte
         self.rx_energy_consumption = rx_energy_consumption  / 1e9
-
+        self.g_co2_emissions = {}   #key: <function, schedulerDecision>, value: g CO2
 
     def __repr__(self):
         return self.name
@@ -81,6 +83,7 @@ class Node:
 
     def __hash__(self):
         return hash(self.name)
+
 
 
 class Dispatcher(Node):
@@ -106,8 +109,6 @@ class Dispatcher(Node):
         self.avg_processing_power_consumption = 0.0
         self.avg_tx_energy_consumption = 0.0
         self.avg_rx_energy_consumption = 0.0
-
-        self.decision = "OFFLOAD_"+region.name.upper()
 
 
 @dataclass
@@ -160,6 +161,7 @@ class Function:
     is_default: bool = False
     active_variant = None
     has_variants: bool = False
+    carbon_emissions: dict = field(default_factory=lambda: {})
 
     
     def __repr__ (self):
