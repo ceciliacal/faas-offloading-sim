@@ -51,6 +51,7 @@ FILE_CO2_TRACES_CLOUD_REGION_2 = "file-cloud2"
 CO2_TRACES_COL_TIMESTAMP= "Datetime (UTC)"
 CO2_TRACES_COL_INTENSITY_DIRECT = "Carbon Intensity gCO₂eq/kWh (direct)"
 REGIONS_FILE = "regions-file"
+FILE_UPDATE_CO2_INTENSITY = "file-update-co2-intensity"
 
 EDGE = "edge"
 CLOUD = "cloud"

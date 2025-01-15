@@ -1,9 +1,11 @@
 import configparser
+import csv
+import os
 import sys
 import time
-from asyncore import dispatcher
 from heapq import heappop, heappush
 from itertools import chain
+from datetime import datetime
 
 from numpy.random import SeedSequence, default_rng
 
@@ -50,15 +52,6 @@ class CheckExpiredContainers(Event):
 
 
 @dataclass
-class BatteryUpdate(Event):
-    node: Node
-
-
-@dataclass
-class CO2EmissionUpdate(Event):
-    node: Node
-
-@dataclass
 class CarbonIntensityUpdate(Event):
     pass
 
@@ -95,29 +88,10 @@ class Completion(Event):
 
 OFFLOADING_OVERHEAD = 0.005
 ARRIVAL_TRACE_PERIOD = 60.0
+KWH = 3600*1000
 
 
-def read_co2_intensity(node, is_co2_trace_over):
-    n = node.co2_footprint.count
-    if n <= len(node.region.datetime_co2intensity) - 1:
 
-        nth_row = node.region.datetime_co2intensity.iloc[n]
-        #print("nth row: ", nth_row)
-        node.co2_footprint.co2_datetime = nth_row[conf.CO2_TRACES_COL_TIMESTAMP]
-        node.co2_footprint.co2_intensity = nth_row[conf.CO2_TRACES_COL_INTENSITY_DIRECT]
-        node.co2_footprint.count = n + 1
-        #print("in update_co2_intensity: node: ",node.name," co2_datetime: ",node.co2_footprint.co2_datetime," co2_intensity: ",node.co2_footprint.co2_intensity," count: ",node.co2_footprint.count)
-    else:
-        is_co2_trace_over[node] = True
-        #print("df finito! n=",node," data: ",node.region.datetime_co2intensity.iloc[n-1][conf.CO2_TRACES_COL_TIMESTAMP])
-
-def initialize_co2_emissions(functions, infra):
-    for node in chain(infra.edge_nodes,infra.cloud_nodes):
-        for function in functions:
-            if function not in node.g_co2_emissions:
-                node.g_co2_emissions[function] = {}
-            for decision in list(SchedulerDecision):
-                node.g_co2_emissions[function][decision] = 0.0
 
 @dataclass
 class Simulation:
@@ -129,6 +103,7 @@ class Simulation:
     node2arrivals: dict
     function_variants: dict #key: Function value: Function
     variants: [FunctionVariant]
+    end_date_co2_emissions = datetime.strptime("2023-01-06", "%Y-%m-%d")
 
 
     def __post_init__(self):
@@ -276,17 +251,20 @@ class Simulation:
         self.events = []
         self.t = 0.0
         self.node2policy = {}
+        filename = self.config.get(conf.SEC_CARBON, conf.FILE_UPDATE_CO2_INTENSITY, fallback="")
+        self.file_update_co2_intensity = os.path.join("results", f"{filename}")
+        self.rows_to_write_update_co2 = []
 
         self.expiration_timeout = self.config.getfloat(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, fallback=600)
 
         add_enum_members(SchedulerDecision, self.infra.regions)
         self.of_alpha = self.config.getfloat(conf.SEC_POLICY, conf.ALPHA, fallback=0.0)
         self.of_beta = self.config.getfloat(conf.SEC_POLICY, conf.BETA, fallback=0.0)
-        self.is_co2_trace_over = {node: False for node in self.infra.get_nodes(ignore_non_processing=False)} #todo aggiusta qua
+        self.is_co2_trace_over = {node: False for node in self.infra.get_nodes(ignore_non_processing=False)}
 
-        initialize_co2_emissions(self.functions, self.infra)
+        self.initialize_co2_emissions()
         for n in (self.infra.get_nodes(ignore_non_processing=False)):
-            read_co2_intensity(n, self.is_co2_trace_over)
+            self.read_co2_intensity(n, self.is_co2_trace_over)
 
         # Policy
         policy_name = self.config.get(conf.SEC_POLICY, conf.POLICY_NAME, fallback="basic")
@@ -312,7 +290,6 @@ class Simulation:
 
         self.carbon_intensity_update_interval = self.config.getfloat(conf.SEC_CARBON, conf.CARBON_INTENSITY_UPDATE_INTERVAL, fallback=-1)
         self.policy_dispatcher_update_interval = self.config.getfloat(conf.DISPATCHER, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
-
 
         self.stats_file = sys.stdout
 
@@ -360,7 +337,6 @@ class Simulation:
         if self.policy_dispatcher_update_interval > 0.0:    #for cloud nodes status update
             self.schedule(self.policy_dispatcher_update_interval, DispatcherUpdate())
 
-
         while len(self.events) > 0:
             t, e = heappop(self.events)
             self.handle(t, e)
@@ -386,6 +362,7 @@ class Simulation:
             for arv in arvs:
                 arv.close()
 
+        self.write_CO2_emissions_to_csv()
         return self.stats
 
     def move_key(self, k, src_node, dest_node):
@@ -478,7 +455,7 @@ class Simulation:
         elif isinstance(event, CarbonIntensityUpdate):
             for n in self.node2policy:
                 if not self.is_co2_trace_over[n]:
-                    read_co2_intensity(n, self.is_co2_trace_over)
+                    self.read_co2_intensity(n, self.is_co2_trace_over)
             self.schedule(t + self.carbon_intensity_update_interval, event)
             self.count_carbon_intensity_update = self.count_carbon_intensity_update+1
             #print("count_carbon_intensity_update: ", self.count_carbon_intensity_update,
@@ -597,6 +574,10 @@ class Simulation:
         if external:
             self.stats.ext_arrivals[(f, c, n)] += 1
 
+        #joule_energy = ((n.g_co2_emissions[f][sched_decision])*(KWH))/n.co2_footprint.co2_intensity
+        n_co2_int = n.co2_footprint.co2_intensity
+        n_co2_datetime = n.co2_footprint.co2_datetime
+
         # Policy
         sched_decision, target_node = node_policy.schedule(f, c, event.offloaded_from)
 
@@ -626,9 +607,23 @@ class Simulation:
                           Completion(arrival_time, f, c, n, init_time > 0, duration, None,
                                      data_access_time))
 
-            self.stats.co2_emission_function2node[(f, n)] += n.g_co2_emissions[f][sched_decision]
-            self.stats.co2_emission_total += n.g_co2_emissions[f][sched_decision]
-            self.stats.co2_emission_per_node[n] += n.g_co2_emissions[f][sched_decision]
+
+            '''
+            n_co2_grams = n.g_co2_emissions[f][sched_decision]
+
+            self.stats.co2_emission_function2node[(f, n)] += n_co2_grams
+            self.stats.co2_emission_total += n_co2_grams
+            self.stats.co2_emission_per_node[n] += n_co2_grams
+            
+            joule_energy = ((n.g_co2_emissions[f][sched_decision]) * KWH) / n_co2_int
+            energy_stats_list = [n_co2_int.toString(), n_co2_datetime.toString(), joule_energy.toString(), n_co2_grams.toString()]
+
+            self.stats.energy_consumption_per_node[n] += joule_energy
+            self.stats.energy_consumption_function2node[(f, n)] += energy_stats_list
+            self.stats.energy_consumption_total += joule_energy
+            '''
+
+            self.update_co2_stats(n,f,sched_decision)
 
         elif sched_decision == SchedulerDecision.EXEC:
 
@@ -677,20 +672,73 @@ class Simulation:
                             if curr_cloud_node_dispatcher.region.name.upper() in dec.name:
                                 offloading_decision = dec
                                 break
-                        self.stats.co2_emission_function2node[(f, n)] += initial_node.g_co2_emissions[f][offloading_decision]
-                        self.stats.co2_emission_total += initial_node.g_co2_emissions[f][offloading_decision]
-                        self.stats.co2_emission_per_node[n] += initial_node.g_co2_emissions[f][offloading_decision]
+
+                        self.update_co2_stats(initial_node,f,offloading_decision)
+
+                        '''
+                        cloud_node_co2_grams = initial_node.g_co2_emissions[f][offloading_decision]
+                        self.stats.co2_emission_function2node[(f, n)] += cloud_node_co2_grams
+                        self.stats.co2_emission_total += cloud_node_co2_grams
+                        self.stats.co2_emission_per_node[n] += cloud_node_co2_grams
                         #print("self.stats.energy_consumption_per_function[(f, n)]: ", self.stats.co2_emission_function2node[(f, n)], " -  initial_node.g_co2_emissions[f][offloading_decision]: ", initial_node.g_co2_emissions[f][offloading_decision])
+
+                        initial_node_co2 = initial_node.co2_footprint
+
+                        joule_energy = ((initial_node.g_co2_emissions[f][offloading_decision]) * KWH) / initial_node_co2.co2_intensity
+                        energy_stats_list = [initial_node_co2.co2_intensity.toString(), initial_node_co2.co2_datetime.toString(), joule_energy.toString(),
+                                             cloud_node_co2_grams.toString()]
+
+                        self.stats.energy_consumption_per_node[n] += joule_energy
+                        self.stats.energy_consumption_function2node[(f, n)] += energy_stats_list
+                        self.stats.energy_consumption_total += joule_energy
+                        '''
+
+
                 else: #edge node
                     assert not n.region.is_cloud(), "This is expected to be an edge node"
                     initial_node = event.offloaded_from[0]
-                    self.stats.co2_emission_function2node[(f, n)] += initial_node.g_co2_emissions[f][SchedulerDecision.OFFLOAD_EDGE]
-                    self.stats.co2_emission_total += initial_node.g_co2_emissions[f][SchedulerDecision.OFFLOAD_EDGE]
-                    self.stats.co2_emission_per_node[n] += initial_node.g_co2_emissions[f][SchedulerDecision.OFFLOAD_EDGE]
-            else:
+
+                    self.update_co2_stats(initial_node, f, SchedulerDecision.OFFLOAD_EDGE)
+
+                    '''
+                    edge_node_co2_grams = initial_node.g_co2_emissions[f][SchedulerDecision.OFFLOAD_EDGE]
+
+                    self.stats.co2_emission_function2node[(f, n)] += edge_node_co2_grams
+                    self.stats.co2_emission_total += edge_node_co2_grams
+                    self.stats.co2_emission_per_node[n] += edge_node_co2_grams
+
+                    initial_node_co2 = initial_node.co2_footprint
+
+                    joule_energy = ((initial_node.g_co2_emissions[f][SchedulerDecision.OFFLOAD_EDGE]) * KWH) / initial_node_co2.co2_intensity
+                    energy_stats_list = [initial_node_co2.co2_intensity.toString(),
+                                         initial_node_co2.co2_datetime.toString(), joule_energy.toString(),
+                                         edge_node_co2_grams.toString()]
+
+                    self.stats.energy_consumption_per_node[n] += joule_energy
+                    self.stats.energy_consumption_function2node[(f, n)] += energy_stats_list
+                    self.stats.energy_consumption_total += joule_energy
+                    '''
+
+            else:   #sched_decision = EXEC, no offloading
+
+
+                self.update_co2_stats(n, f, sched_decision)
+
+                '''
+                 n_co2_grams = n.g_co2_emissions[f][sched_decision]
+
                 self.stats.co2_emission_function2node[(f, n)] += n.g_co2_emissions[f][sched_decision]
                 self.stats.co2_emission_total += n.g_co2_emissions[f][sched_decision]
                 self.stats.co2_emission_per_node[n] += n.g_co2_emissions[f][sched_decision]
+
+                joule_energy = ((n.g_co2_emissions[f][sched_decision]) * KWH) / n_co2_int
+                energy_stats_list = [n_co2_int.toString(), n_co2_datetime.toString(), joule_energy.toString(),
+                                     n_co2_grams.toString()]
+
+                self.stats.energy_consumption_per_node[n] += joule_energy
+                self.stats.energy_consumption_function2node[(f, n)] += energy_stats_list
+                self.stats.energy_consumption_total += joule_energy
+                '''
 
         elif sched_decision == SchedulerDecision.DROP:
             self.stats.dropped_reqs[(f, c, n)] += 1
@@ -779,4 +827,67 @@ class Simulation:
                     break
         return scheduler_decision, remote_node
 
+
+    def update_co2_stats(self, n, f, sched_decision):
+        n_co2_grams = n.g_co2_emissions[f][sched_decision]
+
+        self.stats.co2_emission_function2node[(f, n)] += n_co2_grams
+        self.stats.co2_emission_total += n_co2_grams
+        self.stats.co2_emission_per_node[n] += n_co2_grams
+
+        node_footprint = n.co2_footprint
+
+        joule_energy = ((n.g_co2_emissions[f][sched_decision]) * KWH) / node_footprint.co2_intensity
+        energy_stats_list = [str(node_footprint.co2_intensity), str(node_footprint.co2_datetime), str(joule_energy),
+                             str(n_co2_grams)]
+
+        self.stats.energy_consumption_per_node[n] += joule_energy
+        #self.stats.energy_consumption_function2node[(f, n)] += energy_stats_list
+        self.stats.energy_consumption_total += joule_energy
+
+    def write_CO2_emissions_to_csv(self):
+        os.makedirs(os.path.dirname(self.file_update_co2_intensity), exist_ok=True)
+        with open(self.file_update_co2_intensity, mode="w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(["Node", "CO2_Datetime", "CO2_Intensity", "Consumed_energy[J]", "Emitted_CO2[g]"])
+            # Write all accumulated rows
+            writer.writerows(self.rows_to_write_update_co2)
+
+    def read_co2_intensity(self, node, is_co2_trace_over):
+        n = node.co2_footprint.count
+        nth_row = node.region.datetime_co2intensity.iloc[n]
+        #if n <= len(node.region.datetime_co2intensity) - 1:
+        if nth_row[conf.CO2_TRACES_COL_TIMESTAMP] <= self.end_date_co2_emissions:
+
+            nth_row = node.region.datetime_co2intensity.iloc[n]
+            # print("nth row: ", nth_row)
+            node.co2_footprint.co2_datetime = nth_row[conf.CO2_TRACES_COL_TIMESTAMP]
+            node.co2_footprint.co2_intensity = nth_row[conf.CO2_TRACES_COL_INTENSITY_DIRECT]
+            node.co2_footprint.count = n + 1
+
+            print("in update_co2_intensity: node: ", node.name, " co2_datetime: ", node.co2_footprint.co2_datetime,
+                  " co2_intensity: ", node.co2_footprint.co2_intensity, " count: ", node.co2_footprint.count,
+                  " energy: ", self.stats.energy_consumption_per_node[node], " grams CO2: ",self.stats.co2_emission_per_node[node])
+
+            row = [
+                node.name,
+                node.co2_footprint.co2_datetime,
+                node.co2_footprint.co2_intensity,
+                self.stats.energy_consumption_per_node[node],
+                self.stats.co2_emission_per_node[node]
+            ]
+            # Append the row to the list
+            self.rows_to_write_update_co2.append(row)
+        else:
+            is_co2_trace_over[node] = True
+            print("df finito! n=", node, " data: ",
+                  node.region.datetime_co2intensity.iloc[n - 1][conf.CO2_TRACES_COL_TIMESTAMP])
+
+    def initialize_co2_emissions(self):
+        for node in chain(self.infra.edge_nodes, self.infra.cloud_nodes):
+            for function in self.functions:
+                if function not in node.g_co2_emissions:
+                    node.g_co2_emissions[function] = {}
+                for decision in list(SchedulerDecision):
+                    node.g_co2_emissions[function][decision] = 0.0
 

@@ -56,6 +56,10 @@ class Stats:
         self.co2_emission_function2node = {(f, n): 0.0 for f in functions for n in self.nodes}
         self.co2_emission_total = 0.0
 
+        self.energy_consumption_per_node = {n: 0.0 for n in self.nodes} #joule
+        # (f,n):[co2_intensity,co2_datetime,energy_consumed(J),gCO2]
+        self.energy_consumption_total = 0.0 #joule
+
     def to_dict (self):
         stats = {}
         raw = vars(self)

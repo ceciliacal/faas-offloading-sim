@@ -124,6 +124,8 @@ class Policy:
                 print(peer)
                 print(peer.peer_exposed_memory_fraction)
             assert(peer.curr_memory*peer.peer_exposed_memory_fraction >= 0.0)
+
+
         total_memory = sum([x.curr_memory*x.peer_exposed_memory_fraction for x in peers])
         if total_memory > 0.0:
             probs = [x.curr_memory*x.peer_exposed_memory_fraction/total_memory for x in peers]
@@ -242,7 +244,7 @@ class CloudRegionDispatcherRandomPolicy(Policy):
         node.aggregated_region_memory = sum(cloud_node.curr_memory for cloud_node in self.cloud_region_nodes)
         node.avg_speedup = (sum(cloud_node.speedup for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.aggregated_region_cost = (sum(cloud_node.cost for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
-
+        node.cost = (sum(cloud_node.cost for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.avg_processing_power_consumption = (sum(cloud_node.processing_power_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.avg_tx_energy_consumption = (sum(cloud_node.tx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.avg_rx_energy_consumption = (sum(cloud_node.rx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
@@ -270,6 +272,7 @@ class CloudRegionDispatcherRandomPolicy(Policy):
             #print("update policy dispatcher -> self.node.avg_node2completions[f] = ",self.node.avg_node2completions)
             #print("update policy dispatcher ->self.node.avg_exec_time[f] = ",self.node.avg_execution_time_sum)
             #print("update policy dispatcher ->self.node.avg_cold_starts[f] = ",self.node.avg_cold_starts)
+
 
 
     def schedule(self, f, c, offloaded_from):

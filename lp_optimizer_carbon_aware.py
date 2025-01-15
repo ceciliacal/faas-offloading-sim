@@ -29,6 +29,10 @@ def compute_deadline_satisfaction_probs(params: OptCarbonAwareProblemParams):
         if c.max_rt > 0.0:
             p += (1.0 - params.cold_start_p_local[f]) * (1.0 - math.exp(-1.0 / params.serv_time_local[f] * c.max_rt))
         deadline_satisfaction_prob_local[(f, c)] = p
+        #print("==== node: ", params.local_node.name, "mem = ",params.local_node.curr_memory)
+        #print("init_time_local: " + str(params.init_time_local[f]))
+        #print("serv_time_local: " + str(params.serv_time_local[f]))
+        #print("cold_start_p_local: " + str( params.cold_start_p_local[f]))
 
         # Lighter variant local execution
         if f.has_variants:
@@ -145,7 +149,7 @@ def compute_energy_consumption(params):
 
         # Cloud energy
         for region, dispatcher in dispatchers.items():
-            if region not in eP_offloading_cloud:
+            if region.name not in eP_offloading_cloud:
                 eP_offloading_cloud[region.name] = {}
 
             cloud_consumption = compute_cloud_energy(
@@ -159,11 +163,11 @@ def compute_energy_consumption(params):
                 cloud_consumption = large_penalty
             eP_offloading_cloud[region.name][f] = cloud_consumption
 
-    print("node: ", params.local_node.name)
-    print("eP_local :", eP_local)
-    print("eP_offloading_edge: ", eP_offloading_edge)
-    print("eP_offlading_cloud: ", eP_offloading_cloud)
-    print("eP_local_variants :", eP_local_variants)
+    #print("node: ", params.local_node.name)
+    #print("eP_local :", eP_local)
+    #print("eP_offloading_edge: ", eP_offloading_edge)
+    #print("eP_offlading_cloud: ", eP_offloading_cloud)
+    #print("eP_local_variants :", eP_local_variants)
 
     return eP_local, eP_local_variants, eP_offloading_cloud, eP_offloading_edge, co2_drop
 
@@ -377,7 +381,7 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
 
     # Max hourly budget
     if params.budget is not None and params.budget > 0.0:
-        prob += (pl.lpSum([dispatcher.cost * params.arrival_rates[(f, c)] *
+        prob += (pl.lpSum([dispatcher.aggregated_region_cost * params.arrival_rates[(f, c)] *
                            pC[region.name][f][c] * params.serv_time_cloud[region][f] * f.memory / 1024
                            for region, dispatcher in dispatchers.items()
                            for f, c in params.fun_classes()]) <= params.budget / 3600)
@@ -471,7 +475,7 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
             for v in V[f]:
                 params.local_node.g_co2_emissions[v][exec_var_key] = decision_eP.get(exec_var_key, {}).get((f, v), 0.0)
 
-    print("[optimizer] -  probs: ",probs)
+    #print("[optimizer] -  probs: ",probs)
     return probs, decision_fc_probability_var
 
 

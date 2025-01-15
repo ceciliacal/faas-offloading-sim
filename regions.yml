@@ -1,6 +1,6 @@
 regions:  #cloud regions
   - name: "cloud_region_a"
-    co2_traces_file: "co2_traces/FR_2023_hourly.csv"
+    co2_traces_file: "co2_traces/PL_2023_hourly.csv"
     latency_sec:
       cloud_region_a: 0.0001
       cloud_region_b: 0.0200
@@ -14,7 +14,7 @@ regions:  #cloud regions
         co2_traces_file: "co2_traces/PL_2023_hourly.csv"
         latency_sec:
           cloud_region_a: 0.0100
-          cloud_region_b: 0.0500
+          cloud_region_b: 0.0100
           edge_zone_1:    0.0050
         bandwidth_mbps:
           cloud_region_a: 10000.0
@@ -23,7 +23,7 @@ regions:  #cloud regions
 
 
   - name: "cloud_region_b"
-    co2_traces_file: "co2_traces/PL_2023_hourly.csv"
+    co2_traces_file: "co2_traces/FR_2023_hourly.csv"
     latency_sec:
       cloud_region_a: 0.0200     #neighbor (20ms)
       cloud_region_b: 0.0001     #self (20 ms)

@@ -73,6 +73,7 @@ def read_spec_file(spec_file_name, infra, config):
             infra.add_node_by_region_type(node)
 
         functions = []
+        lightest_variants = []
 
         function_names = {}
         for f in spec["functions"]:
@@ -96,7 +97,7 @@ def read_spec_file(spec_file_name, infra, config):
             speedups = f.get("speedup", [])
             utilities = f.get("utility", [])
             assert len(speedups) == len(utilities), "Number of Speedup and utility don't match dimension"
-            variants = [FunctionVariant(f"{fname}_var_{speedup}", speedup, utility)
+            speedups_utilities = [FunctionVariant(f"{fname}_var_{speedup}", speedup, utility)
                         for speedup, utility in zip(speedups, utilities)]
 
             # Initialize the function
@@ -104,11 +105,12 @@ def read_spec_file(spec_file_name, infra, config):
                 name=fname, memory=memory, serviceMean=duration_mean, serviceSCV=duration_scv,
                 initMean=init_mean, inputSizeMean=input_mean, accessed_keys=keys,
                 max_data_access_time=max_data_access_time, outputSizeMean=output_mean,
-                variants=variants, is_default=True
+                variants=speedups_utilities, is_default=True
             )
 
             function_names[fname] = function
             functions.append(function)
+            lightest_variants.extend(speedups_utilities)
 
         function_variants = process_variants(functions, function_names)
 
@@ -154,7 +156,7 @@ def read_spec_file(spec_file_name, infra, config):
                 node2arrivals[node] = []
             node2arrivals[node].append(arv)
 
-    return classes, functions, node2arrivals, function_variants, variants
+    return classes, functions, node2arrivals, function_variants, lightest_variants
 
 
 #Function variants creation
@@ -172,12 +174,12 @@ def process_variants(functions, function_names):
         for variant in function.variants:
             if variant.speedup != 1.0:
                 lighter_function = faas.Function(
-                    name=variant.name, memory=function.memory,
+                    name=variant.name, memory=function.memory * variant.speedup,
                     serviceMean= function.serviceMean * variant.speedup,
                     serviceSCV=function.serviceSCV * variant.speedup, initMean=function.initMean,
                     inputSizeMean=function.inputSizeMean, accessed_keys=function.accessed_keys,
                     max_data_access_time=function.max_data_access_time,
-                    outputSizeMean=function.outputSizeMean, is_default=False
+                    outputSizeMean=function.outputSizeMean, is_default=False, speedup=variant.speedup
                 )
                 function_names[lighter_function.name] = lighter_function
                 tmp_list_variants.append(lighter_function)
@@ -259,8 +261,6 @@ def init_simulation(config):
     seed_sequence = SeedSequence(seed)
 
     regions = regions_setup(config)
-
-    #todo: questa parte sarà da copiare in "default_infra" x experiments
 
     bandwidth_mbps = {}
     latencies = {}

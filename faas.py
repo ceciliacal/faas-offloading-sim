@@ -161,8 +161,7 @@ class Function:
     is_default: bool = False
     active_variant = None
     has_variants: bool = False
-    carbon_emissions: dict = field(default_factory=lambda: {})
-
+    speedup: float = 1.0
     
     def __repr__ (self):
         return self.name

@@ -96,26 +96,10 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
         self.possible_decisions = list(SchedulerDecision)
 
-        cloud_prob = float(1/(1+self.num_regions_cloud))
-        self.probs = {
-            (f, c): {
-                decision: prob
-                for decision, prob in zip(
-                    self.possible_decisions,
-                    [cloud_prob] + [0.0, 0.0, 0.0] + [cloud_prob] * self.num_regions_cloud
-                )
-            }
-            for f in simulation.functions
-            for c in simulation.classes
-        }
 
+        self.probs = {}
         self.variants_probs = {}
-
-        for f in simulation.functions:
-            if f.has_variants:
-                self.variants_probs[f] = {
-                    v: {c: 0.0 for c in simulation.classes} for v in simulation.function_variants[f]
-                }
+        self.build_probs()
 
         self.of_alpha = self.simulation.of_alpha
         self.of_beta = self.simulation.of_beta
@@ -129,6 +113,60 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                             self.handle_exec_decision(f, node, decision)
                         elif conf.OFFLOAD_CLOUD_DECISION in decision.name and f.is_default:
                             self.handle_offload_cloud_decision(f, node, decision)
+
+    def build_probs(self):
+        # Iterate over all functions and classes
+        self.default_functions = [f for f in self.simulation.functions if f.is_default]
+        for f in self.default_functions:
+            for c in self.simulation.classes:
+                # Initialize the inner dictionary for (f, c)
+                self.probs[(f, c)] = {}
+
+                if not f.has_variants:
+                    # Case: Function has no variants
+                    initial_prob = float(1 / (1 + self.num_regions_cloud))
+
+                    # Prepare the list of probabilities
+                    probabilities = [initial_prob] + [0.0, 0.0, 0.0] + [initial_prob] * self.num_regions_cloud
+
+                    # Assign probabilities to possible decisions
+                    for decision, prob in zip(self.possible_decisions, probabilities):
+                        self.probs[(f, c)][decision] = prob
+
+                else:
+                    # Case: Function has variants
+                    initial_prob = float(1 / (2 + self.num_regions_cloud))
+                    initial_var_prob = float(initial_prob / len(self.simulation.function_variants[f]))
+
+                    # Initialize variant probabilities
+                    if f not in self.variants_probs:
+                        self.variants_probs[f] = {}
+
+                    for v in self.simulation.function_variants[f]:
+                        if (v, c) not in self.probs:
+                            self.probs[(v, c)] = {}
+
+                        #self.variants_probs[f][v] = {c: initial_var_prob}
+                        #self.variants_probs[f][v][c] = {initial_var_prob}
+
+                        if v not in self.variants_probs[f]:
+                            self.variants_probs[f][v] = {}
+
+                        self.variants_probs[f][v][c] = initial_var_prob
+
+                        # Assign probabilities for variants
+                        probabilities = [0.0] + [initial_var_prob] + [0.0] * (2 + self.num_regions_cloud)
+                        for decision, prob in zip(self.possible_decisions, probabilities):
+                            self.probs[(v, c)][decision] = prob
+
+                    # Assign probabilities for the default function
+                    probabilities = [initial_prob] * 2 + [0.0, 0.0] + [initial_prob] * self.num_regions_cloud
+                    for decision, prob in zip(self.possible_decisions, probabilities):
+                        self.probs[(f, c)][decision] = prob
+
+    def compute_initial_prob(self, f):
+        base = 1 + self.num_regions_cloud if not f.has_variants else 2 + self.num_regions_cloud
+        return float(1 / base)
 
     def handle_exec_decision(self, f, node, decision):
         local_eP = compute_local_energy(f, node, self.local_usable_memory_coeff, 0.1)
@@ -148,7 +186,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
     def schedule(self, f, c, offloaded_from):
         probabilities = self.probs[(f, c)].copy()
-        if len(self.variants_probs) > 0:
+        if f.has_variants and len(self.variants_probs[f]) > 0:
             variants_probs = self.variants_probs[f].copy()
 
         printable_probs = {}
@@ -172,7 +210,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
         decision = self.rng.choice(list(probabilities.keys()), p=list(probabilities.values()))
 
-        print("[schedule - node ",self.node,"] decision: ", decision)
+        #print("[schedule - node ",self.node,"] decision: ", decision)
 
         if decision == SchedulerDecision.EXEC_VAR:
             if len(offloaded_from) > 0: #if request was offloaded and decision is exec_var -> exec
@@ -183,7 +221,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
                 variant_choice = {}
                 for function_variant, class_probability in variants_probs.items():
-                    variant_choice[function_variant] = class_probability[c].varValue
+                    variant_choice[function_variant] = class_probability[c] #.varValue
 
                 selected_variant, prob = max(variant_choice.items(), key=lambda item: item[1])
 
@@ -422,31 +460,37 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
         if self.edge_enabled:
             neighbor_probs, neighbors = self._get_edge_peers_probabilities()
-            if len(neighbors) == 0:
+
+            if not neighbors:  #len(neighbors) == 0
+                # Set default values when there are no neighbors
                 self.aggregated_edge_memory = 0
                 self.aggregated_edge_power_consumption = 0
                 self.aggregated_edge_energy_tx = 0
                 self.aggregated_edge_energy_rx = 0
+                self.edge_rtt = 0  # Default to 0 as no latency can be calculated
+                self.edge_bw = 0  # Default to 0 as no bandwidth can be calculated
             else:
+
                 self.aggregated_edge_memory = max(1, sum([x.curr_memory * x.peer_exposed_memory_fraction for x in
                                                           neighbors]))
 
-                p = 0
-                tx = 0
-                rx = 0
+                p = sum(neighbor.processing_power_consumption for neighbor in neighbors)
+                tx = sum(neighbor.tx_energy_consumption for neighbor in neighbors)
+                rx = sum(neighbor.rx_energy_consumption for neighbor in neighbors)
+
                 num = len(neighbors)
-                for neighbor in neighbors:
-                    p = p + neighbor.processing_power_consumption
-                    tx = tx + neighbor.tx_energy_consumption
-                    rx = rx + neighbor.rx_energy_consumption
                 self.aggregated_edge_power_consumption = p / num
                 self.aggregated_edge_energy_tx = tx / num
                 self.aggregated_edge_energy_rx = rx / num
 
-            self.edge_rtt = sum(
-                [self.simulation.infra.get_latency(self.node, x) * prob for x, prob in zip(neighbors, neighbor_probs)])
-            self.edge_bw = sum([self.simulation.infra.get_bandwidth(self.node, x) * prob for x, prob in
-                                zip(neighbors, neighbor_probs)])
+                self.edge_rtt = sum(
+                    self.simulation.infra.get_latency(self.node, x) * prob
+                    for x, prob in zip(neighbors, neighbor_probs)
+                )
+                self.edge_bw = sum(
+                    self.simulation.infra.get_bandwidth(self.node, x) * prob
+                    for x, prob in zip(neighbors, neighbor_probs)
+                )
 
             self.estimated_service_time_edge = {}
             for f in self.simulation.functions:
@@ -623,7 +667,7 @@ class RandomPolicy(Policy):
 
                 #return decision, None
         self.compute_g_co2_decision(self.node, f, c, decision)
-        print("decision: ", decision)
+        #print("decision: ", decision)
         return decision, None
 
     def update(self):

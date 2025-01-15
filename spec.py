@@ -129,37 +129,36 @@ def generate_random_temp_spec (rng, n_functions=5, load_coeff=1.0, dynamic_rate_
     return ntemp
 
 #variants mode: 0 inactive, 1 active with speedup=utility for each variants, 2 active with speedup!=utility
-def generate_random_temp_spec_variants(rng, n_functions=1, variants_mode=0, n_variants=2, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=True,
-                              n_classes=2, cloud_cost=0.00005, cloud_speedup=1.0):
-    classes = [{'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 1.0},
-               {'name': 'best-effort', 'max_resp_time': 5.0, 'utility': 0.5, 'arrival_weight': 7.0}]
+def generate_random_temp_spec_variants(rng, n_functions=2, variants_mode=0, n_variants=2, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=True,
+                              n_classes=2, cloud_cost=0.00001, cloud_speedup=1.0):
+    classes = [
+        {'name': 'critical', 'max_resp_time': 0.25, 'utility': 1.0, 'arrival_weight': 1.0},
+        {'name': 'best-effort', 'max_resp_time': 0.5, 'utility': 0.1, 'arrival_weight': 1.0}
+    ]
+
     nodes = [
         {'name': 'edge_node_a', 'region': 'edge_zone_1', 'memory': 2048,
-         'processing_power_consumption': 7.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
+         'processing_power_consumption': 100.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
         {'name': 'edge_node_b', 'region': 'edge_zone_1', 'memory': 2048,
-         'processing_power_consumption': 7.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
+         'processing_power_consumption': 100.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
         {'name': 'edge_node_c', 'region': 'edge_zone_1', 'memory': 2048,
-         'processing_power_consumption': 7.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
-        {'name': 'edge_node_d', 'region': 'edge_zone_2', 'memory': 2048,
-         'processing_power_consumption': 7.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
-        {'name': 'edge_node_e', 'region': 'edge_zone_2', 'memory': 2048,
-         'processing_power_consumption': 7.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
-        {'name': 'edge_node_f', 'region': 'edge_zone_2', 'memory': 2048,
-         'processing_power_consumption': 7.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
-        {'name': 'cloud_node_a', 'region': 'cloud_region_a', 'cost': 0.00001, 'speedup': 1.1, 'memory': 128000,
-         'processing_power_consumption': 1000.0, 'tx_energy_consumption': 5.0, 'rx_energy_consumption': 3.0},
-        {'name': 'cloud_node_b', 'region': 'cloud_region_b', 'cost': 0.00001, 'speedup': 1.1, 'memory': 128000,
-         'processing_power_consumption': 1000.0, 'tx_energy_consumption': 5.0, 'rx_energy_consumption': 3.0},
-        {'name': 'cloud_node_c', 'region': 'cloud_region_c', 'cost': 0.00001, 'speedup': 1.1, 'memory': 128000,
-         'processing_power_consumption': 1000.0, 'tx_energy_consumption': 5.0, 'rx_energy_consumption': 3.0},
+         'processing_power_consumption': 100.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
+        {'name': 'cloud_node_a', 'region': 'cloud_region_a', 'cost': 0.00001, 'speedup': 1.0, 'memory': 128000,
+         'processing_power_consumption': 800.0, 'tx_energy_consumption': 5.0, 'rx_energy_consumption': 3.0},
+        {'name': 'cloud_node_b', 'region': 'cloud_region_b', 'cost': 0.001, 'speedup': 1.0, 'memory': 128000,
+         'processing_power_consumption': 800.0, 'tx_energy_consumption': 5.0, 'rx_energy_consumption': 3.0},
         {'name': 'dispatcher_a', 'region': 'cloud_region_a', 'memory': 0, 'policy': 'dispatcher-policy'},
-        {'name': 'dispatcher_b', 'region': 'cloud_region_b', 'memory': 0, 'policy': 'dispatcher-policy'},
-        {'name': 'dispatcher_c', 'region': 'cloud_region_c', 'memory': 0, 'policy': 'dispatcher-policy'}
+        {'name': 'dispatcher_b', 'region': 'cloud_region_b', 'memory': 0, 'policy': 'dispatcher-policy'}
     ]
-    functions = [{'name': 'f1', 'memory': 512, 'duration_mean': 0.4, 'duration_scv': 1.0, 'init_mean': 0.5, 'speedup':[1.0,0.5,0.2], 'utility':[1.0,0.5,0.2]},
-                 #{'name': 'f2', 'memory': 512, 'duration_mean': 0.2, 'duration_scv': 1.0, 'init_mean': 0.25, 'speedup':[1.0,0.5,0.2], 'utility':[1.0,0.5,0.2]},
-                 #{'name': 'f3', 'memory': 128, 'duration_mean': 0.3, 'duration_scv': 1.0, 'init_mean': 0.6, 'speedup':[1.0,0.5,0.2], 'utility':[1.0,0.5,0.2]}
-                 ]
+
+    functions = [
+        {'name': 'f1', 'memory': 32, 'duration_mean': 0.240, 'duration_scv': 1.0,
+         },
+        {'name': 'f2', 'memory': 32, 'duration_mean': 0.120, 'duration_scv': 1.0,
+         }
+    ]
+
+    #todo aggiustare varianti
 
     # Extend functions list if needed
     if n_functions > len(functions):
@@ -198,12 +197,17 @@ def generate_random_temp_spec_variants(rng, n_functions=1, variants_mode=0, n_va
         a, b = (myclip_a - loc) / scale, (myclip_b - loc) / scale
         f["input_mean"] = float(truncnorm.rvs(a, b, loc=loc, scale=scale, size=1))
 
-        if variants_mode != 0:
-            f["speedup"] = [1.0] + [float(rng.uniform(0.25, 0.85)) for _ in range(n_variants - 1)]
-            if variants_mode == 1:
-                f["utility"] = f["speedup"]
-            else: #todo: da definire criterio
-                f["utility"] = [1.0] + [float(rng.uniform(0.25, 0.85)) for _ in range(n_variants - 1)]
+        if variants_mode == 0:
+            f["speedup"] = [1.0]
+            f["utility"] = [1.0]
+        else:
+            f["speedup"] = [1.0]
+            f["utility"] = [1.0]
+
+            for _ in range(n_variants - 1):  # n_variants - default variant
+                rand = float(rng.uniform(0.25, 0.85))
+                f["speedup"].append(rand)
+                f["utility"].append(rand if variants_mode == 1 else (1.0 - rand) ** 2)
 
     if dynamic_rate_coeff > 1.0:
         print("Forcing Poisson arrivals")
@@ -311,33 +315,29 @@ def generate_regions_yaml(is_edge_green=True):
 regions_data_brown_edge = [
     {
         "name": "cloud_region_a",
-        "co2_traces_file": "co2_traces/FR_2023_hourly.csv",
+        "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
         "neighbors": ["cloud_region_b"],
         "latency_sec": {
             "cloud_region_a": 0.0001,
-            "cloud_region_b": 0.0020,
-            "cloud_region_c": 0.0100
+            "cloud_region_b": 0.0200
         },
         "bandwidth_mbps": {
             "cloud_region_a": 100000.0,
-            "cloud_region_b": 50000.0,
-            "cloud_region_c": 10000.0
+            "cloud_region_b": 50000.0
         },
         "zones": [
             {
                 "name": "edge_zone_1",
                 "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
                 "latency_sec": {
-                    "cloud_region_a": 0.1,
-                    "cloud_region_b": 0.3,
-                    "cloud_region_c": 0.4,
-                    "edge_zone_1": 0.5
+                    "cloud_region_a": 0.0100,
+                    "cloud_region_b": 0.0100,
+                    "edge_zone_1": 0.0050
                 },
                 "bandwidth_mbps": {
-                    "cloud_region_a": 50000.0,
-                    "cloud_region_b": 2500.0,
-                    "cloud_region_c": 10000.0,
-                    "edge_zone_1": 100.0
+                    "cloud_region_a": 10000.0,
+                    "cloud_region_b": 1000.0,
+                    "edge_zone_1": 500.0
                 }
             }
         ]
@@ -347,47 +347,12 @@ regions_data_brown_edge = [
         "co2_traces_file": "co2_traces/FR_2023_hourly.csv",
         "neighbors": ["cloud_region_a"],
         "latency_sec": {
-            "cloud_region_a": 0.0020,
-            "cloud_region_b": 0.0001,
-            "cloud_region_c": 0.0100
+            "cloud_region_a": 0.0200,
+            "cloud_region_b": 0.0001
         },
         "bandwidth_mbps": {
             "cloud_region_a": 50000.0,
-            "cloud_region_b": 100000.0,
-            "cloud_region_c": 10000.0
-        },
-        "zones": [
-            {
-                "name": "edge_zone_2",
-                "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
-                "latency_sec": {
-                    "cloud_region_a": 0.0010,
-                    "cloud_region_b": 0.0010,
-                    "cloud_region_c": 0.0010,
-                    "edge_zone_2": 0.0005
-                },
-                "bandwidth_mbps": {
-                    "cloud_region_a": 50000.0,
-                    "cloud_region_b": 50000.0,
-                    "cloud_region_c": 50000.0,
-                    "edge_zone_2": 100000.0
-                }
-            }
-        ]
-    },
-    {
-        "name": "cloud_region_c",
-        "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
-        "neighbors": [],
-        "latency_sec": {
-            "cloud_region_a": 0.100,
-            "cloud_region_b": 0.100,
-            "cloud_region_c": 0.001
-        },
-        "bandwidth_mbps": {
-            "cloud_region_a": 1000.0,
-            "cloud_region_b": 1000.0,
-            "cloud_region_c": 10000.0
+            "cloud_region_b": 100000.0
         },
         "zones": []
     }
@@ -400,79 +365,40 @@ regions_data_green_edge = [
         "neighbors": ["cloud_region_b"],
         "latency_sec": {
             "cloud_region_a": 0.0001,
-            "cloud_region_b": 0.0020,
-            "cloud_region_c": 0.0100
+            "cloud_region_b": 0.0200
         },
         "bandwidth_mbps": {
             "cloud_region_a": 100000.0,
-            "cloud_region_b": 50000.0,
-            "cloud_region_c": 10000.0
+            "cloud_region_b": 50000.0
         },
         "zones": [
             {
                 "name": "edge_zone_1",
-                "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
+                "co2_traces_file": "co2_traces/FR_2023_hourly.csv",
                 "latency_sec": {
-                    "cloud_region_a": 0.1,
-                    "cloud_region_b": 0.3,
-                    "cloud_region_c": 0.4,
-                    "edge_zone_1": 0.5
+                    "cloud_region_a": 0.0100,
+                    "cloud_region_b": 0.0100,
+                    "edge_zone_1": 0.0050
                 },
                 "bandwidth_mbps": {
-                    "cloud_region_a": 50000.0,
-                    "cloud_region_b": 2500.0,
-                    "cloud_region_c": 10000.0,
-                    "edge_zone_1": 100.0
+                    "cloud_region_a": 10000.0,
+                    "cloud_region_b": 1000.0,
+                    "edge_zone_1": 500.0
                 }
             }
         ]
     },
     {
         "name": "cloud_region_b",
-        "co2_traces_file": "co2_traces/FR_2023_hourly.csv",
+        "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
         "neighbors": ["cloud_region_a"],
         "latency_sec": {
-            "cloud_region_a": 0.0020,
-            "cloud_region_b": 0.0001,
-            "cloud_region_c": 0.0100
+            "cloud_region_a": 0.0200,
+            "cloud_region_b": 0.0001
         },
         "bandwidth_mbps": {
             "cloud_region_a": 50000.0,
-            "cloud_region_b": 100000.0,
-            "cloud_region_c": 10000.0
-        },
-        "zones": [
-            {
-                "name": "edge_zone_2",
-                "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
-                "latency_sec": {
-                    "cloud_region_a": 0.0010,
-                    "cloud_region_b": 0.0010,
-                    "cloud_region_c": 0.0010,
-                    "edge_zone_2": 0.0005
-                },
-                "bandwidth_mbps": {
-                    "cloud_region_a": 50000.0,
-                    "cloud_region_b": 50000.0,
-                    "cloud_region_c": 50000.0,
-                    "edge_zone_2": 100000.0
-                }
-            }
-        ]
-    },
-    {
-        "name": "cloud_region_c",
-        "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
-        "neighbors": [],
-        "latency_sec": {
-            "cloud_region_a": 0.100,
-            "cloud_region_b": 0.100,
-            "cloud_region_c": 0.001
-        },
-        "bandwidth_mbps": {
-            "cloud_region_a": 1000.0,
-            "cloud_region_b": 1000.0,
-            "cloud_region_c": 10000.0
+            "cloud_region_b": 100000.0
         },
         "zones": []
     }
