@@ -239,7 +239,7 @@ def experiment_main_comparison_green(args, config):
                             #rng = SeedSequence(seed)
                             temp_spec_file = generate_random_temp_spec_variants(
                                 rng, variants_mode=variant_mode, arrivals_to_single_node=False,
-                                cloud_cost_reg_a=0.001, cloud_cost_reg_b=0.00001
+                                cloud_cost_reg_a=0.00003, cloud_cost_reg_b=0.00001
                             )
                             infra = default_infra(is_edge_green=True)
                             stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)

@@ -1,0 +1,8 @@
+BUDGET = "Budget"
+VAR_MODE = "Variant_mode"
+ALPHA = "OF-Alpha"
+BETA = "OF-Beta"
+POLICY = "Policy"
+UTILITY = "Utility"
+CO2_EMISS_TOTAL = "CO2EmissTotal"
+SEED = "Seed"

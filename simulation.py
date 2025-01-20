@@ -3,23 +3,22 @@ import csv
 import os
 import sys
 import time
+from datetime import datetime
 from heapq import heappop, heappush
 from itertools import chain
-from datetime import datetime
 
 from numpy.random import SeedSequence, default_rng
 
-import conf
 import policy
 import probabilistic
 import probabilistic_carbon_aware
 import stateful
 from arrivals import ArrivalProcess
 from faas import *
+from statistics import Stats
 from infrastructure import *
 from policy import SchedulerDecision, add_enum_members
 from stateful import key_locator
-from statistics import Stats
 from utils import plot
 
 
@@ -220,7 +219,7 @@ class Simulation:
         elif configured_policy == "state-aware-always-offload":
             return stateful.AlwaysOffloadStatefulPolicy(self, node)
         elif configured_policy == "probabilistic-carbon-aware":
-            return probabilistic_carbon_aware.ProbabilisticCarbonAwarePolicy(self, node)
+            return probabilistic_carbon_aware.ProbabilisticCarbonAwarePolicy(self, node,True)
         elif configured_policy == "dispatcher-policy":
             return policy.CloudRegionDispatcherRandomPolicy(self, node)
         elif configured_policy == "random":
@@ -544,7 +543,7 @@ class Simulation:
             self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n))
 
         region = n.region
-        self.stats.total_processing_time += rt
+        self.stats.total_processing_time = self.t
         self.stats.emission_intensity = self.stats.co2_emission_total / self.stats.total_processing_time
         if region.is_cloud() and not isinstance(n, Dispatcher):
             self.stats.execution_time_sum_cloud_nodes[(region, f, n)] += duration

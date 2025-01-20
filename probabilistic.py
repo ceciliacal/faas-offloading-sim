@@ -1,11 +1,10 @@
-import statistics
-import numpy as np
 from pacsltk import perfmodel
 
 import conf
-import lp_optimizer, optimizer_nonlinear
-from policy import Policy, SchedulerDecision, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS
+import lp_optimizer
+import optimizer_nonlinear
 from optimization import OptProblemParams
+from policy import Policy, SchedulerDecision, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS
 
 ADAPTIVE_EDGE_MEMORY_COEFFICIENT=True
 

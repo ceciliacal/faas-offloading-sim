@@ -12,8 +12,8 @@ from main import read_spec_file
 from numpy.random import SeedSequence, default_rng
 
 DEFAULT_CONFIG_FILE = "config.ini"
-DEFAULT_OUT_DIR = "results"
-DEFAULT_OUT_DIR_CO2_TRACKING = "results/brown_co2_tracking"
+DEFAULT_OUT_DIR = "200125_results"
+DEFAULT_OUT_DIR_CO2_TRACKING = "200125_results/brown_co2_tracking"
 DEFAULT_DURATION = 10000000
 SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
@@ -147,9 +147,9 @@ def relevant_stats_dict (stats):
     result["EnergyConsNode"] = stats.energy_consumption_per_node
     result["EnergyConsTotal"] = stats.energy_consumption_total
 
-    result["CO2EmissNode"] = stats.co2_emission_per_node
+    #result["CO2EmissNode"] = stats.co2_emission_per_node
     result["TotalProcTime"] = stats.total_processing_time
-    result["CO2EmissFuncNode"] = stats.co2_emission_function2node
+    #result["CO2EmissFuncNode"] = stats.co2_emission_function2node
     result["CO2EmissTotal"] = stats.co2_emission_total
     return result
 
@@ -234,7 +234,7 @@ def experiment_main_comparison_brown(args, config):
                             rng = default_rng(seed_sequence.spawn(1)[0])
                             temp_spec_file = generate_random_temp_spec_variants(
                                 rng, variants_mode=variant_mode, arrivals_to_single_node=False,
-                                cloud_cost_reg_a=0.00001, cloud_cost_reg_b=0.001
+                                cloud_cost_reg_a=0.00001, cloud_cost_reg_b=0.00003
                             )
                             infra = default_infra(is_edge_green=False)
                             stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
