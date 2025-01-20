@@ -4,6 +4,7 @@ import conf
 import lp_optimizer_carbon_aware
 import optimizer_nonlinear
 from co2_footprint import compute_local_energy, compute_cloud_energy
+from faas import Variant
 from optimization import OptProblemParams
 from optimization_carbon_aware import OptCarbonAwareProblemParams
 from policy import Policy, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS, SchedulerDecision
@@ -101,6 +102,11 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         self.variants_probs = {}
         self.build_probs()
 
+        for def_func, value in self.variants_probs.items():
+            for fun_var, class_prob in value.items():
+                if isinstance(fun_var, Variant) or isinstance(def_func, Variant):
+                    print("colpevole: fun_var = ", fun_var, " def_func = ", def_func)
+
         self.of_alpha = self.simulation.of_alpha
         self.of_beta = self.simulation.of_beta
 
@@ -142,22 +148,22 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                     if f not in self.variants_probs:
                         self.variants_probs[f] = {}
 
-                    for v in self.simulation.function_variants[f]:
-                        if (v, c) not in self.probs:
-                            self.probs[(v, c)] = {}
+                    for fun_var in self.simulation.function_variants[f]:
+                        if (fun_var, c) not in self.probs:
+                            self.probs[(fun_var, c)] = {}
 
                         #self.variants_probs[f][v] = {c: initial_var_prob}
                         #self.variants_probs[f][v][c] = {initial_var_prob}
 
-                        if v not in self.variants_probs[f]:
-                            self.variants_probs[f][v] = {}
+                        if fun_var not in self.variants_probs[f]:
+                            self.variants_probs[f][fun_var] = {}
 
-                        self.variants_probs[f][v][c] = initial_var_prob
+                        self.variants_probs[f][fun_var][c] = initial_var_prob
 
                         # Assign probabilities for variants
                         probabilities = [0.0] + [initial_var_prob] + [0.0] * (2 + self.num_regions_cloud)
                         for decision, prob in zip(self.possible_decisions, probabilities):
-                            self.probs[(v, c)][decision] = prob
+                            self.probs[(fun_var, c)][decision] = prob
 
                     # Assign probabilities for the default function
                     probabilities = [initial_prob] * 2 + [0.0, 0.0] + [initial_prob] * self.num_regions_cloud
@@ -189,18 +195,14 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         if f.has_variants and len(self.variants_probs[f]) > 0:
             variants_probs = self.variants_probs[f].copy()
 
-        printable_probs = {}
-        for dec, p in probabilities.items():
-            printable_probs[dec.name] = p
-        #print("[schedule] - probs: ", printable_probs)
-
         # If the request has already been offloaded, cannot offload again
         if len(offloaded_from) > 0:
+            probabilities[SchedulerDecision.EXEC_VAR] = 0.0
             if not self.allow_multi_offloading:
-                probabilities[SchedulerDecision.OFFLOAD_EDGE] = 0
+                probabilities[SchedulerDecision.OFFLOAD_EDGE] = 0.0
                 for decision, prob in probabilities.items():
                     if conf.OFFLOAD_CLOUD_DECISION in decision.name:
-                        probabilities[decision] = 0
+                        probabilities[decision] = 0.0
             s = sum(probabilities.values())
 
             if s <= 0.0:
@@ -212,36 +214,14 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
         #print("[schedule - node ",self.node,"] decision: ", decision)
 
-        if decision == SchedulerDecision.EXEC_VAR:
-            if len(offloaded_from) > 0: #if request was offloaded and decision is exec_var -> exec
-                decision = SchedulerDecision.EXEC
-            else:
-                self.curr_local_reqs += 1
-                assert f.has_variants == True
-
-                variant_choice = {}
-                for function_variant, class_probability in variants_probs.items():
-                    variant_choice[function_variant] = class_probability[c] #.varValue
-
-                selected_variant, prob = max(variant_choice.items(), key=lambda item: item[1])
-
-                f.active_variant = selected_variant
-                #print(selected_variant, prob)
-
-        # Local rejection due to lack of resources
-        if decision == SchedulerDecision.EXEC_VAR and not self.can_execute_locally(f):
-            self.curr_local_blocked_reqs += 1
-            return (SchedulerDecision.DROP, None)
-
         if decision == SchedulerDecision.EXEC:
             self.curr_local_reqs += 1
-
 
         if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
             self.curr_local_blocked_reqs += 1
 
             if self.local_rejection_fallback == "fgcs24" or self.local_rejection_fallback == "reschedule":
-
+                #todo mesa che riesce exec_var in qualche modo e non si attiva l'active variant
                 probabilities[SchedulerDecision.EXEC] = 0.0
 
                 if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
@@ -250,10 +230,12 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                             probabilities[decision] = 0.0
 
                 s = sum(probabilities.values())
-                if not s > 0.0:
+                if s > 0.0:
+                    probabilities = self.renormalize_probs(probabilities, s)
+                    decision, node = self.rng.choice(list(probabilities.keys()), p=list(probabilities.values())), None
+                else:
                     # NOTE: we may add new Cloud offloadings even if p_cloud=0
                     # Attempt Cloud offloading if utility allows
-
                     if c.utility > 0.0 and \
                             self.simulation.stats.cost / self.simulation.t * 3600 < self.budget \
                             and (self.allow_multi_offloading or len(offloaded_from) == 0):
@@ -271,14 +253,31 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                     else:
                         return (SchedulerDecision.DROP, None)
 
-                probabilities = self.renormalize_probs(probabilities, s)
-                return (self.rng.choice(list(probabilities.keys()), p=list(probabilities.values())), None)
+            #todo QUI ESCE EXEC_VAR NON GESTITO!!!!
 
             elif self.local_rejection_fallback == "drop":
                 return (SchedulerDecision.DROP, None)
             else:
                 raise RuntimeError(f"Unknown local rejection fallback: {self.local_rejection_fallback}")
 
+        if decision == SchedulerDecision.EXEC_VAR:
+            #if len(offloaded_from) > 0: #if request was offloaded and decision is exec_var -> exec
+            #    decision = SchedulerDecision.EXEC
+            #else:
+            self.curr_local_reqs += 1
+            assert f.has_variants == True
+
+            variant_choice = {}
+            for function_variant, class_probability in variants_probs.items():
+                variant_choice[function_variant] = class_probability[c] #.varValue
+
+            selected_variant, prob = max(variant_choice.items(), key=lambda item: item[1])
+            f.active_variant = selected_variant
+
+        # Local rejection due to lack of resources
+        if decision == SchedulerDecision.EXEC_VAR and not self.can_execute_locally(f):
+            self.curr_local_blocked_reqs += 1
+            return (SchedulerDecision.DROP, None)
 
         if conf.OFFLOAD_CLOUD_DECISION in decision.name and self.strict_budget_enforce and \
                 self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:

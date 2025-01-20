@@ -101,8 +101,9 @@ class Simulation:
     functions: [Function]
     classes: [QoSClass]
     node2arrivals: dict
-    function_variants: dict #key: Function value: Function
-    variants: [FunctionVariant]
+    function_variants: {Function: [Function]}
+    variants: [Variant]
+
     end_date_co2_emissions = datetime.strptime("2023-01-06", "%Y-%m-%d")
 
 
@@ -251,8 +252,8 @@ class Simulation:
         self.events = []
         self.t = 0.0
         self.node2policy = {}
-        filename = self.config.get(conf.SEC_CARBON, conf.FILE_UPDATE_CO2_INTENSITY, fallback="")
-        self.file_update_co2_intensity = os.path.join("results", f"{filename}")
+        self.file_update_co2_intensity = self.config.get(conf.SEC_CARBON, conf.FILE_UPDATE_CO2_INTENSITY, fallback="")
+        print("self.file_update_co2_intensity: ",self.file_update_co2_intensity)
         self.rows_to_write_update_co2 = []
 
         self.expiration_timeout = self.config.getfloat(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, fallback=600)
@@ -574,10 +575,6 @@ class Simulation:
         if external:
             self.stats.ext_arrivals[(f, c, n)] += 1
 
-        #joule_energy = ((n.g_co2_emissions[f][sched_decision])*(KWH))/n.co2_footprint.co2_intensity
-        n_co2_int = n.co2_footprint.co2_intensity
-        n_co2_datetime = n.co2_footprint.co2_datetime
-
         # Policy
         sched_decision, target_node = node_policy.schedule(f, c, event.offloaded_from)
 
@@ -587,6 +584,8 @@ class Simulation:
             assert len(event.offloaded_from) == 0
 
             f = f.active_variant
+            if isinstance(f, Variant):
+                print("help!!!!")
 
             duration, data_access_time = self.next_function_duration(f, n)
             # check warm or cold

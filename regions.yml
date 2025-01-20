@@ -11,7 +11,7 @@ regions:  #cloud regions
 
     zones:  #edge regions referring to this cloud region
       - name: "edge_zone_1"
-        co2_traces_file: "co2_traces/PL_2023_hourly.csv"
+        co2_traces_file: "co2_traces/FR_2023_hourly.csv"
         latency_sec:
           cloud_region_a: 0.0100
           cloud_region_b: 0.0100
@@ -23,7 +23,7 @@ regions:  #cloud regions
 
 
   - name: "cloud_region_b"
-    co2_traces_file: "co2_traces/FR_2023_hourly.csv"
+    co2_traces_file: "co2_traces/PL_2023_hourly.csv"
     latency_sec:
       cloud_region_a: 0.0200     #neighbor (20ms)
       cloud_region_b: 0.0001     #self (20 ms)

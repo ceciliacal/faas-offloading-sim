@@ -135,7 +135,7 @@ class QoSClass:
         return self.name <= other.name
 
 
-class FunctionVariant:
+class Variant:
     def __init__(self, name, speedup, utility):
         self.name = name
         self.speedup = speedup
@@ -157,7 +157,7 @@ class Function:
     accessed_keys: [] = field(default_factory=lambda: [])
     max_data_access_time: float = None
     outputSizeMean: float = 10
-    variants: [FunctionVariant] = field(default_factory=lambda: [])
+    variants: [Variant] = field(default_factory=lambda: [])
     is_default: bool = False
     active_variant = None
     has_variants: bool = False

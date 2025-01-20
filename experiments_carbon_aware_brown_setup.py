@@ -13,6 +13,7 @@ from numpy.random import SeedSequence, default_rng
 
 DEFAULT_CONFIG_FILE = "config.ini"
 DEFAULT_OUT_DIR = "results"
+DEFAULT_OUT_DIR_CO2_TRACKING = "results/brown_co2_tracking"
 DEFAULT_DURATION = 10000000
 SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
@@ -182,7 +183,7 @@ def experiment_main_comparison_brown(args, config):
     for seed in SEEDS:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         seed_sequence = SeedSequence(seed)
-        for budget in [0.5, 2, 10, 50]:
+        for budget in [0.5, 2, 20, 50]:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
                 for pol in POLICIES:
@@ -195,8 +196,8 @@ def experiment_main_comparison_brown(args, config):
                             (0.0, 1.0),  # of-alpha=0, of-beta=1
                             (1.0, 0.0),  # of-alpha=1, of-beta=0
                             (0.5, 0.5),  # of-alpha=0.5, of-beta=0.5
-                            #(0.3, 0.7),  # of-alpha=0.5, of-beta=0.5
-                            #(0.7, 0.3),  # of-alpha=0.5, of-beta=0.5
+                            (0.3, 0.7),  # of-alpha=0.5, of-beta=0.5
+                            (0.7, 0.3),  # of-alpha=0.5, of-beta=0.5
                         ]
 
                         for of_alpha, of_beta in of_values:
@@ -214,7 +215,7 @@ def experiment_main_comparison_brown(args, config):
                             }
 
                             run_string = "_".join([f"{k}{v}" for k, v in keys.items()])
-                            filename_res = os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.csv")
+                            filename_res = os.path.join(DEFAULT_OUT_DIR_CO2_TRACKING, f"{exp_tag}_{run_string}.csv")
                             config.set(conf.SEC_CARBON, conf.FILE_UPDATE_CO2_INTENSITY, str(filename_res))
 
                             # Check if we can skip this run
@@ -232,7 +233,8 @@ def experiment_main_comparison_brown(args, config):
 
                             rng = default_rng(seed_sequence.spawn(1)[0])
                             temp_spec_file = generate_random_temp_spec_variants(
-                                rng, variants_mode=variant_mode, arrivals_to_single_node=False
+                                rng, variants_mode=variant_mode, arrivals_to_single_node=False,
+                                cloud_cost_reg_a=0.00001, cloud_cost_reg_b=0.001
                             )
                             infra = default_infra(is_edge_green=False)
                             stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
@@ -260,6 +262,8 @@ def experiment_main_comparison_brown(args, config):
                         }
 
                         run_string = "_".join([f"{k}{v}" for k, v in keys.items()])
+                        filename_res = os.path.join(DEFAULT_OUT_DIR_CO2_TRACKING, f"{exp_tag}_{run_string}.csv")
+                        config.set(conf.SEC_CARBON, conf.FILE_UPDATE_CO2_INTENSITY, str(filename_res))
 
                         # Check if we can skip this run
                         if old_results is not None and not old_results[
@@ -273,7 +277,9 @@ def experiment_main_comparison_brown(args, config):
 
                         rng = default_rng(seed_sequence.spawn(1)[0])
                         temp_spec_file = generate_random_temp_spec_variants(
-                            rng, variants_mode=variant_mode, arrivals_to_single_node=False
+                            rng, variants_mode=variant_mode, arrivals_to_single_node=False,
+                            cloud_cost_reg_a=0.00001, cloud_cost_reg_b=0.001
+
                         )
                         infra = default_infra(is_edge_green=False)
                         stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)

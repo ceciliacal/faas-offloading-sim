@@ -114,25 +114,33 @@ class Policy:
             self.__edge_peers = self.simulation.infra.get_neighbors_node(self.node, self.simulation.node_choice_rng, self.simulation.max_neighbors)
         return self.__edge_peers
 
-    def _get_edge_peers_probabilities (self):
-        peers = self._get_edge_peers()
+    def _get_edge_peers_probabilities(self):
+        # Filter peers to include only those with memory left
+        peers = [peer for peer in self._get_edge_peers() if peer.curr_memory > 0.0]
+        if not peers:  # If no peers have memory left, handle gracefully
+            return [], []  # Return empty probabilities and peers
+
+        valid_peers = []
         for peer in peers:
             if peer.curr_memory < 0.0:
-                print(peer)
-                print(peer.curr_memory)
+                print(f"Invalid peer detected (negative memory): {peer}, memory: {peer.curr_memory}")
+                continue
             if peer.peer_exposed_memory_fraction < 0.0:
-                print(peer)
-                print(peer.peer_exposed_memory_fraction)
-            assert(peer.curr_memory*peer.peer_exposed_memory_fraction >= 0.0)
+                print(
+                    f"Invalid peer detected (negative exposed memory fraction): {peer}, exposed fraction: {peer.peer_exposed_memory_fraction}")
+                continue
 
+            valid_peers.append(peer)
+        if not valid_peers:  # Handle case where all peers are invalid
+            return [], []
 
-        total_memory = sum([x.curr_memory*x.peer_exposed_memory_fraction for x in peers])
+        total_memory = sum(x.curr_memory * x.peer_exposed_memory_fraction for x in valid_peers)
         if total_memory > 0.0:
-            probs = [x.curr_memory*x.peer_exposed_memory_fraction/total_memory for x in peers]
+            probs = [x.curr_memory * x.peer_exposed_memory_fraction / total_memory for x in valid_peers]
         else:
-            n = len(peers)
-            probs = [1.0/n for x in peers]
-        return probs, peers
+            n = len(valid_peers)
+            probs = [1.0 / n for _ in valid_peers]
+        return probs, valid_peers
 
     # Picks a node for Edge offloading
     def pick_edge_node (self, fun, qos):

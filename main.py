@@ -1,6 +1,7 @@
 import math
 import sys
 
+
 import numpy as np
 import pandas as pd
 import yaml
@@ -9,7 +10,7 @@ from numpy.random import SeedSequence
 import co2_footprint
 import faas
 from arrivals import PoissonArrivalProcess, TraceArrivalProcess, MAPArrivalProcess
-from faas import FunctionVariant
+from faas import Variant
 from infrastructure import *
 from simulation import Simulation
 
@@ -97,8 +98,9 @@ def read_spec_file(spec_file_name, infra, config):
             speedups = f.get("speedup", [])
             utilities = f.get("utility", [])
             assert len(speedups) == len(utilities), "Number of Speedup and utility don't match dimension"
-            speedups_utilities = [FunctionVariant(f"{fname}_var_{speedup}", speedup, utility)
-                        for speedup, utility in zip(speedups, utilities)]
+            assert 1.0 in speedups, "Speedups must have at least 1 as default speed up"
+            speedups_utilities = [Variant(f"{fname}_var_{speedup}", speedup, utility)
+                                  for speedup, utility in zip(speedups, utilities) if speedup != 1.0]
 
             # Initialize the function
             function = faas.Function(
@@ -112,7 +114,7 @@ def read_spec_file(spec_file_name, infra, config):
             functions.append(function)
             lightest_variants.extend(speedups_utilities)
 
-        function_variants = process_variants(functions, function_names)
+        dict_function2variants = process_variants(functions, function_names)
 
         node2arrivals = {}
         for f in spec["arrivals"]:
@@ -156,23 +158,18 @@ def read_spec_file(spec_file_name, infra, config):
                 node2arrivals[node] = []
             node2arrivals[node].append(arv)
 
-    return classes, functions, node2arrivals, function_variants, lightest_variants
+    return classes, functions, node2arrivals, dict_function2variants, lightest_variants
 
 
 #Function variants creation
 def process_variants(functions, function_names):
-    tmp_list_variants = []
-    function_variants = {}
+    lightest_functions = []  #type Function
+    dict_function2variants = {}
 
     for function in functions:
-
-        assert any(variant.speedup == 1.0 for variant in function.variants), \
-            "Every function must have at least one default variant with speedup 1.0"
-
-        variants_for_function = []
-
-        for variant in function.variants:
-            if variant.speedup != 1.0:
+        has_function_any_variant = []
+        for variant in function.variants:   #Variant
+            #if variant.speedup != 1.0:
                 lighter_function = faas.Function(
                     name=variant.name, memory=function.memory * variant.speedup,
                     serviceMean= function.serviceMean * variant.speedup,
@@ -182,19 +179,18 @@ def process_variants(functions, function_names):
                     outputSizeMean=function.outputSizeMean, is_default=False, speedup=variant.speedup
                 )
                 function_names[lighter_function.name] = lighter_function
-                tmp_list_variants.append(lighter_function)
+                lightest_functions.append(lighter_function)
                 variant.self_function = lighter_function
-                variants_for_function.append(lighter_function)
-            else:
-                function.active_variant = variant
+                has_function_any_variant.append(lighter_function)
+            #else:
+            #   function.active_variant = variant
 
-        function.has_variants = bool(variants_for_function)
-        # once checked that default variant is configured, remove the default among the variants
-        function.variants = [v for v in function.variants if v.speedup != 1.0]
-        function_variants[function] = variants_for_function
+        function.has_variants = bool(has_function_any_variant)
+        #function.variants = [v for v in function.variants]
+        dict_function2variants[function] = has_function_any_variant
 
-    functions.extend(tmp_list_variants)
-    return function_variants
+    functions.extend(lightest_functions)
+    return dict_function2variants
 
 
 def read_traces_file(filename, col_datetime, col_co2intensity, start_date, end_date):

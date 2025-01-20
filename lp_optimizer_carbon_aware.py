@@ -181,6 +181,9 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
     V = params.variants
 
     EDGE_ENABLED = True if params.aggregated_edge_memory > 0.0 else False
+    #EDGE_ENABLED = False
+    if not EDGE_ENABLED:
+        print("EDGE_ENABLED = False")
 
     if VERBOSE > 1:
         print("------------------------------")
@@ -215,8 +218,8 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
                 None,
                 pl.LpContinuous)
 
-    if EDGE_ENABLED:
-        pE = pl.LpVariable.dicts("PEdge", (F, C), 0, 1, pl.LpContinuous)
+    #if EDGE_ENABLED:
+    pE = pl.LpVariable.dicts("PEdge", (F, C), 0, 1, pl.LpContinuous)
 
     for region in regions:
         region_name = region.name
@@ -293,24 +296,22 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
             alfa * (
                     pl.lpSum([
                         c.utility * params.arrival_rates[(f, c)] * (
-                                pL[f][c] * deadline_satisfaction_prob_local[(f, c)] +
-                                pl.lpSum([pL_variants[f][v][c] * deadline_satisfaction_prob_local_variants[(f, v, c)]
-                                          for v in V[f]] if f.has_variants else 0.0) +
-                                pl.lpSum([pC[region.name][f][c] * deadline_satisfaction_prob_cloud[(region.name, f, c)]
-                                          for region in regions])
+                        pL[f][c] * deadline_satisfaction_prob_local[(f, c)] +
+                        pl.lpSum([pL_variants[f][v.self_function][c] * deadline_satisfaction_prob_local_variants[(f, v.self_function, c)] * v.utility
+                                  for v in f.variants] if f.has_variants else 0.0) +
+                        pl.lpSum([pC[region.name][f][c] * deadline_satisfaction_prob_cloud[(region.name, f, c)]
+                            for region in regions])
                         )
                         for f, c in F_C
                     ])
                     -
                     pl.lpSum([
-                        c.deadline_penalty * params.arrival_rates[(f, c)] * (
-                                pL[f][c] * (1.0 - deadline_satisfaction_prob_local[(f, c)]) +
-                                pl.lpSum(
-                                    [pL_variants[f][v][c] * (1.0 - deadline_satisfaction_prob_local_variants[(f, v, c)])
-                                     for v in V[f]] if f.has_variants else 0.0) +
-                                pl.lpSum([pC[region.name][f][c] * (
-                                            1.0 - deadline_satisfaction_prob_cloud[(region.name, f, c)])
-                                          for region in regions])
+                c.deadline_penalty * params.arrival_rates[(f, c)] * (
+                        pL[f][c] * (1.0 - deadline_satisfaction_prob_local[(f, c)]) +
+                        pl.lpSum([pL_variants[f][v][c] * (1.0 - deadline_satisfaction_prob_local_variants[(f, v, c)])
+                            for v in V[f]] if f.has_variants else 0.0)+
+                        pl.lpSum([pC[region.name][f][c] * (1.0 - deadline_satisfaction_prob_cloud[(region.name, f, c)])
+                            for region in regions])
                         )
                         for f, c in F_C
                     ])
@@ -431,7 +432,11 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
 
                         decision_fc_probability[scheduler_decision][f][c] = sum_prob_variants
         elif "EDGE" in scheduler_decision.name:
-            decision_fc_probability[scheduler_decision] = pE if EDGE_ENABLED else 0.0
+            if not EDGE_ENABLED:
+                for f, c in F_C:
+                    pE[f][c] = 0.0
+                    eP_offloading_edge[f] = 0.0
+            decision_fc_probability[scheduler_decision] = pE
             decision_eP[scheduler_decision] = eP_offloading_edge
         elif "DROP" in scheduler_decision.name:
             decision_fc_probability[scheduler_decision] = pD
@@ -442,6 +447,7 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
 
     probs = {}
 
+
     # populating probs with updated values
     for decision, f_c_probabilities in decision_fc_probability.items():
         for function, classes in f_c_probabilities.items():
@@ -450,7 +456,6 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
                 key = (function, service_class)
                 if key not in probs:
                     probs[key] = {}
-
                 # Add the decision and its corresponding probability to each (f,c) pair
                 probs[key][decision] = pl.value(probability)
 
