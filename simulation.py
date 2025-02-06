@@ -185,6 +185,12 @@ class Simulation:
             return policy.BasicEdgePolicy(self, node)
         if configured_policy == "cloud":
             return policy.CloudPolicy(self, node)
+        if configured_policy == "greedy-multi-region": #latency
+            return policy.GreedyPolicyMultiRegion(self, node)
+        if configured_policy == "greedy-carbon-aware":
+            return policy.GreedyCarbonAware(self, node)
+        if configured_policy == "greedy-carbon-aware-strict":
+            return policy.GreedyCarbonAwareStrict(self, node)
         elif configured_policy == "probabilistic-legacy":
             self.config.set(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, "false")
             return probabilistic.ProbabilisticPolicy(self, node)
@@ -583,8 +589,6 @@ class Simulation:
             assert len(event.offloaded_from) == 0
 
             f = f.active_variant
-            if isinstance(f, Variant):
-                print("help!!!!")
 
             duration, data_access_time = self.next_function_duration(f, n)
             # check warm or cold
@@ -604,22 +608,6 @@ class Simulation:
             self.schedule(float(self.t + init_time + duration),
                           Completion(arrival_time, f, c, n, init_time > 0, duration, None,
                                      data_access_time))
-
-
-            '''
-            n_co2_grams = n.g_co2_emissions[f][sched_decision]
-
-            self.stats.co2_emission_function2node[(f, n)] += n_co2_grams
-            self.stats.co2_emission_total += n_co2_grams
-            self.stats.co2_emission_per_node[n] += n_co2_grams
-            
-            joule_energy = ((n.g_co2_emissions[f][sched_decision]) * KWH) / n_co2_int
-            energy_stats_list = [n_co2_int.toString(), n_co2_datetime.toString(), joule_energy.toString(), n_co2_grams.toString()]
-
-            self.stats.energy_consumption_per_node[n] += joule_energy
-            self.stats.energy_consumption_function2node[(f, n)] += energy_stats_list
-            self.stats.energy_consumption_total += joule_energy
-            '''
 
             self.update_co2_stats(n,f,sched_decision)
 
@@ -673,70 +661,15 @@ class Simulation:
 
                         self.update_co2_stats(initial_node,f,offloading_decision)
 
-                        '''
-                        cloud_node_co2_grams = initial_node.g_co2_emissions[f][offloading_decision]
-                        self.stats.co2_emission_function2node[(f, n)] += cloud_node_co2_grams
-                        self.stats.co2_emission_total += cloud_node_co2_grams
-                        self.stats.co2_emission_per_node[n] += cloud_node_co2_grams
-                        #print("self.stats.energy_consumption_per_function[(f, n)]: ", self.stats.co2_emission_function2node[(f, n)], " -  initial_node.g_co2_emissions[f][offloading_decision]: ", initial_node.g_co2_emissions[f][offloading_decision])
-
-                        initial_node_co2 = initial_node.co2_footprint
-
-                        joule_energy = ((initial_node.g_co2_emissions[f][offloading_decision]) * KWH) / initial_node_co2.co2_intensity
-                        energy_stats_list = [initial_node_co2.co2_intensity.toString(), initial_node_co2.co2_datetime.toString(), joule_energy.toString(),
-                                             cloud_node_co2_grams.toString()]
-
-                        self.stats.energy_consumption_per_node[n] += joule_energy
-                        self.stats.energy_consumption_function2node[(f, n)] += energy_stats_list
-                        self.stats.energy_consumption_total += joule_energy
-                        '''
-
-
                 else: #edge node
                     assert not n.region.is_cloud(), "This is expected to be an edge node"
                     initial_node = event.offloaded_from[0]
 
                     self.update_co2_stats(initial_node, f, SchedulerDecision.OFFLOAD_EDGE)
 
-                    '''
-                    edge_node_co2_grams = initial_node.g_co2_emissions[f][SchedulerDecision.OFFLOAD_EDGE]
-
-                    self.stats.co2_emission_function2node[(f, n)] += edge_node_co2_grams
-                    self.stats.co2_emission_total += edge_node_co2_grams
-                    self.stats.co2_emission_per_node[n] += edge_node_co2_grams
-
-                    initial_node_co2 = initial_node.co2_footprint
-
-                    joule_energy = ((initial_node.g_co2_emissions[f][SchedulerDecision.OFFLOAD_EDGE]) * KWH) / initial_node_co2.co2_intensity
-                    energy_stats_list = [initial_node_co2.co2_intensity.toString(),
-                                         initial_node_co2.co2_datetime.toString(), joule_energy.toString(),
-                                         edge_node_co2_grams.toString()]
-
-                    self.stats.energy_consumption_per_node[n] += joule_energy
-                    self.stats.energy_consumption_function2node[(f, n)] += energy_stats_list
-                    self.stats.energy_consumption_total += joule_energy
-                    '''
-
             else:   #sched_decision = EXEC, no offloading
 
-
                 self.update_co2_stats(n, f, sched_decision)
-
-                '''
-                 n_co2_grams = n.g_co2_emissions[f][sched_decision]
-
-                self.stats.co2_emission_function2node[(f, n)] += n.g_co2_emissions[f][sched_decision]
-                self.stats.co2_emission_total += n.g_co2_emissions[f][sched_decision]
-                self.stats.co2_emission_per_node[n] += n.g_co2_emissions[f][sched_decision]
-
-                joule_energy = ((n.g_co2_emissions[f][sched_decision]) * KWH) / n_co2_int
-                energy_stats_list = [n_co2_int.toString(), n_co2_datetime.toString(), joule_energy.toString(),
-                                     n_co2_grams.toString()]
-
-                self.stats.energy_consumption_per_node[n] += joule_energy
-                self.stats.energy_consumption_function2node[(f, n)] += energy_stats_list
-                self.stats.energy_consumption_total += joule_energy
-                '''
 
         elif sched_decision == SchedulerDecision.DROP:
             self.stats.dropped_reqs[(f, c, n)] += 1

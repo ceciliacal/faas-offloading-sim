@@ -97,15 +97,9 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
         self.possible_decisions = list(SchedulerDecision)
 
-
         self.probs = {}
         self.variants_probs = {}
         self.build_probs()
-
-        for def_func, value in self.variants_probs.items():
-            for fun_var, class_prob in value.items():
-                if isinstance(fun_var, Variant) or isinstance(def_func, Variant):
-                    print("colpevole: fun_var = ", fun_var, " def_func = ", def_func)
 
         self.of_alpha = self.simulation.of_alpha
         self.of_beta = self.simulation.of_beta

@@ -54,7 +54,7 @@ class Stats:
         self.co2_emission_per_node = {n: 0.0 for n in self.nodes}
         self.total_processing_time = 0.0
         self.co2_emission_function2node = {(f, n): 0.0 for f in functions for n in self.nodes}
-        self.co2_emission_total = 0.0
+        self.co2_emission_total = 0.0 #co2 grams
 
         self.energy_consumption_per_node = {n: 0.0 for n in self.nodes} #joule
         # (f,n):[co2_intensity,co2_datetime,energy_consumed(J),gCO2]

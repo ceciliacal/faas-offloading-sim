@@ -1,4 +1,3 @@
-import sys
 import tempfile
 import os
 import argparse
@@ -6,7 +5,6 @@ import pandas as pd
 import numpy as np
 import yaml
 
-import conf
 from spec import generate_regions_yaml, generate_random_temp_spec_variants
 from simulation import Simulation
 from infrastructure import *
@@ -14,8 +12,8 @@ from main import read_spec_file
 from numpy.random import SeedSequence, default_rng
 
 DEFAULT_CONFIG_FILE = "config.ini"
-DEFAULT_OUT_DIR = "results"
-DEFAULT_OUT_DIR_CO2_TRACKING = "results/green_last_co2_tracking"
+DEFAULT_OUT_DIR = "060225_results"
+DEFAULT_OUT_DIR_CO2_TRACKING = "060225_results/brown_co2_tracking"
 DEFAULT_DURATION = 10000000
 SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
@@ -149,16 +147,16 @@ def relevant_stats_dict (stats):
     result["EnergyConsNode"] = stats.energy_consumption_per_node
     result["EnergyConsTotal"] = stats.energy_consumption_total
 
-    result["CO2EmissNode"] = stats.co2_emission_per_node
+    #result["CO2EmissNode"] = stats.co2_emission_per_node
     result["TotalProcTime"] = stats.total_processing_time
-    result["CO2EmissFuncNode"] = stats.co2_emission_function2node
+    #result["CO2EmissFuncNode"] = stats.co2_emission_function2node
     result["CO2EmissTotal"] = stats.co2_emission_total
     return result
 
 
-def experiment_main_comparison_green(args, config):
+def experiment_main_comparison_brown(args, config):
     results = []
-    exp_tag = "mainComparisonGreenLast"
+    exp_tag = "mainComparisonBrown"
     config.set(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, "false")
     outfile = os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}.csv")
 
@@ -167,9 +165,9 @@ def experiment_main_comparison_green(args, config):
     config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "600")
     config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
 
-    POLICIES = ["random-multi-region",
-                "basic-multi-region",
-        "probabilistic-carbon-aware"
+    POLICIES = ["greedy-multi-region",
+                "greedy-carbon-aware",
+        "greedy-carbon-aware-strict"
     ]
 
     # Check existing results
@@ -213,14 +211,12 @@ def experiment_main_comparison_green(args, config):
                                 "Variant_mode": variant_mode,
                                 "OF-Alpha": of_alpha,
                                 "OF-Beta": of_beta,
+
                             }
 
                             run_string = "_".join([f"{k}{v}" for k, v in keys.items()])
                             filename_res = os.path.join(DEFAULT_OUT_DIR_CO2_TRACKING, f"{exp_tag}_{run_string}.csv")
-                            #print("in experiments: run_string: ", run_string)
-                            #print("in experiments: filename_res: ", filename_res)
                             config.set(conf.SEC_CARBON, conf.FILE_UPDATE_CO2_INTENSITY, str(filename_res))
-                            #print("in experiments: conf: ", config.get(conf.SEC_CARBON, conf.FILE_UPDATE_CO2_INTENSITY))
 
                             # Check if we can skip this run
                             if old_results is not None and not old_results[
@@ -236,12 +232,11 @@ def experiment_main_comparison_green(args, config):
                                 continue
 
                             rng = default_rng(seed_sequence.spawn(1)[0])
-                            #rng = SeedSequence(seed)
                             temp_spec_file = generate_random_temp_spec_variants(
                                 rng, variants_mode=variant_mode, arrivals_to_single_node=False,
-                                cloud_cost_reg_a=0.00003, cloud_cost_reg_b=0.00001
+                                cloud_cost_reg_a=0.00001, cloud_cost_reg_b=0.00003
                             )
-                            infra = default_infra(is_edge_green=True)
+                            infra = default_infra(is_edge_green=False)
                             stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
                             temp_spec_file.close()
 
@@ -268,10 +263,7 @@ def experiment_main_comparison_green(args, config):
 
                         run_string = "_".join([f"{k}{v}" for k, v in keys.items()])
                         filename_res = os.path.join(DEFAULT_OUT_DIR_CO2_TRACKING, f"{exp_tag}_{run_string}.csv")
-                        print("in experiments: run_string: ", run_string)
-                        print("in experiments: filename_res: ", filename_res)
                         config.set(conf.SEC_CARBON, conf.FILE_UPDATE_CO2_INTENSITY, str(filename_res))
-                        print("in experiments: conf: ", config.get(conf.SEC_CARBON, conf.FILE_UPDATE_CO2_INTENSITY))
 
                         # Check if we can skip this run
                         if old_results is not None and not old_results[
@@ -286,9 +278,10 @@ def experiment_main_comparison_green(args, config):
                         rng = default_rng(seed_sequence.spawn(1)[0])
                         temp_spec_file = generate_random_temp_spec_variants(
                             rng, variants_mode=variant_mode, arrivals_to_single_node=False,
-                            cloud_cost_reg_a=0.001, cloud_cost_reg_b=0.00001
+                            cloud_cost_reg_a=0.00001, cloud_cost_reg_b=0.001
+
                         )
-                        infra = default_infra(is_edge_green=True)
+                        infra = default_infra(is_edge_green=False)
                         stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
                         temp_spec_file.close()
 
@@ -309,7 +302,7 @@ def experiment_main_comparison_green(args, config):
     if old_results is not None:
         resultsDf = pd.concat([old_results, resultsDf])
     resultsDf.to_csv(outfile, index=False)
-    #print(resultsDf.groupby("Policy").mean())
+    print(resultsDf.groupby("Policy").mean())
 
     with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
         config.write(of)
@@ -326,7 +319,7 @@ if __name__ == "__main__":
 
     config = conf.parse_config_file("config.ini")
     config.set(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, "-1")
-    #config.set(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, str(DEFAULT_DURATION))
+    config.set(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, str(DEFAULT_DURATION))
 
     if args.debug:
         args.force = True
@@ -335,6 +328,20 @@ if __name__ == "__main__":
     if args.seed is not None:
         SEEDS = [int(args.seed)]
 
-    experiment_main_comparison_green(args, config)
-
+    experiment_main_comparison_brown(args, config)
+    '''
+        if args.experiment.lower() == "a":
+        experiment_main_comparison(args, config)
+    elif args.experiment.lower() == "b":
+        experiment_arrivals_to_all(args, config)
+    elif args.experiment.lower() == "v":
+        experiment_varying_arrivals(args, config)
+    elif args.experiment.lower() == "s":
+        experiment_scalability(args, config)
+    elif args.experiment.lower() == "x":
+        experiment_simple(args, config)
+    else:
+        print("Unknown experiment!")
+        exit(1)
+    '''
 

@@ -4,6 +4,7 @@ from pacsltk import perfmodel
 import conf
 from co2_footprint import compute_local_energy, compute_cloud_energy, compute_local_variant_energy, compute_edge_energy
 from faas import Dispatcher
+from collections import defaultdict
 
 COLD_START_PROB_INITIAL_GUESS = 0.0
 
@@ -414,6 +415,252 @@ class GreedyPolicy(Policy):
                 self.estimated_service_time_cloud[f] = 0.1
 
         self.update_cold_start(stats)
+
+class GreedyPolicyMultiRegion(Policy):
+
+    def __init__(self, simulation, node):
+        super().__init__(simulation, node)
+        self.cold_start_prob = {}
+        self.cold_start_prob_cloud = {}
+        self.estimated_service_time = {}
+        self.estimated_service_time_cloud = {}
+
+        self.local_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, fallback=""))
+        self.cloud_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, fallback=""))
+
+        # Pick the closest cloud node
+        scheduler_decision_cloud, closest_dispatcher = self.simulation.pick_closest_cloud_region(self.node)
+        self.offload_cloud_decision = scheduler_decision_cloud
+        self.dispatcher = closest_dispatcher
+        self.cloud = simulation.infra.get_cloud_nodes_by_region(closest_dispatcher.region)[0]
+
+
+    def _estimate_latency (self, f, c):
+        if self.local_cold_start_estimation == ColdStartEstimation.FULL_KNOWLEDGE:
+            if f in self.node.warm_pool:
+                self.cold_start_prob[(f, self.node)] = 0
+            else:
+                self.cold_start_prob[(f, self.node)] = 1
+        if self.cloud_cold_start_estimation == ColdStartEstimation.FULL_KNOWLEDGE:
+            if f in self.cloud.warm_pool:
+                self.cold_start_prob[(f, self.cloud)] = 0
+            else:
+                self.cold_start_prob[(f, self.cloud)] = 1
+
+        latency_local = self.estimated_service_time.get(f, 0) + \
+                        self.cold_start_prob.get((f, self.node), 1) * \
+                        self.simulation.init_time[(f,self.node)]
+
+        latency_cloud = self.estimated_service_time_cloud.get(f, 0) +\
+                2 * self.simulation.infra.get_latency(self.node, self.cloud) + \
+                        self.cold_start_prob.get((f, self.cloud), 1) * self.simulation.init_time[(f,self.cloud)] +\
+                        f.inputSizeMean*8/1000/1000/self.simulation.infra.get_bandwidth(self.node, self.cloud)
+        return (latency_local, latency_cloud)
+
+    def schedule(self, f, c, offloaded_from):
+        latency_local, latency_cloud = self._estimate_latency(f,c)
+        remote_node = None
+        if not self.simulation.is_approximate_computing_enabled:
+            if self.can_execute_locally(f) and latency_local < latency_cloud:
+                scheduler_decision = SchedulerDecision.EXEC
+
+            else:
+                scheduler_decision = self.offload_cloud_decision
+                remote_node = self.dispatcher
+        else:
+            if f.has_variants:
+                # returns the variant with the minimum speedup
+                lightest_variant = min(f.variants, key=lambda variant: variant.speedup)
+                lightest_variant_func = lightest_variant.self_function
+                if self.can_execute_locally(lightest_variant_func) and latency_local < latency_cloud:
+                    f.active_variant = lightest_variant_func
+                    scheduler_decision, remote_node = SchedulerDecision.EXEC_VAR, None
+                else:
+                    scheduler_decision, remote_node = self.offload_cloud_decision, self.dispatcher
+            else:
+                if self.can_execute_locally(f) and latency_local < latency_cloud:
+                    scheduler_decision, remote_node = SchedulerDecision.EXEC, None
+                else:
+                    scheduler_decision, remote_node = self.offload_cloud_decision, self.dispatcher
+
+        self.compute_g_co2_decision(self.node, f, c, scheduler_decision)
+        return scheduler_decision, remote_node
+
+    def update_cold_start (self, stats):
+        #
+        # LOCAL NODE
+        #
+        if self.local_cold_start_estimation == ColdStartEstimation.PACS:
+            for f in self.simulation.functions:
+                total_arrival_rate = max(0.001, sum([stats.arrivals.get((f,x,self.node), 0.0) for x in self.simulation.classes])/self.simulation.t)
+                props1, _ = perfmodel.get_sls_warm_count_dist(total_arrival_rate,
+                                                            self.estimated_service_time[f],
+                                                            self.estimated_service_time[f] + self.simulation.init_time[(f,self.node)],
+                                                            self.simulation.expiration_timeout)
+                self.cold_start_prob[(f, self.node)] = props1["cold_prob"]
+        elif self.local_cold_start_estimation == ColdStartEstimation.NAIVE:
+            # Same prob for every function
+            node_compl = sum([stats.node2completions[(_f,self.node)] for _f in self.simulation.functions])
+            node_cs = sum([stats.cold_starts[(_f,self.node)] for _f in self.simulation.functions])
+            for f in self.simulation.functions:
+                if node_compl > 0:
+                    self.cold_start_prob[(f, self.node)] = node_cs / node_compl
+                else:
+                    self.cold_start_prob[(f, self.node)] = COLD_START_PROB_INITIAL_GUESS
+        elif self.local_cold_start_estimation == ColdStartEstimation.NAIVE_PER_FUNCTION:
+            for f in self.simulation.functions:
+                if stats.node2completions.get((f,self.node), 0) > 0:
+                    self.cold_start_prob[(f, self.node)] = stats.cold_starts.get((f,self.node),0) / stats.node2completions.get((f,self.node),0)
+                else:
+                    self.cold_start_prob[(f, self.node)] = COLD_START_PROB_INITIAL_GUESS
+        elif self.local_cold_start_estimation == ColdStartEstimation.NO:
+            for f in self.simulation.functions:
+                self.cold_start_prob[(f, self.node)] = 0
+
+        # CLOUD
+        #
+        if self.cloud_cold_start_estimation == ColdStartEstimation.PACS:
+            for f in self.simulation.functions:
+                total_arrival_rate = max(0.001, sum([stats.arrivals.get((f,x,self.cloud), 0.0) for x in self.simulation.classes])/self.simulation.t)
+                props1, _ = perfmodel.get_sls_warm_count_dist(total_arrival_rate,
+                                                            self.estimated_service_time[f],
+                                                            self.estimated_service_time[f] + self.simulation.init_time[(f,self.cloud)],
+                                                            self.simulation.expiration_timeout)
+                self.cold_start_prob[(f, self.cloud)] = props1["cold_prob"]
+        elif self.cloud_cold_start_estimation == ColdStartEstimation.NAIVE:
+            # Same prob for every function
+            node_compl = sum([stats.node2completions[(_f,self.cloud)] for _f in self.simulation.functions])
+            node_cs = sum([stats.cold_starts[(_f,self.cloud)] for _f in self.simulation.functions])
+            for f in self.simulation.functions:
+                if node_compl > 0:
+                    self.cold_start_prob[(f, self.cloud)] = node_cs / node_compl
+                else:
+                    self.cold_start_prob[(f, self.cloud)] = COLD_START_PROB_INITIAL_GUESS
+        elif self.cloud_cold_start_estimation == ColdStartEstimation.NAIVE_PER_FUNCTION:
+            for f in self.simulation.functions:
+                if stats.node2completions.get((f,self.cloud), 0) > 0:
+                    self.cold_start_prob[(f, self.cloud)] = stats.cold_starts.get((f,self.cloud),0) / stats.node2completions.get((f,self.cloud),0)
+                else:
+                    self.cold_start_prob[(f, self.cloud)] = COLD_START_PROB_INITIAL_GUESS
+        elif self.cloud_cold_start_estimation == ColdStartEstimation.NO:
+            for f in self.simulation.functions:
+                self.cold_start_prob[(f, self.cloud)] = 0
+
+    def update(self):
+        stats = self.simulation.stats
+
+        for f in self.simulation.functions:
+            if stats.node2completions[(f, self.node)] > 0:
+                self.estimated_service_time[f] = stats.execution_time_sum[(f, self.node)] / \
+                                                 stats.node2completions[(f, self.node)]
+            else:
+                self.estimated_service_time[f] = 0.1
+            if stats.node2completions[(f, self.cloud)] > 0:
+                self.estimated_service_time_cloud[f] = stats.execution_time_sum[(f, self.cloud)] / \
+                                                       stats.node2completions[(f, self.cloud)]
+            else:
+                self.estimated_service_time_cloud[f] = 0.1
+
+        self.update_cold_start(stats)
+
+class GreedyCarbonAware(GreedyPolicy):
+
+    def __init__ (self, simulation, node):
+        super().__init__(simulation, node)
+        self.decision_dispatcher = {}
+        self.decision_co2 = defaultdict(list)   #k: co2_intensity v: [decision] -> for general decision
+
+        for dispatcher in self.simulation.infra.dispatchers:
+            for decision in SchedulerDecision:
+                if dispatcher.region.name.upper() in decision.name:
+                    self.decision_co2[dispatcher.co2_footprint.co2_intensity].append(decision)
+                    self.decision_dispatcher[decision] = dispatcher
+
+        # cloud ranking of lowest co2 for offloading in case of impossible local execution
+        self.cloud_co2_ranking = dict(sorted(self.decision_co2.items())) #k: co2_intensity v: [decision]
+        self.decision_co2[self.node.co2_footprint.co2_intensity].append(SchedulerDecision.EXEC)
+
+    def schedule(self, f, c, offloaded_from):
+        remote_node = None
+
+        lowest_co2, decisions = min(self.decision_co2.items(), key=lambda item: item[0])
+        decision = decisions[0]
+
+        if not self.simulation.is_approximate_computing_enabled:
+            if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
+                #offloading verso cloud a region con tasso co2 minore
+                first_co2_intensity, first_decisions = next(iter(self.cloud_co2_ranking.items()))
+                decision = first_decisions[0]
+
+        else:
+
+            if decision == SchedulerDecision.EXEC:
+                if f.has_variants:
+                    lightest_variant = min(f.variants, key=lambda variant: variant.speedup)
+                    lightest_variant_func = lightest_variant.self_function
+                    if self.can_execute_locally(lightest_variant_func):
+                        f.active_variant = lightest_variant_func
+                        decision = SchedulerDecision.EXEC_VAR
+                    else: #offload to cloud
+                        first_co2_intensity, first_decisions = next(iter(self.cloud_co2_ranking.items()))
+                        decision = first_decisions[0]
+                else:
+                    if not self.can_execute_locally(f):
+                        # offloading verso cloud a region con tasso co2 minore
+                        first_co2_intensity, first_decisions = next(iter(self.cloud_co2_ranking.items()))
+                        decision = first_decisions[0]
+
+        if conf.OFFLOAD_CLOUD_DECISION in decision.name:
+            remote_node = self.decision_dispatcher[decision]
+
+        self.compute_g_co2_decision(self.node, f, c, decision)
+        return decision, remote_node
+
+class GreedyCarbonAwareStrict(GreedyPolicy):
+
+    def __init__ (self, simulation, node):
+        super().__init__(simulation, node)
+        self.decision_dispatcher = {}
+        self.decision_co2 = defaultdict(list)   #k: co2_intensity v: [decision] -> for general decision
+
+        for dispatcher in self.simulation.infra.dispatchers:
+            for decision in SchedulerDecision:
+                if dispatcher.region.name.upper() in decision.name:
+                    self.decision_co2[dispatcher.co2_footprint.co2_intensity].append(decision)
+                    self.decision_dispatcher[decision] = dispatcher
+
+        self.decision_co2[self.node.co2_footprint.co2_intensity].append(SchedulerDecision.EXEC)
+
+    def schedule(self, f, c, offloaded_from):
+        remote_node = None
+
+        lowest_co2, decisions = min(self.decision_co2.items(), key=lambda item: item[0])
+        decision = decisions[0]
+
+        if not self.simulation.is_approximate_computing_enabled:
+            if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
+                decision = SchedulerDecision.DROP
+
+        else:
+
+            if decision == SchedulerDecision.EXEC:
+                if f.has_variants:
+                    lightest_variant = min(f.variants, key=lambda variant: variant.speedup)
+                    lightest_variant_func = lightest_variant.self_function
+                    if self.can_execute_locally(lightest_variant_func):
+                        f.active_variant = lightest_variant_func
+                        decision = SchedulerDecision.EXEC_VAR
+                    else: #offload to cloud
+                        decision = SchedulerDecision.DROP
+                else:
+                    if not self.can_execute_locally(f):
+                        decision = SchedulerDecision.DROP
+
+        if conf.OFFLOAD_CLOUD_DECISION in decision.name:
+            remote_node = self.decision_dispatcher[decision]
+
+        self.compute_g_co2_decision(self.node, f, c, decision)
+        return decision, remote_node
 
 class GreedyBudgetAware(GreedyPolicy):
 
