@@ -129,7 +129,7 @@ def generate_random_temp_spec (rng, n_functions=5, load_coeff=1.0, dynamic_rate_
     return ntemp
 
 #variants mode: 0 inactive, 1 active with speedup=utility for each variants, 2 active with speedup!=utility
-def generate_random_temp_spec_variants(rng, n_functions=2, variants_mode=0, n_variants=2, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=True,
+def generate_random_temp_spec_variants(rng, n_functions=5, variants_mode=0, n_variants=2, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=True,
                               n_classes=2, cloud_cost_reg_a=0.00001, cloud_cost_reg_b=0.00001, cloud_speedup=1.0):
     classes = [
         {'name': 'critical', 'max_resp_time': 0.25, 'utility': 1.0, 'arrival_weight': 1.0},
@@ -195,17 +195,12 @@ def generate_random_temp_spec_variants(rng, n_functions=2, variants_mode=0, n_va
         a, b = (myclip_a - loc) / scale, (myclip_b - loc) / scale
         f["input_mean"] = float(truncnorm.rvs(a, b, loc=loc, scale=scale, size=1))
 
-        if variants_mode == 0:
-            f["speedup"] = [1.0]
-            f["utility"] = [1.0]
-        else:
-            f["speedup"] = [1.0]
-            f["utility"] = [1.0]
+        f["speedup"] = [1.0]
+        f["utility"] = [1.0]
 
-            for _ in range(n_variants - 1):  # n_variants - default variant
-                rand = float(rng.uniform(0.25, 0.85))
-                f["speedup"].append(rand)
-                f["utility"].append(rand if variants_mode == 1 else (1.0 - rand) ** 2)
+        if variants_mode == 1:
+            f["speedup"].extend(float(rng.uniform(0.25, 0.85)) for _ in range(n_variants - 1))
+            f["utility"].extend(f["speedup"][1:])  # Copy randomized values to utility
 
     if dynamic_rate_coeff > 1.0:
         print("Forcing Poisson arrivals")
@@ -311,97 +306,104 @@ def generate_regions_yaml(is_edge_green=True):
     return file_path
 
 regions_data_brown_edge = [
-    {
-        "name": "cloud_region_a",
-        "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
-        "neighbors": ["cloud_region_b"],
-        "latency_sec": {
-            "cloud_region_a": 0.0001,
-            "cloud_region_b": 0.0200
-        },
-        "bandwidth_mbps": {
-            "cloud_region_a": 100000.0,
-            "cloud_region_b": 50000.0
-        },
-        "zones": [
-            {
-                "name": "edge_zone_1",
-                "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
-                "latency_sec": {
-                    "cloud_region_a": 0.0100,
-                    "cloud_region_b": 0.0100,
-                    "edge_zone_1": 0.0050
-                },
-                "bandwidth_mbps": {
-                    "cloud_region_a": 10000.0,
-                    "cloud_region_b": 1000.0,
-                    "edge_zone_1": 500.0
-                }
-            }
-        ]
+  {
+    "bandwidth_mbps": {
+      "cloud_region_a": 100000,
+      "cloud_region_b": 50000
     },
-    {
-        "name": "cloud_region_b",
-        "co2_traces_file": "co2_traces/FR_2023_hourly.csv",
-        "neighbors": ["cloud_region_a"],
-        "latency_sec": {
-            "cloud_region_a": 0.0200,
-            "cloud_region_b": 0.0001
-        },
+    "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
+    "latency_sec": {
+      "cloud_region_a": 0.0001,
+      "cloud_region_b": 0.02
+    },
+    "name": "cloud_region_a",
+    "neighbors": [
+      "cloud_region_b"
+    ],
+    "zones": [
+      {
         "bandwidth_mbps": {
-            "cloud_region_a": 50000.0,
-            "cloud_region_b": 100000.0
+          "cloud_region_a": 10000,
+          "cloud_region_b": 1000,
+          "edge_zone_1": 5000
         },
-        "zones": []
-    }
+        "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
+        "latency_sec": {
+          "cloud_region_a": 0.015,
+          "cloud_region_b": 0.05,
+          "edge_zone_1": 0.005
+        },
+        "name": "edge_zone_1"
+      }
+    ]
+  },
+  {
+    "bandwidth_mbps": {
+      "cloud_region_a": 50000,
+      "cloud_region_b": 100000
+    },
+    "co2_traces_file": "co2_traces/FR_2023_hourly.csv",
+    "latency_sec": {
+      "cloud_region_a": 0.02,
+      "cloud_region_b": 0.0001
+    },
+    "name": "cloud_region_b",
+    "neighbors": [
+      "cloud_region_a"
+    ],
+    "zones": []
+  }
 ]
 
 regions_data_green_edge = [
     {
-        "name": "cloud_region_a",
+        "bandwidth_mbps": {
+            "cloud_region_a": 100000,
+            "cloud_region_b": 50000
+        },
         "co2_traces_file": "co2_traces/FR_2023_hourly.csv",
-        "neighbors": ["cloud_region_b"],
         "latency_sec": {
             "cloud_region_a": 0.0001,
-            "cloud_region_b": 0.0200
+            "cloud_region_b": 0.02
         },
-        "bandwidth_mbps": {
-            "cloud_region_a": 100000.0,
-            "cloud_region_b": 50000.0
-        },
+        "name": "cloud_region_a",
+        "neighbors": [
+            "cloud_region_b"
+        ],
         "zones": [
             {
-                "name": "edge_zone_1",
+                "bandwidth_mbps": {
+                    "cloud_region_a": 10000,
+                    "cloud_region_b": 1000,
+                    "edge_zone_1": 5000
+                },
                 "co2_traces_file": "co2_traces/FR_2023_hourly.csv",
                 "latency_sec": {
-                    "cloud_region_a": 0.0100,
-                    "cloud_region_b": 0.0100,
-                    "edge_zone_1": 0.0050
+                    "cloud_region_a": 0.015,
+                    "cloud_region_b": 0.05,
+                    "edge_zone_1": 0.005
                 },
-                "bandwidth_mbps": {
-                    "cloud_region_a": 10000.0,
-                    "cloud_region_b": 1000.0,
-                    "edge_zone_1": 500.0
-                }
+                "name": "edge_zone_1"
             }
         ]
     },
     {
-        "name": "cloud_region_b",
+        "bandwidth_mbps": {
+            "cloud_region_a": 50000,
+            "cloud_region_b": 100000
+        },
         "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
-        "neighbors": ["cloud_region_a"],
         "latency_sec": {
-            "cloud_region_a": 0.0200,
+            "cloud_region_a": 0.02,
             "cloud_region_b": 0.0001
         },
-        "bandwidth_mbps": {
-            "cloud_region_a": 50000.0,
-            "cloud_region_b": 100000.0
-        },
+        "name": "cloud_region_b",
+        "neighbors": [
+            "cloud_region_a"
+        ],
         "zones": []
     }
 ]
-
 
 if __name__ == "__main__":
     with open("spec.yml", "w") as outf:

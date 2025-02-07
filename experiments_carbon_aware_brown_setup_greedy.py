@@ -12,9 +12,9 @@ from main import read_spec_file
 from numpy.random import SeedSequence, default_rng
 
 DEFAULT_CONFIG_FILE = "config.ini"
-DEFAULT_OUT_DIR = "060225_results"
-DEFAULT_OUT_DIR_CO2_TRACKING = "060225_results/brown_co2_tracking"
-DEFAULT_DURATION = 10000000
+DEFAULT_OUT_DIR = "070225_results_greedy"
+DEFAULT_OUT_DIR_CO2_TRACKING = "070225_results_greedy/brown_co2_tracking"
+DEFAULT_DURATION = 259200
 SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
 
@@ -84,7 +84,7 @@ def regions_setup(config, is_edge_green=True):
 
     return regions
 
-def default_infra(edge_cloud_latency=0.100, is_edge_green=True):
+def default_infra(is_edge_green):
     # Regions
     regions = regions_setup(config,is_edge_green)
 
@@ -147,28 +147,26 @@ def relevant_stats_dict (stats):
     result["EnergyConsNode"] = stats.energy_consumption_per_node
     result["EnergyConsTotal"] = stats.energy_consumption_total
 
-    #result["CO2EmissNode"] = stats.co2_emission_per_node
     result["TotalProcTime"] = stats.total_processing_time
-    #result["CO2EmissFuncNode"] = stats.co2_emission_function2node
     result["CO2EmissTotal"] = stats.co2_emission_total
+    result["ExtArrivals"] = sum(stats.ext_arrivals.values())
+
     return result
 
 
 def experiment_main_comparison_brown(args, config):
     results = []
-    exp_tag = "mainComparisonBrown"
+    exp_tag = "mainComparisonBrown_Greedy"
     config.set(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, "false")
     outfile = os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}.csv")
 
-    #config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "pacs")
-    #config.set(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, "pacs")
     config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "600")
     config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
 
     POLICIES = ["greedy-multi-region",
                 "greedy-carbon-aware",
-        "greedy-carbon-aware-strict"
-    ]
+                "greedy-carbon-aware-strict"
+                ]
 
     # Check existing results
     old_results = None
@@ -178,7 +176,7 @@ def experiment_main_comparison_brown(args, config):
         except:
             pass
 
-    variants_mode = [0,1,2] #variants mode: 0 inactive, 1 active with speedup=utility for each variants, 2 active with speedup!=utility
+    variants_mode = [0,1] #variants mode: 0 inactive, 1 active with speedup=utility for each variants
 
     for seed in SEEDS:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
@@ -188,114 +186,49 @@ def experiment_main_comparison_brown(args, config):
             for variant_mode in variants_mode:
                 for pol in POLICIES:
                     config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
-                    if pol == "probabilistic-carbon-aware":
 
-                        # Handle "probabilistic-carbon-aware" policy with an additional inner loop
+                    keys = {
+                        "Policy": pol,
+                        "Budget": budget,
+                        "Seed": seed,
+                        "Variant_mode": variant_mode
+                    }
 
-                        of_values = [
-                            (0.0, 1.0),  # of-alpha=0, of-beta=1
-                            (1.0, 0.0),  # of-alpha=1, of-beta=0
-                            (0.5, 0.5),  # of-alpha=0.5, of-beta=0.5
-                            (0.3, 0.7),  # of-alpha=0.5, of-beta=0.5
-                            (0.7, 0.3),  # of-alpha=0.5, of-beta=0.5
-                        ]
+                    run_string = "_".join([f"{k}{v}" for k, v in keys.items()])
+                    filename_res = os.path.join(DEFAULT_OUT_DIR_CO2_TRACKING, f"{exp_tag}_{run_string}.csv")
+                    config.set(conf.SEC_CARBON, conf.FILE_UPDATE_CO2_INTENSITY, str(filename_res))
 
-                        for of_alpha, of_beta in of_values:
-                            config.set(conf.SEC_POLICY, conf.ALPHA, str(of_alpha))
-                            config.set(conf.SEC_POLICY, conf.BETA, str(of_beta))
+                    # Check if we can skip this run
+                    if old_results is not None and not old_results[
+                       (old_results.Policy == pol) &
+                       (old_results.Budget == budget) &
+                        (old_results.Seed == seed) &
+                        (old_results.Variant_mode == variant_mode)
+                    ].empty:
+                        print("Skipping conf")
+                        continue
 
-                            keys = {
-                                "Policy": pol,
-                                "Budget": budget,
-                                "Seed": seed,
-                                "Variant_mode": variant_mode,
-                                "OF-Alpha": of_alpha,
-                                "OF-Beta": of_beta,
+                    rng = default_rng(seed_sequence.spawn(1)[0])
+                    temp_spec_file = generate_random_temp_spec_variants(
+                        rng, variants_mode=variant_mode, arrivals_to_single_node=False,
+                        cloud_cost_reg_a=0.00001, cloud_cost_reg_b=0.00003
 
-                            }
+                    )
+                    infra = default_infra(is_edge_green=False)
+                    stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+                    temp_spec_file.close()
 
-                            run_string = "_".join([f"{k}{v}" for k, v in keys.items()])
-                            filename_res = os.path.join(DEFAULT_OUT_DIR_CO2_TRACKING, f"{exp_tag}_{run_string}.csv")
-                            config.set(conf.SEC_CARBON, conf.FILE_UPDATE_CO2_INTENSITY, str(filename_res))
+                    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                        stats.print(of)
 
-                            # Check if we can skip this run
-                            if old_results is not None and not old_results[
+                    result = dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+                    results.append(result)
+                    print(result)
 
-                                (old_results.Policy == pol) &
-                                (old_results.Budget == budget) &
-                                (old_results.Seed == seed) &
-                                (old_results.Variant_mode == variant_mode) &
-                                (old_results["OF-Alpha"] == of_alpha) &
-                                (old_results["OF-Beta"] == of_beta)
-                            ].empty:
-                                print("Skipping conf")
-                                continue
-
-                            rng = default_rng(seed_sequence.spawn(1)[0])
-                            temp_spec_file = generate_random_temp_spec_variants(
-                                rng, variants_mode=variant_mode, arrivals_to_single_node=False,
-                                cloud_cost_reg_a=0.00001, cloud_cost_reg_b=0.00003
-                            )
-                            infra = default_infra(is_edge_green=False)
-                            stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
-                            temp_spec_file.close()
-
-                            with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
-                                stats.print(of)
-
-                            result = dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
-                            results.append(result)
-                            print(result)
-
-                            resultsDf = pd.DataFrame(results)
-                            if old_results is not None:
-                                resultsDf = pd.concat([old_results, resultsDf])
-                            resultsDf.to_csv(outfile, index=False)
-
-                    else:
-
-                        keys = {
-                            "Policy": pol,
-                            "Budget": budget,
-                            "Seed": seed,
-                            "Variant_mode": variant_mode
-                        }
-
-                        run_string = "_".join([f"{k}{v}" for k, v in keys.items()])
-                        filename_res = os.path.join(DEFAULT_OUT_DIR_CO2_TRACKING, f"{exp_tag}_{run_string}.csv")
-                        config.set(conf.SEC_CARBON, conf.FILE_UPDATE_CO2_INTENSITY, str(filename_res))
-
-                        # Check if we can skip this run
-                        if old_results is not None and not old_results[
-                           (old_results.Policy == pol) &
-                           (old_results.Budget == budget) &
-                            (old_results.Seed == seed) &
-                            (old_results.Variant_mode == variant_mode)
-                        ].empty:
-                            print("Skipping conf")
-                            continue
-
-                        rng = default_rng(seed_sequence.spawn(1)[0])
-                        temp_spec_file = generate_random_temp_spec_variants(
-                            rng, variants_mode=variant_mode, arrivals_to_single_node=False,
-                            cloud_cost_reg_a=0.00001, cloud_cost_reg_b=0.001
-
-                        )
-                        infra = default_infra(is_edge_green=False)
-                        stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
-                        temp_spec_file.close()
-
-                        with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
-                            stats.print(of)
-
-                        result = dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
-                        results.append(result)
-                        print(result)
-
-                        resultsDf = pd.DataFrame(results)
-                        if old_results is not None:
-                            resultsDf = pd.concat([old_results, resultsDf])
-                        resultsDf.to_csv(outfile, index=False)
+                    resultsDf = pd.DataFrame(results)
+                    if old_results is not None:
+                        resultsDf = pd.concat([old_results, resultsDf])
+                    resultsDf.to_csv(outfile, index=False)
 
 
     resultsDf = pd.DataFrame(results)
@@ -329,19 +262,4 @@ if __name__ == "__main__":
         SEEDS = [int(args.seed)]
 
     experiment_main_comparison_brown(args, config)
-    '''
-        if args.experiment.lower() == "a":
-        experiment_main_comparison(args, config)
-    elif args.experiment.lower() == "b":
-        experiment_arrivals_to_all(args, config)
-    elif args.experiment.lower() == "v":
-        experiment_varying_arrivals(args, config)
-    elif args.experiment.lower() == "s":
-        experiment_scalability(args, config)
-    elif args.experiment.lower() == "x":
-        experiment_simple(args, config)
-    else:
-        print("Unknown experiment!")
-        exit(1)
-    '''
 

@@ -14,9 +14,9 @@ from main import read_spec_file
 from numpy.random import SeedSequence, default_rng
 
 DEFAULT_CONFIG_FILE = "config.ini"
-DEFAULT_OUT_DIR = "200125_results"
-DEFAULT_OUT_DIR_CO2_TRACKING = "200125_results/green_co2_tracking"
-DEFAULT_DURATION = 10000000
+DEFAULT_OUT_DIR = "070225_results_probabilistic"
+DEFAULT_OUT_DIR_CO2_TRACKING = "070225_results_probabilistic/green_co2_tracking"
+DEFAULT_DURATION = 259200
 SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
 
@@ -86,7 +86,7 @@ def regions_setup(config, is_edge_green=True):
 
     return regions
 
-def default_infra(edge_cloud_latency=0.100, is_edge_green=True):
+def default_infra(is_edge_green):
     # Regions
     regions = regions_setup(config,is_edge_green)
 
@@ -149,10 +149,9 @@ def relevant_stats_dict (stats):
     result["EnergyConsNode"] = stats.energy_consumption_per_node
     result["EnergyConsTotal"] = stats.energy_consumption_total
 
-    #result["CO2EmissNode"] = stats.co2_emission_per_node
     result["TotalProcTime"] = stats.total_processing_time
-    #result["CO2EmissFuncNode"] = stats.co2_emission_function2node
     result["CO2EmissTotal"] = stats.co2_emission_total
+    result["ExtArrivals"] = sum(stats.ext_arrivals.values())
     return result
 
 
@@ -162,15 +161,10 @@ def experiment_main_comparison_green(args, config):
     config.set(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, "false")
     outfile = os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}.csv")
 
-    #config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "pacs")
-    #config.set(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, "pacs")
     config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "600")
     config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
 
-    POLICIES = ["random-multi-region",
-                "basic-multi-region",
-        "probabilistic-carbon-aware"
-    ]
+    POLICIES = ["probabilistic-carbon-aware"]
 
     # Check existing results
     old_results = None
@@ -180,7 +174,7 @@ def experiment_main_comparison_green(args, config):
         except:
             pass
 
-    variants_mode = [0,1,2] #variants mode: 0 inactive, 1 active with speedup=utility for each variants, 2 active with speedup!=utility
+    variants_mode = [0,1] #variants mode: 0 inactive, 1 active with speedup=utility for each variants
 
     for seed in SEEDS:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
@@ -192,14 +186,12 @@ def experiment_main_comparison_green(args, config):
                     config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
                     if pol == "probabilistic-carbon-aware":
 
-                        # Handle "probabilistic-carbon-aware" policy with an additional inner loop
-
                         of_values = [
                             (0.0, 1.0),  # of-alpha=0, of-beta=1
                             (1.0, 0.0),  # of-alpha=1, of-beta=0
                             (0.5, 0.5),  # of-alpha=0.5, of-beta=0.5
-                            (0.3, 0.7),  # of-alpha=0.5, of-beta=0.5
-                            (0.7, 0.3),  # of-alpha=0.5, of-beta=0.5
+                            #(0.3, 0.7),  # of-alpha=0.5, of-beta=0.5
+                            #(0.7, 0.3),  # of-alpha=0.5, of-beta=0.5
                         ]
 
                         for of_alpha, of_beta in of_values:
@@ -240,7 +232,7 @@ def experiment_main_comparison_green(args, config):
                             #rng = SeedSequence(seed)
                             temp_spec_file = generate_random_temp_spec_variants(
                                 rng, variants_mode=variant_mode, arrivals_to_single_node=False,
-                                cloud_cost_reg_a=0.00001, cloud_cost_reg_b=0.00003
+                                cloud_cost_reg_a=0.00003, cloud_cost_reg_b=0.00001
                             )
                             infra = default_infra(is_edge_green=True)
                             stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
@@ -287,7 +279,7 @@ def experiment_main_comparison_green(args, config):
                         rng = default_rng(seed_sequence.spawn(1)[0])
                         temp_spec_file = generate_random_temp_spec_variants(
                             rng, variants_mode=variant_mode, arrivals_to_single_node=False,
-                            cloud_cost_reg_a=0.001, cloud_cost_reg_b=0.00001
+                            cloud_cost_reg_a=0.00003, cloud_cost_reg_b=0.00001
                         )
                         infra = default_infra(is_edge_green=True)
                         stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
