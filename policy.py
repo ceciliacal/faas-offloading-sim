@@ -458,9 +458,10 @@ class GreedyPolicyMultiRegion(Policy):
         return (latency_local, latency_cloud)
 
     def schedule(self, f, c, offloaded_from):
-        latency_local, latency_cloud = self._estimate_latency(f,c)
+
         remote_node = None
         if not self.simulation.is_approximate_computing_enabled:
+            latency_local, latency_cloud = self._estimate_latency(f, c)
             if self.can_execute_locally(f) and latency_local < latency_cloud:
                 scheduler_decision = SchedulerDecision.EXEC
 
@@ -472,16 +473,22 @@ class GreedyPolicyMultiRegion(Policy):
                 # returns the variant with the minimum speedup
                 lightest_variant = min(f.variants, key=lambda variant: variant.speedup)
                 lightest_variant_func = lightest_variant.self_function
-                if self.can_execute_locally(lightest_variant_func) and latency_local < latency_cloud:
+                latency_local_var, latency_cloud = self._estimate_latency(lightest_variant_func, c)
+                #latency_local_var, latency_cloud = self._estimate_latency(f, c)
+                if self.can_execute_locally(lightest_variant_func) and latency_local_var < latency_cloud:
                     f.active_variant = lightest_variant_func
                     scheduler_decision, remote_node = SchedulerDecision.EXEC_VAR, None
                 else:
                     scheduler_decision, remote_node = self.offload_cloud_decision, self.dispatcher
+
+
             else:
+                latency_local, latency_cloud = self._estimate_latency(f, c)
                 if self.can_execute_locally(f) and latency_local < latency_cloud:
                     scheduler_decision, remote_node = SchedulerDecision.EXEC, None
                 else:
                     scheduler_decision, remote_node = self.offload_cloud_decision, self.dispatcher
+
 
         self.compute_g_co2_decision(self.node, f, c, scheduler_decision)
         return scheduler_decision, remote_node

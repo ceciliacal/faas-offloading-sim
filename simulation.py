@@ -14,6 +14,7 @@ import probabilistic
 import probabilistic_carbon_aware
 import stateful
 from arrivals import ArrivalProcess
+from co2_footprint import compute_local_energy, compute_local_variant_energy, compute_cloud_energy, compute_edge_energy
 from faas import *
 from statistics import Stats
 from infrastructure import *
@@ -640,8 +641,8 @@ class Simulation:
 
 
             #if node is the "local" node the request was directly sent to, store local processing co2 emissions
-            if event.offloaded_from is not None and len(event.offloaded_from)>0:
-                if region.is_cloud():
+            if event.offloaded_from is not None and len(event.offloaded_from)>0:    #if request was offloaded
+                if region.is_cloud():   #and sent to a cloud node
                     if not isinstance(n, Dispatcher):
                         #se sono nodo cloud, mi serve: 1 nodo da cui è partio l'arrival originario
                         # 2 il dispatcher della mia regione
@@ -796,9 +797,9 @@ class Simulation:
             node.co2_footprint.co2_intensity = nth_row[conf.CO2_TRACES_COL_INTENSITY_DIRECT]
             node.co2_footprint.count = n + 1
 
-            print("in update_co2_intensity: node: ", node.name, " co2_datetime: ", node.co2_footprint.co2_datetime,
-                  " co2_intensity: ", node.co2_footprint.co2_intensity, " count: ", node.co2_footprint.count,
-                  " energy: ", self.stats.energy_consumption_per_node[node], " grams CO2: ",self.stats.co2_emission_per_node[node])
+            #print("in update_co2_intensity: node: ", node.name, " co2_datetime: ", node.co2_footprint.co2_datetime,
+            #      " co2_intensity: ", node.co2_footprint.co2_intensity, " count: ", node.co2_footprint.count,
+            #      " energy: ", self.stats.energy_consumption_per_node[node], " grams CO2: ",self.stats.co2_emission_per_node[node])
 
             row = [
                 node.name,

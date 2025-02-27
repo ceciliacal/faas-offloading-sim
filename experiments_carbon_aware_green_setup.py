@@ -14,8 +14,8 @@ from main import read_spec_file
 from numpy.random import SeedSequence, default_rng
 
 DEFAULT_CONFIG_FILE = "config.ini"
-DEFAULT_OUT_DIR = "070225_results_probabilistic"
-DEFAULT_OUT_DIR_CO2_TRACKING = "070225_results_probabilistic/green_co2_tracking"
+DEFAULT_OUT_DIR = "180225_results_probabilistic"
+DEFAULT_OUT_DIR_CO2_TRACKING = "180225_results_probabilistic/green_co2_tracking"
 DEFAULT_DURATION = 259200
 SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
@@ -189,7 +189,7 @@ def experiment_main_comparison_green(args, config):
                         of_values = [
                             (0.0, 1.0),  # of-alpha=0, of-beta=1
                             (1.0, 0.0),  # of-alpha=1, of-beta=0
-                            (0.5, 0.5),  # of-alpha=0.5, of-beta=0.5
+                            #(0.5, 0.5),  # of-alpha=0.5, of-beta=0.5
                             #(0.3, 0.7),  # of-alpha=0.5, of-beta=0.5
                             #(0.7, 0.3),  # of-alpha=0.5, of-beta=0.5
                         ]

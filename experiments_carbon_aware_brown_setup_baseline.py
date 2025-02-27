@@ -12,8 +12,8 @@ from main import read_spec_file
 from numpy.random import SeedSequence, default_rng
 
 DEFAULT_CONFIG_FILE = "config.ini"
-DEFAULT_OUT_DIR = "070225_results_baseline"
-DEFAULT_OUT_DIR_CO2_TRACKING = "070225_results_baseline/brown_co2_tracking"
+DEFAULT_OUT_DIR = "180225_results_baseline"
+DEFAULT_OUT_DIR_CO2_TRACKING = "180225_results_baseline/brown_co2_tracking"
 DEFAULT_DURATION = 259200
 SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0

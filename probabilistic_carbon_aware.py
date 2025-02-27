@@ -2,10 +2,10 @@ from pacsltk import perfmodel
 
 import conf
 import lp_optimizer_carbon_aware
+import lp_optimizer_carbon_aware_normalized
+import lp_optimizer_carbon_aware_normalized_sigma
 import optimizer_nonlinear
 from co2_footprint import compute_local_energy, compute_cloud_energy
-from faas import Variant
-from optimization import OptProblemParams
 from optimization_carbon_aware import OptCarbonAwareProblemParams
 from policy import Policy, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS, SchedulerDecision
 
@@ -114,6 +114,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                         elif conf.OFFLOAD_CLOUD_DECISION in decision.name and f.is_default:
                             self.handle_offload_cloud_decision(f, node, decision)
 
+
     def build_probs(self):
         # Iterate over all functions and classes
         self.default_functions = [f for f in self.simulation.functions if f.is_default]
@@ -215,7 +216,6 @@ class ProbabilisticCarbonAwarePolicy(Policy):
             self.curr_local_blocked_reqs += 1
 
             if self.local_rejection_fallback == "fgcs24" or self.local_rejection_fallback == "reschedule":
-                #todo mesa che riesce exec_var in qualche modo e non si attiva l'active variant
                 probabilities[SchedulerDecision.EXEC] = 0.0
 
                 if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
@@ -247,8 +247,6 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                     else:
                         return (SchedulerDecision.DROP, None)
 
-            #todo QUI ESCE EXEC_VAR NON GESTITO!!!!
-
             elif self.local_rejection_fallback == "drop":
                 return (SchedulerDecision.DROP, None)
             else:
@@ -273,9 +271,9 @@ class ProbabilisticCarbonAwarePolicy(Policy):
             self.curr_local_blocked_reqs += 1
             return (SchedulerDecision.DROP, None)
 
-        if conf.OFFLOAD_CLOUD_DECISION in decision.name and self.strict_budget_enforce and \
-                self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
-            return (SchedulerDecision.DROP, None)
+        if conf.OFFLOAD_CLOUD_DECISION in decision.name and self.strict_budget_enforce:
+            if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
+                return (SchedulerDecision.DROP, None)
 
         return (decision, None)
 
@@ -573,8 +571,6 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                                   self.cold_start_prob_cloud,
                                   self.cloud_rtt,
                                   self.cloud_bw,
-                                  #self.energy_consumption_per_function,
-                                  #self.energy_consumption_per_variant,
                                   self.local_usable_memory_coeff,
                                   self.local_budget,
                                   self.aggregated_edge_memory,
@@ -588,7 +584,8 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                                   self.aggregated_edge_energy_rx,
                                   self.co2_green_threshold,
                                   self.of_alpha,
-                                  self.of_beta
+                                  self.of_beta,
+                                  self.simulation.t
                                 )
 
         opt = self.get_optimizer()
@@ -604,6 +601,9 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         optimizer_to_use = self.simulation.config.get(conf.SEC_POLICY, conf.QOS_OPTIMIZER, fallback="")
         if optimizer_to_use == "" or optimizer_to_use == "fgcs24" or optimizer_to_use == "lp":
             opt = lp_optimizer_carbon_aware
+            #opt = lp_optimizer_carbon_aware_normalized
+            #opt = lp_optimizer_carbon_aware_normalized_sigma
+
         elif optimizer_to_use == "nonlinear":
             opt = optimizer_nonlinear
         else:

@@ -7,4 +7,5 @@ UTILITY = "Utility"
 CO2_EMISS_TOTAL = "CO2EmissTotal"
 SEED = "Seed"
 COST = "Cost"
+TOTAL_PROC_TIME = "TotalProcTime"
 

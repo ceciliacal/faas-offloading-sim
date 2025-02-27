@@ -99,7 +99,7 @@ class Stats:
         stats["perClassCompleted"] = class_completions
         stats["perClassAvgRT"] = class_rt
 
-        stats["budgetExceededPercentage"] = max(0, (self.cost-self.budget)/self.budget)
+        #stats["budgetExceededPercentage"] = max(0, (self.cost-self.budget)/self.budget)
 
         stats["_Time"] = self.sim.t
 
