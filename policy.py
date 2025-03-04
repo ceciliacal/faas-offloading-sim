@@ -154,11 +154,11 @@ class Policy:
     def compute_g_co2_decision(self, current_node, f, c, scheduler_decision):
         if scheduler_decision == SchedulerDecision.EXEC:
             current_node.g_co2_emissions[f][SchedulerDecision.EXEC] = compute_local_energy(
-                f, current_node, 1.0, f.serviceMean)
+                f, current_node, f.serviceMean)
         elif scheduler_decision == SchedulerDecision.EXEC_VAR:
             v = f.active_variant
             current_node.g_co2_emissions[v][SchedulerDecision.EXEC_VAR] = compute_local_variant_energy(
-                v, current_node, 1.0, v.serviceMean)
+                v, current_node, v.serviceMean)
         elif scheduler_decision == SchedulerDecision.OFFLOAD_EDGE:
             remote_node = self.pick_edge_node(f, c)
             current_node.g_co2_emissions[f][scheduler_decision] = compute_edge_energy(
@@ -169,9 +169,9 @@ class Policy:
         elif conf.OFFLOAD_CLOUD_DECISION in scheduler_decision.name:
             region_name = self.simulation.get_region_name_by_scheduler_decision(scheduler_decision)
             remote_node = self.simulation.pick_cloud_remote_node_by_region(region_name)
-            current_node.g_co2_emissions[f][scheduler_decision] = compute_cloud_energy(f, remote_node, f.serviceMean,
-                                                                                       current_node.tx_energy_consumption,
-                                                                                       current_node.rx_energy_consumption)
+            #current_node.g_co2_emissions[f][scheduler_decision] = compute_cloud_energy(f, remote_node, f.serviceMean,
+            #                                                                           current_node.tx_energy_consumption,
+            #                                                                           current_node.rx_energy_consumption)
 
 
 class BasicPolicy(Policy):
@@ -210,7 +210,7 @@ class BasicPolicyMultiRegion(Policy):
                 else:
                     scheduler_decision, remote_node = scheduler_decision_cloud, remote_node_cloud
 
-        self.compute_g_co2_decision(self.node, f, c, scheduler_decision)
+        #self.compute_g_co2_decision(self.node, f, c, scheduler_decision)
         return scheduler_decision, remote_node
 
 class BasicBudgetAwarePolicy(Policy):
@@ -257,6 +257,7 @@ class CloudRegionDispatcherRandomPolicy(Policy):
         node.avg_processing_power_consumption = (sum(cloud_node.processing_power_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.avg_tx_energy_consumption = (sum(cloud_node.tx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.avg_rx_energy_consumption = (sum(cloud_node.rx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
+        node.cloud_nodes_list = self.cloud_region_nodes
 
     def update(self):
         self.node.aggregated_region_memory = sum(cloud_node.curr_memory for cloud_node in self.cloud_region_nodes)
@@ -490,7 +491,7 @@ class GreedyPolicyMultiRegion(Policy):
                     scheduler_decision, remote_node = self.offload_cloud_decision, self.dispatcher
 
 
-        self.compute_g_co2_decision(self.node, f, c, scheduler_decision)
+        #self.compute_g_co2_decision(self.node, f, c, scheduler_decision)
         return scheduler_decision, remote_node
 
     def update_cold_start (self, stats):
@@ -620,7 +621,7 @@ class GreedyCarbonAware(GreedyPolicy):
         if conf.OFFLOAD_CLOUD_DECISION in decision.name:
             remote_node = self.decision_dispatcher[decision]
 
-        self.compute_g_co2_decision(self.node, f, c, decision)
+        #self.compute_g_co2_decision(self.node, f, c, decision)
         return decision, remote_node
 
 class GreedyCarbonAwareStrict(GreedyPolicy):
@@ -666,7 +667,7 @@ class GreedyCarbonAwareStrict(GreedyPolicy):
         if conf.OFFLOAD_CLOUD_DECISION in decision.name:
             remote_node = self.decision_dispatcher[decision]
 
-        self.compute_g_co2_decision(self.node, f, c, decision)
+        #self.compute_g_co2_decision(self.node, f, c, decision)
         return decision, remote_node
 
 class GreedyBudgetAware(GreedyPolicy):

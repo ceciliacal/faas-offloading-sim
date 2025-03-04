@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 import yaml
 
-from spec import generate_regions_yaml, generate_random_temp_spec_variants
+from spec import generate_regions_yaml, generate_random_temp_spec_variants, generate_random_temp_spec_variants2
 from simulation import Simulation
 from infrastructure import *
 from main import read_spec_file

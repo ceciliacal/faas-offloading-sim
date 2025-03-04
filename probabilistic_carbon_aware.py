@@ -170,13 +170,14 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         return float(1 / base)
 
     def handle_exec_decision(self, f, node, decision):
-        local_eP = compute_local_energy(f, node, self.local_usable_memory_coeff, 0.1)
+        local_eP = compute_local_energy(f, node, 0.1)
         node.g_co2_emissions[f][decision] = local_eP
 
     def handle_offload_cloud_decision(self, f, node, decision):
         region_name = decision.name[len(conf.OFFLOAD_CLOUD_DECISION):].lower()
         dispatcher_node = self.simulation.infra.get_dispatcher_by_region_name(region_name)
-        cloud_eP = compute_cloud_energy(f, dispatcher_node, 0.1, node.tx_energy_consumption, node.rx_energy_consumption)
+        random_cloud_node = dispatcher_node.cloud_nodes_list[0]
+        cloud_eP = compute_cloud_energy(f, dispatcher_node, 0.1, random_cloud_node, node)
         node.g_co2_emissions[f][decision] = cloud_eP
 
     def pick_greener_cloud_region(self):
@@ -600,8 +601,8 @@ class ProbabilisticCarbonAwarePolicy(Policy):
     def get_optimizer(self):
         optimizer_to_use = self.simulation.config.get(conf.SEC_POLICY, conf.QOS_OPTIMIZER, fallback="")
         if optimizer_to_use == "" or optimizer_to_use == "fgcs24" or optimizer_to_use == "lp":
-            opt = lp_optimizer_carbon_aware
-            #opt = lp_optimizer_carbon_aware_normalized
+            #opt = lp_optimizer_carbon_aware
+            opt = lp_optimizer_carbon_aware_normalized
             #opt = lp_optimizer_carbon_aware_normalized_sigma
 
         elif optimizer_to_use == "nonlinear":

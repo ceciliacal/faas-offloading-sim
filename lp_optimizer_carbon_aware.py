@@ -6,6 +6,7 @@ import math
 import pulp as pl
 
 from co2_footprint import compute_cloud_energy, compute_edge_energy, compute_local_variant_energy, compute_local_energy
+from infrastructure import Infrastructure
 from optimization_carbon_aware import OptCarbonAwareProblemParams
 
 warm_start = False
@@ -111,7 +112,6 @@ def compute_energy_consumption(params):
         local_consumption = compute_local_energy(
             function=f,
             node=params.local_node,
-            usable_local_memory_coeff=params.usable_local_memory_coeff,
             serv_time_local=params.serv_time_local[f]
         )
         if local_consumption == 0.0:
@@ -124,7 +124,6 @@ def compute_energy_consumption(params):
                 local_variant_consumption = compute_local_variant_energy(
                     function_variant=v,
                     node=params.local_node,
-                    usable_local_memory_coeff=params.usable_local_memory_coeff,
                     serv_time_local_variant=params.serv_time_local[v]
                 )
                 if local_variant_consumption == 0.0:
@@ -152,12 +151,13 @@ def compute_energy_consumption(params):
             if region.name not in eP_offloading_cloud:
                 eP_offloading_cloud[region.name] = {}
 
+            random_cloud_node = dispatcher.cloud_nodes_list[0]
             cloud_consumption = compute_cloud_energy(
                 function=f,
                 dispatcher=dispatcher,
                 serv_time_cloud=params.serv_time_cloud[region][f],
-                local_tx_energy=params.local_node.tx_energy_consumption,
-                local_rx_energy=params.local_node.rx_energy_consumption
+                cloud_node=random_cloud_node,
+                initial_node=params.local_node
             )
             if cloud_consumption == 0.0:
                 cloud_consumption = large_penalty

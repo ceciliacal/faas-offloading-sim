@@ -47,6 +47,17 @@ class Arrival(Event):
 
 
 @dataclass
+class Completion(Event):
+    arrival: float
+    function: Function
+    qos_class: QoSClass
+    node: Node
+    cold: bool
+    exec_time: float
+    offloaded_from: [Node] = None
+    data_access_time: float = 0.0
+
+@dataclass
 class CheckExpiredContainers(Event):
     node: Node
 
@@ -74,16 +85,6 @@ class DispatcherUpdate(Event):
     pass
 
 
-@dataclass
-class Completion(Event):
-    arrival: float
-    function: Function
-    qos_class: QoSClass
-    node: Node
-    cold: bool
-    exec_time: float
-    offloaded_from: [Node] = None
-    data_access_time: float = 0.0
 
 
 OFFLOADING_OVERHEAD = 0.005
@@ -369,7 +370,7 @@ class Simulation:
             for arv in arvs:
                 arv.close()
 
-        self.write_CO2_emissions_to_csv()
+        #self.write_CO2_emissions_to_csv()
         return self.stats
 
     def move_key(self, k, src_node, dest_node):
@@ -496,20 +497,64 @@ class Simulation:
             raise RuntimeError("")
 
     def handle_completion(self, event):
-        rt = self.t - event.arrival
         f = event.function
         c = event.qos_class
         n = event.node
+
+        node_cloud_b = [n for n in self.infra.get_cloud_nodes() if n.name == "cloud_node_b"][0]
+        node_edge_b = [n for n in self.infra.get_edge_nodes() if n.name == "edge_node_b"][0]
+
+        '''
+                if f.name == "f3" and c.name == "critical" and n.region.name == "edge_zone_1":
+            # and len(event.offloaded_from)>0:
+            print("ciao")
+            if self.stats.resp_time_sum[(f, c, node_edge_b)] > self.stats.resp_time_sum[(f, c, node_cloud_b)]:
+                print("prova")
+        '''
+
+
+
+
+
+
+        rt = self.t - event.arrival
+
+
         duration = event.exec_time
         dat = event.data_access_time
         #print(f"Completed {f}-{c}: {rt}")
 
+        assert not isinstance(n, Dispatcher)
         # Account for the time needed to send back the result
-        if event.offloaded_from != None:
+        if event.offloaded_from != None and len(event.offloaded_from) > 0:
             curr_node = n
             for remote_node in reversed(event.offloaded_from):
                 rt += self.infra.get_latency(curr_node, remote_node)
                 curr_node = remote_node
+            if n.region.is_cloud():
+                #cloud node
+                initial_node = event.offloaded_from[0]
+                dispatcher = event.offloaded_from[1]
+                #energy for function processing on cloud node + offloading from local node to dispatcher
+                function_co2_emission = compute_cloud_energy(f, dispatcher, duration, n, initial_node)
+            else:
+                #edge node
+                initial_node = event.offloaded_from[0]
+                function_co2_emission = compute_edge_energy(f, n.curr_memory, n.processing_power_consumption,
+                                                            duration, initial_node.tx_energy_consumption,
+                                                            n.rx_energy_consumption,
+                                                            initial_node.rx_energy_consumption,
+                                                            n.tx_energy_consumption,
+                                                            n.co2_footprint.co2_intensity)
+        else:
+            if f.is_default:
+                #default function
+                function_co2_emission = compute_local_energy(f, n, duration)
+            else:
+                #function variant
+                function_co2_emission = compute_local_variant_energy(f, n, duration)
+
+        self.stats.co2_emission_total += function_co2_emission
 
         self.stats.resp_time_sum[(f, c, n)] += rt
         if (f, c, n) in self.resp_time_samples:
@@ -565,8 +610,13 @@ class Simulation:
                                                                                                     target_node)
         remote_arv = Arrival(target_node, arrival.function, arrival.qos_class,
                              offloaded_from=arrival.offloaded_from.copy())
+
+        if arrival.offloaded_from is None or len(arrival.offloaded_from) == 0: #first offload
+            remote_arv.original_arrival_time = self.t
+        else:
+            remote_arv.original_arrival_time = arrival.original_arrival_time
+
         remote_arv.offloaded_from.append(arrival.node)
-        remote_arv.original_arrival_time = self.t
 
         self.schedule(self.t + latency + OFFLOADING_OVERHEAD + transfer_time, remote_arv)
 
@@ -605,12 +655,13 @@ class Simulation:
 
                 init_time = self.init_time[(f, n)]
 
+
             arrival_time = self.t if event.original_arrival_time is None else event.original_arrival_time
             self.schedule(float(self.t + init_time + duration),
                           Completion(arrival_time, f, c, n, init_time > 0, duration, None,
                                      data_access_time))
 
-            self.update_co2_stats(n,f,sched_decision)
+            #self.update_co2_stats(n,f,sched_decision)
 
         elif sched_decision == SchedulerDecision.EXEC:
 
@@ -633,44 +684,13 @@ class Simulation:
                     self.stats.cold_starts_cloud_nodes[(region, f, n)] += 1
 
                 init_time = self.init_time[(f, n)]
-
+            #if f.name == "f3" and c.name == "critical" and n.region.name == "edge_zone_1":
+            #and len(event.offloaded_from)>0:
+                #print("ciao")
             arrival_time = self.t if event.original_arrival_time is None else event.original_arrival_time
             self.schedule(float(self.t + init_time + duration),
                           Completion(arrival_time, f, c, n, init_time > 0, duration, event.offloaded_from,
                                      data_access_time))
-
-
-            #if node is the "local" node the request was directly sent to, store local processing co2 emissions
-            if event.offloaded_from is not None and len(event.offloaded_from)>0:    #if request was offloaded
-                if region.is_cloud():   #and sent to a cloud node
-                    if not isinstance(n, Dispatcher):
-                        #se sono nodo cloud, mi serve: 1 nodo da cui è partio l'arrival originario
-                        # 2 il dispatcher della mia regione
-                        # 3 la scheduling decision x la mia regione
-                        initial_node = event.offloaded_from[0]
-                        curr_cloud_node_dispatcher = None
-                        for remote_node in event.offloaded_from:
-                            if isinstance(remote_node, Dispatcher):
-                                curr_cloud_node_dispatcher = remote_node
-                        assert curr_cloud_node_dispatcher is not None, "Function must has been offloaded via dispatcher"
-                        assert curr_cloud_node_dispatcher.region.name == n.region.name, "Dispatcher and node must have same region"
-                        offloading_decision = None
-                        for dec in list(SchedulerDecision):
-                            if curr_cloud_node_dispatcher.region.name.upper() in dec.name:
-                                offloading_decision = dec
-                                break
-
-                        self.update_co2_stats(initial_node,f,offloading_decision)
-
-                else: #edge node
-                    assert not n.region.is_cloud(), "This is expected to be an edge node"
-                    initial_node = event.offloaded_from[0]
-
-                    self.update_co2_stats(initial_node, f, SchedulerDecision.OFFLOAD_EDGE)
-
-            else:   #sched_decision = EXEC, no offloading
-
-                self.update_co2_stats(n, f, sched_decision)
 
         elif sched_decision == SchedulerDecision.DROP:
             self.stats.dropped_reqs[(f, c, n)] += 1
@@ -800,8 +820,8 @@ class Simulation:
             #print("in update_co2_intensity: node: ", node.name, " co2_datetime: ", node.co2_footprint.co2_datetime,
             #      " co2_intensity: ", node.co2_footprint.co2_intensity, " count: ", node.co2_footprint.count,
             #      " energy: ", self.stats.energy_consumption_per_node[node], " grams CO2: ",self.stats.co2_emission_per_node[node])
-
-            row = [
+            '''
+                        row = [
                 node.name,
                 node.co2_footprint.co2_datetime,
                 node.co2_footprint.co2_intensity,
@@ -810,6 +830,8 @@ class Simulation:
             ]
             # Append the row to the list
             self.rows_to_write_update_co2.append(row)
+            '''
+
         else:
             is_co2_trace_over[node] = True
             print("df finito! n=", node, " data: ",

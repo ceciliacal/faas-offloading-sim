@@ -12,7 +12,7 @@ nodes:
   - name: edge_node_a
     region: edge_zone_1
     memory: 2048
-    processing_power_consumption: 100.0   #Watt
+    processing_power_consumption: 100.0   #Watt!!!!!! WATT
     tx_energy_consumption: 50.0          #nanoJoule/byte (0.1 nJ/byte = 10^-9 Joule/byte)
     rx_energy_consumption: 30.0
 
@@ -65,28 +65,28 @@ functions:
     duration_scv: 1.0
     speedup:
       - 1.0
-      - 0.8
+      #- 0.8
     utility:
       - 1.0
-      - 0.8
+      #- 0.8
 
   - name: f2
     memory: 64
-    duration_mean: 0.50
+    duration_mean: 0.42
     duration_scv: 1.0
     speedup:
       - 1.0
-      - 0.8
+      #- 0.8
     utility:
       - 1.0
-      - 0.8
+      #- 0.8
 arrivals:
-  - node: edge_node_a
-    function: f1
-    classes:
-      - best-effort
+  #- node: edge_node_a
+  #  function: f1
+  #  classes:
+  #   - best-effort
       #- critical
-    rate: 0.25
+ #   rate: 0.25
   #- node: edge_node_c
   #  function: f1
   #  classes:

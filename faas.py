@@ -67,7 +67,7 @@ class Node:
 
         self.co2_footprint = co2_footprint
 
-        self.processing_power_consumption = processing_power_consumption #/ 1000   #kWatt
+        self.processing_power_consumption = processing_power_consumption     #watt
         self.tx_energy_consumption = tx_energy_consumption  / 1e9            #Joule/byte
         self.rx_energy_consumption = rx_energy_consumption  / 1e9
         self.g_co2_emissions = {}   #key: <function, schedulerDecision>, value: g CO2
@@ -109,6 +109,7 @@ class Dispatcher(Node):
         self.avg_processing_power_consumption = 0.0
         self.avg_tx_energy_consumption = 0.0
         self.avg_rx_energy_consumption = 0.0
+        self.cloud_nodes_list = []
 
 
 @dataclass

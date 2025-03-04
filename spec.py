@@ -1,3 +1,4 @@
+import json
 import os
 
 import yaml
@@ -128,21 +129,22 @@ def generate_random_temp_spec (rng, n_functions=5, load_coeff=1.0, dynamic_rate_
     write_spec(ntemp, functions, classes, nodes, load_coeff, dynamic_rate_coeff, arrivals_to_single_node, functions_arrival_distributions=functions_arrival_distributions)
     return ntemp
 
-#variants mode: 0 inactive, 1 active with speedup=utility for each variants, 2 active with speedup!=utility
+#variants mode: 0 inactive, 1 active with speedup=utility for each variants
 def generate_random_temp_spec_variants(rng, n_functions=5, variants_mode=0, n_variants=2, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=False,
                               n_classes=2, cloud_cost_reg_a=0.00001, cloud_cost_reg_b=0.00001, cloud_speedup=1.0):
     classes = [
-        {'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 1.0}, {'name': 'standard', 'max_resp_time': 0.5, 'utility': 0.01, 'arrival_weight': 7.0}
+        {'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 1.0},
+        {'name': 'standard', 'max_resp_time': 0.5, 'utility': 0.01, 'arrival_weight': 7.0}
     ]
     functions = [{'name': 'f1', 'memory': 512, 'duration_mean': 0.4, 'duration_scv': 1.0, 'init_mean': 0.5}, {'name': 'f2', 'memory': 512, 'duration_mean': 0.2, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f3', 'memory': 128, 'duration_mean': 0.3, 'duration_scv': 1.0, 'init_mean': 0.6}, {'name': 'f4', 'memory': 1024, 'duration_mean': 0.25, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f5', 'memory': 256, 'duration_mean': 0.45, 'duration_scv': 1.0, 'init_mean': 0.5}]
 
 
     nodes = [
-        {'name': 'edge_node_a', 'region': 'edge_zone_1', 'memory': 2048,
+        {'name': 'edge_node_a', 'region': 'edge_zone_1', 'memory': 3072,
          'processing_power_consumption': 100.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
-        {'name': 'edge_node_b', 'region': 'edge_zone_1', 'memory': 2048,
+        {'name': 'edge_node_b', 'region': 'edge_zone_1', 'memory': 3072,
          'processing_power_consumption': 100.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
-        {'name': 'edge_node_c', 'region': 'edge_zone_1', 'memory': 2048,
+        {'name': 'edge_node_c', 'region': 'edge_zone_1', 'memory': 3072,
          'processing_power_consumption': 100.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
         {'name': 'cloud_node_a', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 128000,
          'processing_power_consumption': 800.0, 'tx_energy_consumption': 5.0, 'rx_energy_consumption': 3.0},
@@ -151,8 +153,6 @@ def generate_random_temp_spec_variants(rng, n_functions=5, variants_mode=0, n_va
         {'name': 'dispatcher_a', 'region': 'cloud_region_a', 'memory': 0, 'policy': 'dispatcher-policy'},
         {'name': 'dispatcher_b', 'region': 'cloud_region_b', 'memory': 0, 'policy': 'dispatcher-policy'}
     ]
-
-
 
     # Extend functions list if needed
     if n_functions > len(functions):
@@ -179,10 +179,11 @@ def generate_random_temp_spec_variants(rng, n_functions=5, variants_mode=0, n_va
 
     # Randomly set specs
     for f in functions:
-        f["duration_mean"] = float(rng.uniform(0.1, 0.5))
-        f["init_mean"] = float(rng.uniform(0.25, 0.75))
-        f["memory"] = float(rng.uniform(128, 1024))
+        f["duration_mean"] = float(rng.uniform(0.05, 0.5))
+        f["init_mean"] = float(rng.uniform(0.1, 0.5))
+        f["memory"] = float(rng.uniform(128, 512))
         f["duration_scv"] = float(rng.choice([1, 0.5, 0.25]))
+        f["input_mean"] = float(rng.uniform(100, 5 * 1024 * 1024))
 
         myclip_a = 100
         myclip_b = 1024 * 1024 * 5
@@ -196,7 +197,7 @@ def generate_random_temp_spec_variants(rng, n_functions=5, variants_mode=0, n_va
 
         if variants_mode == 1:
             f["speedup"].extend(float(rng.uniform(0.25, 0.85)) for _ in range(n_variants - 1))
-            f["utility"].extend(f["speedup"][1:])  # Copy randomized values to utility
+            f["utility"].extend(f["speedup"][1:])
 
     if dynamic_rate_coeff > 1.0:
         print("Forcing Poisson arrivals")
@@ -205,11 +206,88 @@ def generate_random_temp_spec_variants(rng, n_functions=5, variants_mode=0, n_va
         functions_arrival_distributions = rng.choice(ARRIVAL_DISTRIBUTIONS, size=n_functions)
         functions_arrival_distributions = {f["name"]: d for f, d in zip(functions, functions_arrival_distributions)}
 
+
     ntemp = tempfile.NamedTemporaryFile(mode="w")
     write_spec(ntemp, functions, classes, nodes, load_coeff, dynamic_rate_coeff, arrivals_to_single_node,
                functions_arrival_distributions=functions_arrival_distributions)
+
     return ntemp
 
+
+def generate_random_temp_spec_variants2(rng, n_functions=5, variants_mode=0, n_variants=2, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=False,
+                              n_classes=2, cloud_cost_reg_a=0.00001, cloud_cost_reg_b=0.00001, seed=1):
+    classes = [
+        {'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 1.0},
+        {'name': 'standard', 'max_resp_time': 0.5, 'utility': 0.01, 'arrival_weight': 7.0}
+    ]
+    functions = [{'name': 'f1', 'memory': 512, 'duration_mean': 0.4, 'duration_scv': 1.0, 'init_mean': 0.5},
+                 {'name': 'f2', 'memory': 512, 'duration_mean': 0.2, 'duration_scv': 1.0, 'init_mean': 0.25},
+                 {'name': 'f3', 'memory': 128, 'duration_mean': 0.3, 'duration_scv': 1.0, 'init_mean': 0.6},
+                 {'name': 'f4', 'memory': 1024, 'duration_mean': 0.25, 'duration_scv': 1.0, 'init_mean': 0.25},
+                 {'name': 'f5', 'memory': 256, 'duration_mean': 0.45, 'duration_scv': 1.0, 'init_mean': 0.5}]
+
+    nodes = [
+        {'name': 'edge_node_a', 'region': 'edge_zone_1', 'memory': 3072,
+         'processing_power_consumption': 100.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
+        {'name': 'edge_node_b', 'region': 'edge_zone_1', 'memory': 3072,
+         'processing_power_consumption': 100.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
+        {'name': 'edge_node_c', 'region': 'edge_zone_1', 'memory': 3072,
+         'processing_power_consumption': 100.0, 'tx_energy_consumption': 50.0, 'rx_energy_consumption': 30.0},
+        {'name': 'cloud_node_a', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 128000,
+         'processing_power_consumption': 800.0, 'tx_energy_consumption': 5.0, 'rx_energy_consumption': 3.0},
+        {'name': 'cloud_node_b', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 128000,
+         'processing_power_consumption': 800.0, 'tx_energy_consumption': 5.0, 'rx_energy_consumption': 3.0},
+        {'name': 'dispatcher_a', 'region': 'cloud_region_a', 'memory': 0, 'policy': 'dispatcher-policy'},
+        {'name': 'dispatcher_b', 'region': 'cloud_region_b', 'memory': 0, 'policy': 'dispatcher-policy'}
+    ]
+
+    # Extend functions list if needed
+    while len(functions) < n_functions:
+        new_f = functions[len(functions) % len(functions)].copy()
+        new_f["name"] = f"f{len(functions) + 1}"
+        functions.append(new_f)
+
+    # Trim functions list if needed
+    functions = functions[:n_functions]
+
+    # Extend class list if needed
+    while len(classes) < n_classes:
+        new_c = classes[len(classes) % len(classes)].copy()
+        new_c["name"] = f"c{len(classes) + 1}"
+        classes.append(new_c)
+
+    # Trim classes list if needed
+    classes = classes[:n_classes]
+
+    # Randomly set specs
+    for f in functions:
+        f["duration_mean"] = float(rng.uniform(0.05, 0.5))
+        f["init_mean"] = float(rng.uniform(0.1, 0.5))
+        f["memory"] = float(rng.uniform(128, 512))
+        f["duration_scv"] = float(rng.choice([1, 0.5, 0.25]))
+        f["input_mean"] = float(rng.uniform(100, 5 * 1024 * 1024))
+
+        f["speedup"] = [1.0]
+        f["utility"] = [1.0]
+
+        if variants_mode == 1:
+            f["speedup"].extend(float(rng.uniform(0.25, 0.85)) for _ in range(n_variants - 1))
+            f["utility"].extend(f["speedup"][1:])  # Copy randomized values to utility
+
+    if dynamic_rate_coeff > 1.0:
+        print("Forcing Poisson arrivals")
+        functions_arrival_distributions = {f["name"]: "exp" for f in functions}
+    else:
+        functions_arrival_distributions = {f["name"]: rng.choice(["exp", "erlang", "hyper", "mmpp"]) for f in functions}
+
+    # ** Save to a regular file instead of a temporary file **
+    file_path = os.path.join(os.getcwd(), "spec_variants_"+str(seed)+".yaml")
+    with open(file_path, "w") as outf:
+        write_spec(outf, functions, classes, nodes, load_coeff, dynamic_rate_coeff, arrivals_to_single_node,
+                   functions_arrival_distributions=functions_arrival_distributions)
+
+    print(f"Specification saved to {file_path}")
+    return file_path  # Return the file path instead of a temp file object
 
 # Writes a spec file to outf 
 def write_spec (outf, functions, classes, nodes, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=True, functions_arrival_distributions=None):
