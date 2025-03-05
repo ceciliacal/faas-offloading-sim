@@ -576,7 +576,7 @@ class GreedyCarbonAware(GreedyPolicy):
     def __init__ (self, simulation, node):
         super().__init__(simulation, node)
         self.decision_dispatcher = {}
-        self.decision_co2 = defaultdict(list)   #k: co2_intensity v: [decision] -> for general decision
+        self.decision_co2 = defaultdict(list)   #k: co2_intensity v: [decision] -> for main decision
 
         for dispatcher in self.simulation.infra.dispatchers:
             for decision in SchedulerDecision:
@@ -621,7 +621,6 @@ class GreedyCarbonAware(GreedyPolicy):
         if conf.OFFLOAD_CLOUD_DECISION in decision.name:
             remote_node = self.decision_dispatcher[decision]
 
-        #self.compute_g_co2_decision(self.node, f, c, decision)
         return decision, remote_node
 
 class GreedyCarbonAwareStrict(GreedyPolicy):

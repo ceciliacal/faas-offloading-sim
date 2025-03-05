@@ -3,14 +3,12 @@ from pacsltk import perfmodel
 import conf
 import lp_optimizer_carbon_aware
 import lp_optimizer_carbon_aware_normalized
-import lp_optimizer_carbon_aware_normalized_sigma
 import optimizer_nonlinear
 from co2_footprint import compute_local_energy, compute_cloud_energy
 from optimization_carbon_aware import OptCarbonAwareProblemParams
 from policy import Policy, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS, SchedulerDecision
 
 ADAPTIVE_EDGE_MEMORY_COEFFICIENT = True
-
 
 
 class ProbabilisticCarbonAwarePolicy(Policy):
@@ -32,7 +30,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         assert (self.num_regions_cloud == len(simulation.infra.dispatchers))
 
         self.cloud_regions = self.simulation.infra.cloud_regions
-        self.cloud_dispatchers = {} # dispatchers
+        self.cloud_dispatchers = {}  # dispatchers
         for region in self.cloud_regions:
             for dispatcher_node in self.simulation.infra.dispatchers:
                 if dispatcher_node.region == region:
@@ -83,7 +81,6 @@ class ProbabilisticCarbonAwarePolicy(Policy):
             for f in simulation.functions:
                 self.init_time_cloud[region][f] = simulation.init_time[(f, dispatcher_node)]
 
-
         self.aggregated_edge_memory = 0.0
         self.estimated_service_time_edge = {}
         self.edge_rtt = 0.0
@@ -113,7 +110,6 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                             self.handle_exec_decision(f, node, decision)
                         elif conf.OFFLOAD_CLOUD_DECISION in decision.name and f.is_default:
                             self.handle_offload_cloud_decision(f, node, decision)
-
 
     def build_probs(self):
         # Iterate over all functions and classes
@@ -146,9 +142,6 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                     for fun_var in self.simulation.function_variants[f]:
                         if (fun_var, c) not in self.probs:
                             self.probs[(fun_var, c)] = {}
-
-                        #self.variants_probs[f][v] = {c: initial_var_prob}
-                        #self.variants_probs[f][v][c] = {initial_var_prob}
 
                         if fun_var not in self.variants_probs[f]:
                             self.variants_probs[f][fun_var] = {}
@@ -254,15 +247,12 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                 raise RuntimeError(f"Unknown local rejection fallback: {self.local_rejection_fallback}")
 
         if decision == SchedulerDecision.EXEC_VAR:
-            #if len(offloaded_from) > 0: #if request was offloaded and decision is exec_var -> exec
-            #    decision = SchedulerDecision.EXEC
-            #else:
             self.curr_local_reqs += 1
             assert f.has_variants == True
 
             variant_choice = {}
             for function_variant, class_probability in variants_probs.items():
-                variant_choice[function_variant] = class_probability[c] #.varValue
+                variant_choice[function_variant] = class_probability[c]  #.varValue
 
             selected_variant, prob = max(variant_choice.items(), key=lambda item: item[1])
             f.active_variant = selected_variant
@@ -361,7 +351,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                         total_arrival_rate,
                         self.estimated_service_time_cloud[region][f],
                         self.estimated_service_time_cloud[region][f] + self.simulation.init_time[
-                            (f, dispatcher)],   #gia gestito in simulation
+                            (f, dispatcher)],  #gia gestito in simulation
                         self.simulation.expiration_timeout
                     )
                     self.cold_start_prob_cloud[(region, f)] = props1["cold_prob"]
@@ -374,7 +364,9 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
                 elif self.cloud_cold_start_estimation == ColdStartEstimation.NAIVE_PER_FUNCTION:
                     if dispatcher.avg_node2completions.get(f, 0) > 10:
-                        self.cold_start_prob_cloud[(region, f)] = dispatcher.avg_cold_starts(f, 0) / dispatcher.node2completions.get(f, 0)
+                        self.cold_start_prob_cloud[(region, f)] = dispatcher.avg_cold_starts(f,
+                                                                                             0) / dispatcher.node2completions.get(
+                            f, 0)
                     else:
                         self.cold_start_prob_cloud[(region, f)] = COLD_START_PROB_INITIAL_GUESS
 
@@ -422,7 +414,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
                 if dispatcher.avg_node2completions[f] > 0:
                     self.estimated_service_time_cloud[region][f] = dispatcher.avg_execution_time_sum[f] / \
-                                                           dispatcher.avg_node2completions[f]
+                                                                   dispatcher.avg_node2completions[f]
                 else:
                     self.estimated_service_time_cloud[region][f] = 0.1
 
@@ -446,7 +438,6 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         for region in self.cloud_regions:
             self.cloud_rtt[region] = 2 * self.simulation.infra.get_region_latency(self.node.region, region)
             self.cloud_bw[region] = self.simulation.infra.get_bandwidth(self.node.region, region)
-
 
         stats = self.simulation.stats
 
@@ -507,7 +498,8 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         if self.edge_cold_start_estimation == ColdStartEstimation.PACS:
             for f in default_functions:
                 total_offloaded_rate = max(0.001, \
-                                           sum([self.arrival_rates.get((f, x), 0.0) * self.probs[(f, x)][SchedulerDecision.OFFLOAD_EDGE] for x in
+                                           sum([self.arrival_rates.get((f, x), 0.0) * self.probs[(f, x)][
+                                               SchedulerDecision.OFFLOAD_EDGE] for x in
                                                 self.simulation.classes]))
                 props1, _ = perfmodel.get_sls_warm_count_dist(total_offloaded_rate,
                                                               self.estimated_service_time_edge[f],
@@ -558,59 +550,57 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         functions = [f for f in self.simulation.functions if f.is_default]
 
         params = OptCarbonAwareProblemParams(self.node,
-                                  self.cloud_dispatchers,
-                                  self.possible_decisions,
-                                  functions,
-                                  self.simulation.classes,
-                                  self.simulation.function_variants,
-                                  self.arrival_rates,
-                                  self.estimated_service_time,  #local (include variants: [f][v]
-                                  self.estimated_service_time_cloud,
-                                  self.init_time_local,
-                                  self.init_time_cloud,
-                                  self.cold_start_prob_local,
-                                  self.cold_start_prob_cloud,
-                                  self.cloud_rtt,
-                                  self.cloud_bw,
-                                  self.local_usable_memory_coeff,
-                                  self.local_budget,
-                                  self.aggregated_edge_memory,
-                                  self.estimated_service_time_edge,
-                                  self.edge_rtt,
-                                  self.cold_start_prob_edge,
-                                  self.init_time_edge,
-                                  self.edge_bw,
-                                  self.aggregated_edge_power_consumption,
-                                  self.aggregated_edge_energy_tx,
-                                  self.aggregated_edge_energy_rx,
-                                  self.co2_green_threshold,
-                                  self.of_alpha,
-                                  self.of_beta,
-                                  self.simulation.t
-                                )
+                                             self.cloud_dispatchers,
+                                             self.possible_decisions,
+                                             functions,
+                                             self.simulation.classes,
+                                             self.simulation.function_variants,
+                                             self.arrival_rates,
+                                             self.estimated_service_time,  #local (include variants: [f][v]
+                                             self.estimated_service_time_cloud,
+                                             self.init_time_local,
+                                             self.init_time_cloud,
+                                             self.cold_start_prob_local,
+                                             self.cold_start_prob_cloud,
+                                             self.cloud_rtt,
+                                             self.cloud_bw,
+                                             self.local_usable_memory_coeff,
+                                             self.local_budget,
+                                             self.aggregated_edge_memory,
+                                             self.estimated_service_time_edge,
+                                             self.edge_rtt,
+                                             self.cold_start_prob_edge,
+                                             self.init_time_edge,
+                                             self.edge_bw,
+                                             self.aggregated_edge_power_consumption,
+                                             self.aggregated_edge_energy_tx,
+                                             self.aggregated_edge_energy_rx,
+                                             self.co2_green_threshold,
+                                             self.of_alpha,
+                                             self.of_beta,
+                                             self.simulation.t
+                                             )
 
         opt = self.get_optimizer()
         new_probs, variants_probs = opt.update_probabilities(params, self.simulation.verbosity)
 
         if new_probs is not None:
             self.probs = new_probs
-            # print(f"[{self.node}] Probs: {self.probs}")
         if variants_probs is not None:
             self.variants_probs = variants_probs
 
     def get_optimizer(self):
         optimizer_to_use = self.simulation.config.get(conf.SEC_POLICY, conf.QOS_OPTIMIZER, fallback="")
         if optimizer_to_use == "" or optimizer_to_use == "fgcs24" or optimizer_to_use == "lp":
-            #opt = lp_optimizer_carbon_aware
-            opt = lp_optimizer_carbon_aware_normalized
-            #opt = lp_optimizer_carbon_aware_normalized_sigma
-
+            if self.of_alpha == 0.5 and self.of_beta == 0.5:
+                opt = lp_optimizer_carbon_aware_normalized
+            else:
+                opt = lp_optimizer_carbon_aware
         elif optimizer_to_use == "nonlinear":
             opt = optimizer_nonlinear
         else:
             raise RuntimeError(f"Unknown optimizer: {optimizer_to_use}")
         return opt
-
 
 
 class RandomPolicy(Policy):
@@ -628,20 +618,17 @@ class RandomPolicy(Policy):
 
             if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
                 decision = self.rng.choice(self.decisions[2:])
-            #return (decision, None)
         else:
             if not f.has_variants:
                 decision = self.rng.choice(self.decisions[:1] + self.decisions[2:])
 
                 if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
                     decision = self.rng.choice(self.decisions[2:])
-                #return (decision, None)
             else:
                 decision = self.rng.choice(self.decisions)
 
                 if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
                     decision = self.rng.choice(self.decisions[1:])
-                    #return (decision, None)
 
                 #se sto qui sicuro non mi esce EXEC e ho delle varianti
                 if decision == SchedulerDecision.EXEC_VAR:
@@ -659,9 +646,7 @@ class RandomPolicy(Policy):
                         else:
                             decision = self.rng.choice(self.decisions[2:])
 
-                #return decision, None
         self.compute_g_co2_decision(self.node, f, c, decision)
-        #print("decision: ", decision)
         return decision, None
 
     def update(self):

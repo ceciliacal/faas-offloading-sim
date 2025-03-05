@@ -12,20 +12,14 @@ class CO2footprint:
 m_u = 2048.0
 
 def compute_local_energy(function, node, serv_time_local):
-    """
-    Compute the emitted co2 grams for a function processed locally.
-    """
+    #Compute the emitted co2 grams for a function processed locally.
+
     if node.curr_memory <= 0.0:
         return 0.0
 
     power_cons_local = node.processing_power_consumption
     m_f = function.memory
-    #m_u = node.total_memory
     co2_local = node.co2_footprint.co2_intensity
-    #print("[eP ",node,"] - f: ",function,"(power_cons_local * float(m_f / m_u) * serv_time_local) = ",(power_cons_local * float(m_f / m_u) * serv_time_local))
-    #print("[eP ",node,"] - f: ",function,"(power_cons_local = ",(power_cons_local ))
-    #print("[eP ", node, "] - f: ", function, "(float(m_f / m_u) = ", float(m_f / m_u)," mf= ",m_f," mu=",m_u)
-    #print("[eP ", node, "] - f: ", function, "(serv_time_local = ", (serv_time_local))
 
     return (
         (power_cons_local * float(m_f / m_u) * serv_time_local) *
@@ -35,21 +29,15 @@ def compute_local_energy(function, node, serv_time_local):
 
 
 def compute_local_variant_energy(function_variant, node, serv_time_local_variant):
-    """
-    Compute the emitted co2 grams for a function variant processed locally.
-    """
+    #Compute the emitted co2 grams for a function variant processed locally.
+
     if node.curr_memory <= 0.0:
         return 0.0
 
     power_cons_variant = node.processing_power_consumption
     m_f = function_variant.memory
-    #m_u = node.total_memory
     co2_variant = node.co2_footprint.co2_intensity
-    #print("[eP VAR ", node, "] - f: ", function_variant, "(power_cons_variant * float(m_f / m_u) * serv_time_local_variant) = ",
-    #      (power_cons_variant * float(m_f / m_u) * serv_time_local_variant))
-    #print("[eP VAR ", node, "] - f: ", function_variant, "(power_cons_local = ", (power_cons_variant))
-    #print("[eP VAR ", node, "] - f: ", function_variant, "(float(m_f / m_u) = ", float(m_f / m_u), " mf= ", m_f, " mu=", m_u)
-    #print("[eP VAR ", node, "] - f: ", function_variant, "(serv_time_local_variant = ", (serv_time_local_variant))
+
     return (
             (power_cons_variant * float(m_f / m_u) * serv_time_local_variant) *
             (1 / (3600 * 1000)) *
@@ -59,9 +47,8 @@ def compute_local_variant_energy(function_variant, node, serv_time_local_variant
 
 def compute_edge_energy(function, aggregated_edge_memory, aggregated_edge_power_consumption,
                         serv_time_edge, local_tx_energy, edge_rx_energy, local_rx_energy, edge_tx_energy, co2_edge):
-    """
-    Compute the emitted co2 grams for a function offloaded to the edge.
-    """
+    #Compute the emitted co2 grams for a function offloaded to the edge.
+
     if aggregated_edge_memory <= 0.0:
         return 0.0
 
@@ -79,9 +66,8 @@ def compute_edge_energy(function, aggregated_edge_memory, aggregated_edge_power_
 
 
 def compute_cloud_energy(function, dispatcher, serv_time_cloud, cloud_node, initial_node):
-    """
-    Compute the emitted co2 grams for a function offloaded to a specific cloud region.
-    """
+    #Compute the emitted co2 grams for a function offloaded to a specific cloud region.
+
     if dispatcher.aggregated_region_memory <= 0.0:
         return 0.0
 
@@ -103,6 +89,7 @@ def compute_cloud_energy(function, dispatcher, serv_time_cloud, cloud_node, init
          input_size_mean * (dispatcher_tx_energy + cloud_node_rx_energy) +
          output_size_mean * (cloud_node_tx_energy + dispatcher_rx_energy)+
          output_size_mean * (dispatcher_tx_energy + local_node_rx_energy)) *
+        #output_size_mean * (dispatcher_tx_energy + local_node_rx_energy)) *
         (1 / (3600 * 1000)) *
         float(co2_cloud)
     )

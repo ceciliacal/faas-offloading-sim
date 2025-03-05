@@ -259,8 +259,6 @@ class Simulation:
         self.events = []
         self.t = 0.0
         self.node2policy = {}
-        self.file_update_co2_intensity = self.config.get(conf.SEC_CARBON, conf.FILE_UPDATE_CO2_INTENSITY, fallback="")
-        print("self.file_update_co2_intensity: ",self.file_update_co2_intensity)
         self.rows_to_write_update_co2 = []
 
         self.expiration_timeout = self.config.getfloat(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, fallback=600)
@@ -501,24 +499,7 @@ class Simulation:
         c = event.qos_class
         n = event.node
 
-        node_cloud_b = [n for n in self.infra.get_cloud_nodes() if n.name == "cloud_node_b"][0]
-        node_edge_b = [n for n in self.infra.get_edge_nodes() if n.name == "edge_node_b"][0]
-
-        '''
-                if f.name == "f3" and c.name == "critical" and n.region.name == "edge_zone_1":
-            # and len(event.offloaded_from)>0:
-            print("ciao")
-            if self.stats.resp_time_sum[(f, c, node_edge_b)] > self.stats.resp_time_sum[(f, c, node_cloud_b)]:
-                print("prova")
-        '''
-
-
-
-
-
-
         rt = self.t - event.arrival
-
 
         duration = event.exec_time
         dat = event.data_access_time
@@ -796,14 +777,6 @@ class Simulation:
         self.stats.energy_consumption_per_node[n] += joule_energy
         #self.stats.energy_consumption_function2node[(f, n)] += energy_stats_list
         self.stats.energy_consumption_total += joule_energy
-
-    def write_CO2_emissions_to_csv(self):
-        os.makedirs(os.path.dirname(self.file_update_co2_intensity), exist_ok=True)
-        with open(self.file_update_co2_intensity, mode="w", newline="") as file:
-            writer = csv.writer(file)
-            writer.writerow(["Node", "CO2_Datetime", "CO2_Intensity", "Consumed_energy[J]", "Emitted_CO2[g]"])
-            # Write all accumulated rows
-            writer.writerows(self.rows_to_write_update_co2)
 
     def read_co2_intensity(self, node, is_co2_trace_over):
         n = node.co2_footprint.count

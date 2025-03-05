@@ -84,12 +84,13 @@ def compute_normalized_utility(params):
     co2_min = green_dispatcher.co2_footprint.co2_intensity
     co2_max = brown_dispatcher.co2_footprint.co2_intensity
 
-    #print("brown dispatcher", brown_dispatcher)
-    #print("co2 dispatcher", green_dispatcher)
-    #todo questo min_co2_grams non va bene x scenario green
     for f in params.functions:
+
         max_co2_grams = compute_cloud_energy(f, brown_dispatcher, f.serviceMean, random_cloud_node, params.local_node)
-        min_co2_grams = compute_cloud_energy(f, green_dispatcher, f.serviceMean,random_cloud_node, params.local_node)
+        if params.local_node.co2_footprint.co2_intensity == co2_max:  # brown scenario
+            min_co2_grams = compute_cloud_energy(f, green_dispatcher, f.serviceMean,random_cloud_node, params.local_node)
+        else:
+            min_co2_grams = compute_local_energy(f, params.local_node, f.serviceMean)
         for c in params.classes:
             #print("c.name: ",c.name)
             U_max = U_max + c.utility * params.arrival_rates.get((f, c), 0.0) #* 600
@@ -244,6 +245,20 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
     eP_local, eP_local_variants, eP_offlading_cloud, eP_offloading_edge, co2_drop = compute_energy_consumption(params)
     U_max, U_min, E_max, E_min = compute_normalized_utility(params)
 
+    alpha = params.alpha
+    beta = params.beta
+
+    U_range = U_max - U_min if U_max != U_min else 1.0
+    E_range = E_max - E_min if E_max != E_min else 1.0
+
+    print(f"U_max: {U_max}, U_min: {U_min}, U_range: {U_range}")
+    print(f"E_max: {E_max}, E_min: {E_min}, E_range: {E_range}")
+
+    if U_max == U_min:
+        U_min = 0.0
+    if E_max == E_min:
+        E_min = 0.0
+
     if VERBOSE > 1:
         print("------------------------------")
         print(f"ColdStart ProbL: {cold_start_p_local}")
@@ -254,33 +269,7 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
         print(f"Deadline Sat ProbE: {deadline_satisfaction_prob_edge}")
         print("------------------------------")
 
-        # Build the objective function
-    alpha = params.alpha
-    beta = params.beta
-
-    U_range = U_max - U_min if U_max != U_min else 1.0
-    E_range = E_max - E_min if E_max != E_min else 1.0
-
-    #scaling_factor = U_range / E_range if E_max != E_min else 1.0
-
-    # Scale alpha and beta using the same factor
-    alpha_scaled = alpha #/ scaling_factor
-    beta_scaled = beta #/ scaling_factor
-
-
-    print(f"U_max: {U_max}, U_min: {U_min}, U_range: {U_range}")
-    print(f"E_max: {E_max}, E_min: {E_min}, E_range: {E_range}")
-    #print(f"scaling_factor: {scaling_factor}")
-    #print(f"alpha_scaled: {alpha_scaled}, beta_scaled: {beta_scaled}")
-
-    if U_max == U_min:
-        U_min = 0.0
-    if E_max == E_min:
-        E_min = 0.0
-
-
-
-
+    # Build the objective function
 
     if EDGE_ENABLED:
         # Calculate U(P)
@@ -333,17 +322,61 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
         U_norm = (U_P - U_min) / (U_max - U_min)
         E_norm = (E_P - E_min) / (E_max - E_min)
 
-        #scaling_factor = U_norm / E_norm
-        #beta_scaled = beta_scaled * scaling_factor
-        # Define the objective function
         prob += (
-            alpha_scaled * U_norm - beta_scaled * E_norm,
+            alpha * U_norm - beta * E_norm,
             "objUtilCost"
         )
+    else:
+        U_P = (
+                pl.lpSum([
+                    c.utility * params.arrival_rates[(f, c)] * (
+                            pL[f][c] * deadline_satisfaction_prob_local[(f, c)] +
+                            pl.lpSum([pL_variants[f][v.self_function][c] * deadline_satisfaction_prob_local_variants[
+                                (f, v.self_function, c)] * v.utility
+                                      for v in f.variants] if f.has_variants else 0.0) +
+                            pl.lpSum([pC[region.name][f][c] * deadline_satisfaction_prob_cloud[(region.name, f, c)]
+                                      for region in regions])
+                    )
+                    for f, c in F_C
+                ])
+                -
+                pl.lpSum([
+                    c.deadline_penalty * params.arrival_rates[(f, c)] * (
+                            pL[f][c] * (1.0 - deadline_satisfaction_prob_local[(f, c)]) +
+                            pl.lpSum(
+                                [pL_variants[f][v][c] * (1.0 - deadline_satisfaction_prob_local_variants[(f, v, c)])
+                                 for v in V[f]] if f.has_variants else 0.0) +
+                            pl.lpSum(
+                                [pC[region.name][f][c] * (1.0 - deadline_satisfaction_prob_cloud[(region.name, f, c)])
+                                 for region in regions])
+                    )
+                    for f, c in F_C
+                ])
+                -
+                pl.lpSum([c.drop_penalty * params.arrival_rates[(f, c)] * pD[f][c] for f, c in F_C])
+        )
 
-        # Print U(P) and E(P)
-        #print(f"U(P): {U_P}")
-        #print(f"E(P): {E_P}")
+        # Calculate E(P)
+        E_P = (
+            pl.lpSum([
+                params.arrival_rates[(f, c)] * (
+                        pL[f][c] * (eP_local[f]) +
+                        pl.lpSum([pL_variants[f][v][c] * (eP_local_variants[(f, v)]) for v in V[f]]
+                                 if f.has_variants else 0.0) +
+                        pD[f][c] * (co2_drop) +
+                        pl.lpSum([pC[region.name][f][c] * (eP_offlading_cloud[region.name][f]) for region in regions])
+                )
+                for f, c in F_C
+            ])
+        )
+
+        U_norm = (U_P - U_min) / (U_max - U_min)
+        E_norm = (E_P - E_min) / (E_max - E_min)
+
+        prob += (
+            alpha * U_norm - beta * E_norm,
+            "objUtilCost"
+        )
 
 
 
@@ -353,16 +386,13 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
                 (pl.lpSum(pL_variants[f][v][c] for v in V[f]) if f.has_variants else 0.0) +
                 (pE[f][c] if EDGE_ENABLED else 0.0) +
                 pl.lpSum(pC[region.name][f][c] for region in regions) +
-                pD[f][c] == 1.0
-        )
+                pD[f][c] == 1.0)
 
 
     for f in F:
         if f.has_variants:
             for c in C:
-                prob += (
-                        pL[f][c] + pl.lpSum(pL_variants[f][v][c] for v in V[f]) <= 1.0
-                )
+                prob += (pL[f][c] + pl.lpSum(pL_variants[f][v][c] for v in V[f]) <= 1.0)
 
     # Memory
     prob += (pl.lpSum(
@@ -422,7 +452,6 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
     decision_fc_probability_var = {}
     decision_eP = {}
 
-
     for scheduler_decision in params.possible_decisions:
         if "EXEC" == scheduler_decision.name:
             decision_fc_probability[scheduler_decision] = pL
@@ -455,7 +484,6 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
             decision_eP[scheduler_decision] = eP_offlading_cloud[cloud_key]
 
     probs = {}
-
 
     # populating probs with updated values
     for decision, f_c_probabilities in decision_fc_probability.items():
@@ -491,6 +519,8 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
 
     #print("[optimizer",params.local_node,"] -  probs: ",probs)
 
+    #calculation only to see real values
+    '''
     full_E = 0.0
     full_U = 0.0
 
@@ -549,6 +579,7 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
     print("U_norm: ", U_norm)
     print("E_norm: ", E_norm)
     print("======")
+    '''
 
     return probs, decision_fc_probability_var
 

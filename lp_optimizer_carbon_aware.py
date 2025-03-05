@@ -1,12 +1,10 @@
-import os
-from asyncore import dispatcher
-
-import conf
 import math
+import os
+
 import pulp as pl
 
+import conf
 from co2_footprint import compute_cloud_energy, compute_edge_energy, compute_local_variant_energy, compute_local_energy
-from infrastructure import Infrastructure
 from optimization_carbon_aware import OptCarbonAwareProblemParams
 
 warm_start = False
@@ -30,10 +28,6 @@ def compute_deadline_satisfaction_probs(params: OptCarbonAwareProblemParams):
         if c.max_rt > 0.0:
             p += (1.0 - params.cold_start_p_local[f]) * (1.0 - math.exp(-1.0 / params.serv_time_local[f] * c.max_rt))
         deadline_satisfaction_prob_local[(f, c)] = p
-        #print("==== node: ", params.local_node.name, "mem = ",params.local_node.curr_memory)
-        #print("init_time_local: " + str(params.init_time_local[f]))
-        #print("serv_time_local: " + str(params.serv_time_local[f]))
-        #print("cold_start_p_local: " + str( params.cold_start_p_local[f]))
 
         # Lighter variant local execution
         if f.has_variants:
@@ -49,11 +43,7 @@ def compute_deadline_satisfaction_probs(params: OptCarbonAwareProblemParams):
             if dispatcher.aggregated_region_memory > 0.0:
                 p = 0.0
                 tx_time = f.inputSizeMean * 8 / 1000 / 1000 / params.bandwidth_cloud[region]
-                #print("["+region.name+"]: "+"tx_time: "+str(tx_time))
-                #print("["+region.name+"]: "+"init_time_cloud: "+ str(params.init_time_cloud[region][f]))
-                #print("[" + region.name + "]: " + "serv_time_cloud: " + str(params.serv_time_cloud[region][f]))
-                #print("[" + region.name + "]: " + "offload_time_cloud: " + str(params.offload_time_cloud[region]))
-                #print("[" + region.name + "]: " + "cold_start_p_cloud: " + str(params.cold_start_p_cloud[(region,f)]))
+
                 if c.max_rt - params.init_time_cloud[region][f] - params.offload_time_cloud[region] - tx_time > 0.0:
                     p += params.cold_start_p_cloud[(region,f)] * (1.0 - math.exp(-1.0 / params.serv_time_cloud[region][f] * (
                                 c.max_rt - params.init_time_cloud[region][f] - params.offload_time_cloud[region] - tx_time)))
@@ -61,14 +51,11 @@ def compute_deadline_satisfaction_probs(params: OptCarbonAwareProblemParams):
                     p += (1.0 - params.cold_start_p_cloud[(region,f)]) * (1.0 - math.exp(
                         -1.0 / params.serv_time_cloud[region][f] * (c.max_rt - params.offload_time_cloud[region] - tx_time)))
                 deadline_satisfaction_prob_cloud[(region.name, f, c)] = p
-                #print("[" + region.name + "]: " + "p: " + str(p))
 
         if params.aggregated_edge_memory > 0.0:
             p = 0.0
             try:
                 tx_time = f.inputSizeMean * 8 / 1000 / 1000 / params.bandwidth_edge
-                #print("tx_time edge " + str(tx_time))
-                #print("serv_time_edge " + str(params.serv_time_edge[f]))
 
                 if c.max_rt - params.init_time_edge[f] - params.offload_time_edge - tx_time > 0.0:
                     p += params.cold_start_p_edge[f] * (1.0 - math.exp(-1.0 / params.serv_time_edge[f] * (
@@ -82,11 +69,6 @@ def compute_deadline_satisfaction_probs(params: OptCarbonAwareProblemParams):
         else:
             deadline_satisfaction_prob_edge = {fc: 0 for fc in params.fun_classes()}
 
-    #print("node: ",params.local_node.name)
-    #print("deadline_satisfaction_prob_local_variants :", deadline_satisfaction_prob_local_variants)
-    #print("deadline_satisfaction_prob_local: ", deadline_satisfaction_prob_local)
-    #print("deadline_satisfaction_prob_cloud: ", deadline_satisfaction_prob_cloud)
-    #print("deadline_satisfaction_prob_edge :", deadline_satisfaction_prob_edge)
 
     return deadline_satisfaction_prob_local, deadline_satisfaction_prob_local_variants, deadline_satisfaction_prob_cloud, deadline_satisfaction_prob_edge
 
@@ -162,12 +144,6 @@ def compute_energy_consumption(params):
             if cloud_consumption == 0.0:
                 cloud_consumption = large_penalty
             eP_offloading_cloud[region.name][f] = cloud_consumption
-
-    #print("node: ", params.local_node.name)
-    #print("eP_local :", eP_local)
-    #print("eP_offloading_edge: ", eP_offloading_edge)
-    #print("eP_offlading_cloud: ", eP_offloading_cloud)
-    #print("eP_local_variants :", eP_local_variants)
 
     return eP_local, eP_local_variants, eP_offloading_cloud, eP_offloading_edge, co2_drop
 
@@ -339,16 +315,14 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
                 (pl.lpSum(pL_variants[f][v][c] for v in V[f]) if f.has_variants else 0.0) +
                 (pE[f][c] if EDGE_ENABLED else 0.0) +
                 pl.lpSum(pC[region.name][f][c] for region in regions) +
-                pD[f][c] == 1.0
-        )
+                pD[f][c] == 1.0)
 
 
     for f in F:
         if f.has_variants:
             for c in C:
                 prob += (
-                        pL[f][c] + pl.lpSum(pL_variants[f][v][c] for v in V[f]) <= 1.0
-                )
+                        pL[f][c] + pl.lpSum(pL_variants[f][v][c] for v in V[f]) <= 1.0)
 
     # Memory
     prob += (pl.lpSum(
@@ -404,12 +378,6 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
         shares = {(f, c): pl.value(x[f][c]) for f, c in F_C}
         print(f"Shares: {shares}")
 
-    #for f, c in F_C:
-        #print("[lp_optimizer] pL: ",f,"-",c,"  ", pl.value(pL[f][c][v]))
-        #print("[lp_optimizer] pE: ",f,"-",c,"  ", pl.value(pE[f][c]))
-        #for region, dispatcher in dispatchers.items():
-        #    print("[lp_optimizer] pC: ",f,"-",c,"  ", pl.value(pC[region.name][f][c]))
-        #print("[lp_optimizer] pD: ", f, "-", c, "  ", pl.value(pD[f][c]))
     decision_fc_probability = {}
     decision_fc_probability_var = {}
     decision_eP = {}
@@ -447,7 +415,6 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
 
     probs = {}
 
-
     # populating probs with updated values
     for decision, f_c_probabilities in decision_fc_probability.items():
         for function, classes in f_c_probabilities.items():
@@ -482,7 +449,6 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
 
     #print("[optimizer] -  probs: ",probs)
     return probs, decision_fc_probability_var
-
 
 
 def solve(problem):

@@ -5,7 +5,6 @@ import yaml
 import tempfile
 from scipy.stats import truncnorm
 import numpy as np
-from numpy.random import uniform, choice
 import map as MAP
 
 ARRIVAL_DISTRIBUTIONS = ["exp","mmpp","erlang","hyper"]
