@@ -12,7 +12,7 @@ from main import read_spec_file
 from numpy.random import SeedSequence, default_rng
 
 DEFAULT_CONFIG_FILE = "config.ini"
-DEFAULT_OUT_DIR = "050325"
+DEFAULT_OUT_DIR = "140325"
 DEFAULT_DURATION = 259200
 #SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
@@ -154,11 +154,12 @@ def relevant_stats_dict (stats):
 
     return result
 
-def experiment_main_comparison_brown_greedy(args, config, seeds):
+def experiment_main_comparison_brown_greedy(args, config, seeds, flag_seeds):
     results = []
-    exp_tag = "mainComparisonBrown_Greedy"
+    exp_tag = "mainComparisonBrown_Greedy"+ "_" + flag_seeds
     config.set(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, "false")
     results_directory = DEFAULT_OUT_DIR + "_results_greedy"
+    os.makedirs(results_directory, exist_ok=True)
     outfile = os.path.join(results_directory, f"{exp_tag}.csv")
 
     config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "600")
@@ -216,7 +217,7 @@ def experiment_main_comparison_brown_greedy(args, config, seeds):
                     stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
                     temp_spec_file.close()
 
-                    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                    with open(os.path.join(results_directory, f"{exp_tag}_{run_string}.json"), "w") as of:
                         stats.print(of)
 
                     result = dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
@@ -234,15 +235,16 @@ def experiment_main_comparison_brown_greedy(args, config, seeds):
         resultsDf = pd.concat([old_results, resultsDf])
     resultsDf.to_csv(outfile, index=False)
 
-    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
+    with open(os.path.join(results_directory, f"{exp_tag}_conf.ini"), "w") as of:
         config.write(of)
 
 
-def experiment_main_comparison_brown_baseline(args, config, seeds):
+def experiment_main_comparison_brown_baseline(args, config, seeds, flag_seeds):
     results = []
-    exp_tag = "mainComparisonBrown_Baseline"
+    exp_tag = "mainComparisonBrown_Baseline" + "_" + flag_seeds
     config.set(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, "false")
     results_directory = DEFAULT_OUT_DIR + "_results_baseline"
+    os.makedirs(results_directory, exist_ok=True)
     outfile = os.path.join(results_directory, f"{exp_tag}.csv")
 
     config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "600")
@@ -299,7 +301,7 @@ def experiment_main_comparison_brown_baseline(args, config, seeds):
                     stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
                     temp_spec_file.close()
 
-                    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                    with open(os.path.join(results_directory, f"{exp_tag}_{run_string}.json"), "w") as of:
                         stats.print(of)
 
                     result = dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
@@ -317,14 +319,15 @@ def experiment_main_comparison_brown_baseline(args, config, seeds):
         resultsDf = pd.concat([old_results, resultsDf])
     resultsDf.to_csv(outfile, index=False)
 
-    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
+    with open(os.path.join(results_directory, f"{exp_tag}_conf.ini"), "w") as of:
         config.write(of)
 
-def experiment_main_comparison_brown(args, config, seeds):
+def experiment_main_comparison_brown(args, config, seeds, flag_seeds):
     results = []
-    exp_tag = "mainComparisonBrown"
+    exp_tag = "mainComparisonBrown" + "_" + flag_seeds
     config.set(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, "false")
     results_directory = DEFAULT_OUT_DIR + "_results_probabilistic"
+    os.makedirs(results_directory, exist_ok=True)
     outfile = os.path.join(results_directory, f"{exp_tag}.csv")
 
     config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "600")
@@ -393,7 +396,7 @@ def experiment_main_comparison_brown(args, config, seeds):
                         stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
                         temp_spec_file.close()
 
-                        with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                        with open(os.path.join(results_directory, f"{exp_tag}_{run_string}.json"), "w") as of:
                             stats.print(of)
 
                         result = dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
@@ -410,14 +413,108 @@ def experiment_main_comparison_brown(args, config, seeds):
         resultsDf = pd.concat([old_results, resultsDf])
     resultsDf.to_csv(outfile, index=False)
 
-    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
+    with open(os.path.join(results_directory, f"{exp_tag}_conf.ini"), "w") as of:
         config.write(of)
 
-def experiment_main_comparison_green(args, config, seeds):
+def experiment_main_comparison_brown_normalized(args, config, seeds, flag_seeds):
     results = []
-    exp_tag = "mainComparisonGreen"
+    exp_tag = "mainComparisonBrown_normalized" + "_" + flag_seeds
     config.set(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, "false")
     results_directory = DEFAULT_OUT_DIR + "_results_probabilistic"
+    os.makedirs(results_directory, exist_ok=True)
+    outfile = os.path.join(results_directory, f"{exp_tag}.csv")
+
+    config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "600")
+    config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
+
+    POLICIES = ["probabilistic-carbon-aware"]
+    variants_mode = [0,1] #variants mode: 0 inactive, 1 active with speedup=utility for each variants
+
+    # Check existing results
+    old_results = None
+    if not args.force:
+        try:
+            old_results = pd.read_csv(outfile)
+        except:
+            pass
+
+    for seed in seeds:
+        config.set(conf.SEC_SIM, conf.SEED, str(seed))
+        seed_sequence = SeedSequence(seed)
+        for budget in [0.5, 2, 20, 50]:
+            config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
+            for variant_mode in variants_mode:
+                for pol in POLICIES:
+
+                    config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+
+                    of_values = [
+                        (0.5, 0.5)  # of-alpha=0, of-beta=1
+                    ]
+
+                    for of_alpha, of_beta in of_values:
+                        config.set(conf.SEC_POLICY, conf.ALPHA, str(of_alpha))
+                        config.set(conf.SEC_POLICY, conf.BETA, str(of_beta))
+
+                        keys = {
+                            "Policy": pol,
+                            "Budget": budget,
+                            "Seed": seed,
+                            "Variant_mode": variant_mode,
+                            "OF-Alpha": of_alpha,
+                            "OF-Beta": of_beta,
+                        }
+
+                        run_string = "_".join([f"{k}{v}" for k, v in keys.items()])
+
+                        # Check if we can skip this run
+                        if old_results is not None and not old_results[
+
+                            (old_results.Policy == pol) &
+                            (old_results.Budget == budget) &
+                            (old_results.Seed == seed) &
+                            (old_results.Variant_mode == variant_mode) &
+                            (old_results["OF-Alpha"] == of_alpha) &
+                            (old_results["OF-Beta"] == of_beta)
+                        ].empty:
+                            print("Skipping conf")
+                            continue
+
+                        rng = default_rng(seed_sequence.spawn(1)[0])
+                        temp_spec_file = generate_random_temp_spec_variants(
+                            rng, variants_mode=variant_mode, arrivals_to_single_node=False,
+                            cloud_cost_reg_a=COST_REG_CLOUD_LOW, cloud_cost_reg_b=COST_REG_CLOUD_HIGH
+                        )
+                        infra = default_infra(is_edge_green=False)
+                        stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+                        temp_spec_file.close()
+
+                        with open(os.path.join(results_directory, f"{exp_tag}_{run_string}.json"), "w") as of:
+                            stats.print(of)
+
+                        result = dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+                        results.append(result)
+                        print(result)
+
+                        resultsDf = pd.DataFrame(results)
+                        if old_results is not None:
+                            resultsDf = pd.concat([old_results, resultsDf])
+                        resultsDf.to_csv(outfile, index=False)
+
+    resultsDf = pd.DataFrame(results)
+    if old_results is not None:
+        resultsDf = pd.concat([old_results, resultsDf])
+    resultsDf.to_csv(outfile, index=False)
+
+    with open(os.path.join(results_directory, f"{exp_tag}_conf.ini"), "w") as of:
+        config.write(of)
+
+def experiment_main_comparison_green(args, config, seeds, flag_seeds):
+    results = []
+    exp_tag = "mainComparisonGreen"+ "_" + flag_seeds
+    config.set(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, "false")
+    results_directory = DEFAULT_OUT_DIR + "_results_probabilistic"
+    os.makedirs(results_directory, exist_ok=True)
     outfile = os.path.join(results_directory, f"{exp_tag}.csv")
 
     config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "600")
@@ -486,7 +583,7 @@ def experiment_main_comparison_green(args, config, seeds):
                         stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
                         temp_spec_file.close()
 
-                        with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                        with open(os.path.join(results_directory, f"{exp_tag}_{run_string}.json"), "w") as of:
                             stats.print(of)
 
                         result = dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
@@ -504,14 +601,15 @@ def experiment_main_comparison_green(args, config, seeds):
         resultsDf = pd.concat([old_results, resultsDf])
     resultsDf.to_csv(outfile, index=False)
 
-    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
+    with open(os.path.join(results_directory, f"{exp_tag}_conf.ini"), "w") as of:
         config.write(of)
 
-def experiment_main_comparison_green_greedy(args, config, seeds):
+def experiment_main_comparison_green_greedy(args, config, seeds, flag_seeds):
     results = []
-    exp_tag = "mainComparisonGreen_Greedy"
+    exp_tag = "mainComparisonGreen_Greedy"+ "_" + flag_seeds
     config.set(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, "false")
     results_directory = DEFAULT_OUT_DIR + "_results_greedy"
+    os.makedirs(results_directory, exist_ok=True)
     outfile = os.path.join(results_directory, f"{exp_tag}.csv")
 
     config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "600")
@@ -568,7 +666,7 @@ def experiment_main_comparison_green_greedy(args, config, seeds):
                     stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
                     temp_spec_file.close()
 
-                    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                    with open(os.path.join(results_directory, f"{exp_tag}_{run_string}.json"), "w") as of:
                         stats.print(of)
 
                     result = dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
@@ -586,15 +684,16 @@ def experiment_main_comparison_green_greedy(args, config, seeds):
         resultsDf = pd.concat([old_results, resultsDf])
     resultsDf.to_csv(outfile, index=False)
 
-    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
+    with open(os.path.join(results_directory, f"{exp_tag}_conf.ini"), "w") as of:
         config.write(of)
 
 
-def experiment_main_comparison_green_baseline(args, config, seeds):
+def experiment_main_comparison_green_baseline(args, config, seeds, flag_seeds):
     results = []
-    exp_tag = "mainComparisonGreen_Baseline"
+    exp_tag = "mainComparisonGreen_Baseline"+ "_" + flag_seeds
     config.set(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, "false")
     results_directory = DEFAULT_OUT_DIR + "_results_baseline"
+    os.makedirs(results_directory, exist_ok=True)
     outfile = os.path.join(results_directory, f"{exp_tag}.csv")
 
     config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "600")
@@ -650,7 +749,7 @@ def experiment_main_comparison_green_baseline(args, config, seeds):
                     stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
                     temp_spec_file.close()
 
-                    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                    with open(os.path.join(results_directory, f"{exp_tag}_{run_string}.json"), "w") as of:
                         stats.print(of)
 
                     result = dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
@@ -668,10 +767,103 @@ def experiment_main_comparison_green_baseline(args, config, seeds):
         resultsDf = pd.concat([old_results, resultsDf])
     resultsDf.to_csv(outfile, index=False)
 
-    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
+    with open(os.path.join(results_directory, f"{exp_tag}_conf.ini"), "w") as of:
         config.write(of)
 
 
+def experiment_main_comparison_green_normalized(args, config, seeds, flag_seeds):
+    results = []
+    exp_tag = "mainComparisonGreen_normalized"+ "_" + flag_seeds
+    config.set(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, "false")
+    results_directory = DEFAULT_OUT_DIR + "_results_probabilistic"
+    os.makedirs(results_directory, exist_ok=True)
+    outfile = os.path.join(results_directory, f"{exp_tag}.csv")
+
+    config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "600")
+    config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
+
+    POLICIES = ["probabilistic-carbon-aware"]
+
+    # Check existing results
+    old_results = None
+    if not args.force:
+        try:
+            old_results = pd.read_csv(outfile)
+        except:
+            pass
+
+    variants_mode = [0,1] #variants mode: 0 inactive, 1 active with speedup=utility for each variants
+
+    for seed in seeds:
+        config.set(conf.SEC_SIM, conf.SEED, str(seed))
+        seed_sequence = SeedSequence(seed)
+        for budget in [0.5, 2, 20, 50]:
+            config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
+            for variant_mode in variants_mode:
+                for pol in POLICIES:
+                    config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+                    of_values = [
+                        (0.5, 0.5),  # of-alpha=0, of-beta=1
+                    ]
+
+                    for of_alpha, of_beta in of_values:
+                        config.set(conf.SEC_POLICY, conf.ALPHA, str(of_alpha))
+                        config.set(conf.SEC_POLICY, conf.BETA, str(of_beta))
+
+                        keys = {
+                            "Policy": pol,
+                            "Budget": budget,
+                            "Seed": seed,
+                            "Variant_mode": variant_mode,
+                            "OF-Alpha": of_alpha,
+                            "OF-Beta": of_beta,
+
+                        }
+
+                        run_string = "_".join([f"{k}{v}" for k, v in keys.items()])
+
+                        # Check if we can skip this run
+                        if old_results is not None and not old_results[
+
+                            (old_results.Policy == pol) &
+                            (old_results.Budget == budget) &
+                            (old_results.Seed == seed) &
+                            (old_results.Variant_mode == variant_mode) &
+                            (old_results["OF-Alpha"] == of_alpha) &
+                            (old_results["OF-Beta"] == of_beta)
+                        ].empty:
+                            print("Skipping conf")
+                            continue
+
+                        rng = default_rng(seed_sequence.spawn(1)[0])
+                        temp_spec_file = generate_random_temp_spec_variants(
+                            rng, variants_mode=variant_mode, arrivals_to_single_node=False,
+                            cloud_cost_reg_a=COST_REG_CLOUD_HIGH, cloud_cost_reg_b=COST_REG_CLOUD_LOW
+                        )
+                        infra = default_infra(is_edge_green=True)
+                        stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+                        temp_spec_file.close()
+
+                        with open(os.path.join(results_directory, f"{exp_tag}_{run_string}.json"), "w") as of:
+                            stats.print(of)
+
+                        result = dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+                        results.append(result)
+                        print(result)
+
+                        resultsDf = pd.DataFrame(results)
+                        if old_results is not None:
+                            resultsDf = pd.concat([old_results, resultsDf])
+                        resultsDf.to_csv(outfile, index=False)
+
+
+    resultsDf = pd.DataFrame(results)
+    if old_results is not None:
+        resultsDf = pd.concat([old_results, resultsDf])
+    resultsDf.to_csv(outfile, index=False)
+
+    with open(os.path.join(results_directory, f"{exp_tag}_conf.ini"), "w") as of:
+        config.write(of)
 
 
 if __name__ == "__main__":
@@ -687,45 +879,62 @@ if __name__ == "__main__":
     config.set(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, "-1")
     config.set(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, str(DEFAULT_DURATION))
 
+    os.makedirs(DEFAULT_OUT_DIR, exist_ok=True)
+
+    flag_1half = "1half"
+    flag_2half = "2half"
+
     # BROWN SCENARIO
-    if args.experiment.lower() == "brown_probabilistic_1half":
+    if args.experiment.lower() == "brown_probabilistic_1half":  #sess1
         SEEDS = [1, 293, 287844, 2902, 944]
-        experiment_main_comparison_brown(args, config, SEEDS)
-    elif args.experiment.lower() == "brown_probabilistic_2half":
+        experiment_main_comparison_brown(args, config, SEEDS, flag_1half)
+    elif args.experiment.lower() == "brown_probabilistic_2half":    #sess2
         SEEDS = [9573, 102903, 193, 456, 71]
-        experiment_main_comparison_brown(args, config, SEEDS)
-    elif args.experiment.lower() == "brown_baseline_1half":
+        experiment_main_comparison_brown(args, config, SEEDS, flag_2half)
+    elif args.experiment.lower() == "brown_baseline_1half": #sess3
         SEEDS = [1, 293, 287844, 2902, 944]
-        experiment_main_comparison_brown_baseline(args, config, SEEDS)
-    elif args.experiment.lower() == "brown_baseline_2half":
+        experiment_main_comparison_brown_baseline(args, config, SEEDS, flag_1half)  #stopped
+    elif args.experiment.lower() == "brown_baseline_2half": #sess4
         SEEDS = [9573, 102903, 193, 456, 71]
-        experiment_main_comparison_brown_baseline(args, config, SEEDS)
-    elif args.experiment.lower() == "brown_greedy_1half":
+        experiment_main_comparison_brown_baseline(args, config, SEEDS, flag_2half)
+    elif args.experiment.lower() == "brown_greedy_1half":   #sess5
         SEEDS = [1, 293, 287844, 2902, 944]
-        experiment_main_comparison_brown_greedy(args, config, SEEDS)
-    elif args.experiment.lower() == "brown_greedy_2half":
+        experiment_main_comparison_brown_greedy(args, config, SEEDS, flag_1half)    #stopped
+    elif args.experiment.lower() == "brown_greedy_2half":   #sess6
         SEEDS = [9573, 102903, 193, 456, 71]
-        experiment_main_comparison_brown_greedy(args, config, SEEDS)
+        experiment_main_comparison_brown_greedy(args, config, SEEDS, flag_2half)
+    elif args.experiment.lower() == "brown_probabilistic_norm_1half":   #sess7
+        SEEDS = [1, 293, 287844, 2902, 944]
+        experiment_main_comparison_brown_normalized(args, config, SEEDS, flag_1half)
+    elif args.experiment.lower() == "brown_probabilistic_norm_2half":   #sess8
+        SEEDS = [9573, 102903, 193, 456, 71]
+        experiment_main_comparison_brown_normalized(args, config, SEEDS, flag_2half)    #stopped
 
     #GREEN SCENARIO
-    elif args.experiment.lower() == "green_probabilistic_1half":
+    elif args.experiment.lower() == "green_probabilistic_1half":    #sess11
         SEEDS = [1, 293, 287844, 2902, 944]
-        experiment_main_comparison_green(args, config, SEEDS)
-    elif args.experiment.lower() == "green_probabilistic_2half":
+        experiment_main_comparison_green(args, config, SEEDS, flag_1half)
+    elif args.experiment.lower() == "green_probabilistic_2half":    #sess12
         SEEDS = [9573, 102903, 193, 456, 71]
-        experiment_main_comparison_green(args, config, SEEDS)
-    elif args.experiment.lower() == "green_baseline_1half":
+        experiment_main_comparison_green(args, config, SEEDS, flag_2half)
+    elif args.experiment.lower() == "green_baseline_1half":     #sess13
         SEEDS = [1, 293, 287844, 2902, 944]
-        experiment_main_comparison_green_baseline(args, config, SEEDS)
-    elif args.experiment.lower() == "green_baseline_2half":
+        experiment_main_comparison_green_baseline(args, config, SEEDS, flag_1half)
+    elif args.experiment.lower() == "green_baseline_2half":     #sess14
         SEEDS = [9573, 102903, 193, 456, 71]
-        experiment_main_comparison_green_baseline(args, config, SEEDS)
-    elif args.experiment.lower() == "green_greedy_1half":
+        experiment_main_comparison_green_baseline(args, config, SEEDS, flag_2half) #stopped
+    elif args.experiment.lower() == "green_greedy_1half":       #sess15
         SEEDS = [1, 293, 287844, 2902, 944]
-        experiment_main_comparison_green_greedy(args, config, SEEDS)
-    elif args.experiment.lower() == "green_greedy_2half":
+        experiment_main_comparison_green_greedy(args, config, SEEDS, flag_1half)
+    elif args.experiment.lower() == "green_greedy_2half":       #sess16
         SEEDS = [9573, 102903, 193, 456, 71]
-        experiment_main_comparison_green_greedy(args, config, SEEDS)
+        experiment_main_comparison_green_greedy(args, config, SEEDS, flag_2half)    #stopped
+    elif args.experiment.lower() == "green_probabilistic_norm_1half":   #sess17
+        SEEDS = [1, 293, 287844, 2902, 944]
+        experiment_main_comparison_green_normalized(args, config, SEEDS, flag_1half)
+    elif args.experiment.lower() == "green_probabilistic_norm_2half":   #sess18
+        SEEDS = [9573, 102903, 193, 456, 71]
+        experiment_main_comparison_green_normalized(args, config, SEEDS, flag_2half)    #stopped
 
     else:
         print("Unknown experiment!")

@@ -89,7 +89,6 @@ def compute_cloud_energy(function, dispatcher, serv_time_cloud, cloud_node, init
          input_size_mean * (dispatcher_tx_energy + cloud_node_rx_energy) +
          output_size_mean * (cloud_node_tx_energy + dispatcher_rx_energy)+
          output_size_mean * (dispatcher_tx_energy + local_node_rx_energy)) *
-        #output_size_mean * (dispatcher_tx_energy + local_node_rx_energy)) *
         (1 / (3600 * 1000)) *
         float(co2_cloud)
     )

@@ -151,29 +151,6 @@ class Policy:
             return None
         return self.simulation.node_choice_rng.choice(peers, p=probs)
 
-    def compute_g_co2_decision(self, current_node, f, c, scheduler_decision):
-        if scheduler_decision == SchedulerDecision.EXEC:
-            current_node.g_co2_emissions[f][SchedulerDecision.EXEC] = compute_local_energy(
-                f, current_node, f.serviceMean)
-        elif scheduler_decision == SchedulerDecision.EXEC_VAR:
-            v = f.active_variant
-            current_node.g_co2_emissions[v][SchedulerDecision.EXEC_VAR] = compute_local_variant_energy(
-                v, current_node, v.serviceMean)
-        elif scheduler_decision == SchedulerDecision.OFFLOAD_EDGE:
-            remote_node = self.pick_edge_node(f, c)
-            current_node.g_co2_emissions[f][scheduler_decision] = compute_edge_energy(
-                f, remote_node.curr_memory * remote_node.peer_exposed_memory_fraction, remote_node.processing_power_consumption,
-                f.serviceMean, current_node.tx_energy_consumption, remote_node.rx_energy_consumption,
-                current_node.rx_energy_consumption, remote_node.tx_energy_consumption,
-                remote_node.co2_footprint.co2_intensity)
-        elif conf.OFFLOAD_CLOUD_DECISION in scheduler_decision.name:
-            region_name = self.simulation.get_region_name_by_scheduler_decision(scheduler_decision)
-            remote_node = self.simulation.pick_cloud_remote_node_by_region(region_name)
-            #current_node.g_co2_emissions[f][scheduler_decision] = compute_cloud_energy(f, remote_node, f.serviceMean,
-            #                                                                           current_node.tx_energy_consumption,
-            #                                                                           current_node.rx_energy_consumption)
-
-
 class BasicPolicy(Policy):
 
     def schedule(self, f, c, offloaded_from):
@@ -578,6 +555,8 @@ class GreedyCarbonAware(GreedyPolicy):
         self.decision_dispatcher = {}
         self.decision_co2 = defaultdict(list)   #k: co2_intensity v: [decision] -> for main decision
 
+        self.decision_co2[self.node.co2_footprint.co2_intensity].append(SchedulerDecision.EXEC)
+
         for dispatcher in self.simulation.infra.dispatchers:
             for decision in SchedulerDecision:
                 if dispatcher.region.name.upper() in decision.name:
@@ -585,8 +564,10 @@ class GreedyCarbonAware(GreedyPolicy):
                     self.decision_dispatcher[decision] = dispatcher
 
         # cloud ranking of lowest co2 for offloading in case of impossible local execution
-        self.cloud_co2_ranking = dict(sorted(self.decision_co2.items())) #k: co2_intensity v: [decision]
-        self.decision_co2[self.node.co2_footprint.co2_intensity].append(SchedulerDecision.EXEC)
+        self.cloud_co2_ranking = {
+            co2: [d for d in decisions if d != SchedulerDecision.EXEC]
+            for co2, decisions in sorted(self.decision_co2.items())
+        }
 
     def schedule(self, f, c, offloaded_from):
         remote_node = None
@@ -623,20 +604,10 @@ class GreedyCarbonAware(GreedyPolicy):
 
         return decision, remote_node
 
-class GreedyCarbonAwareStrict(GreedyPolicy):
+class GreedyCarbonAwareStrict(GreedyCarbonAware):
 
     def __init__ (self, simulation, node):
         super().__init__(simulation, node)
-        self.decision_dispatcher = {}
-        self.decision_co2 = defaultdict(list)   #k: co2_intensity v: [decision] -> for general decision
-
-        for dispatcher in self.simulation.infra.dispatchers:
-            for decision in SchedulerDecision:
-                if dispatcher.region.name.upper() in decision.name:
-                    self.decision_co2[dispatcher.co2_footprint.co2_intensity].append(decision)
-                    self.decision_dispatcher[decision] = dispatcher
-
-        self.decision_co2[self.node.co2_footprint.co2_intensity].append(SchedulerDecision.EXEC)
 
     def schedule(self, f, c, offloaded_from):
         remote_node = None

@@ -222,6 +222,8 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                     probabilities = self.renormalize_probs(probabilities, s)
                     decision, node = self.rng.choice(list(probabilities.keys()), p=list(probabilities.values())), None
                 else:
+
+                    #'''
                     # NOTE: we may add new Cloud offloadings even if p_cloud=0
                     # Attempt Cloud offloading if utility allows
                     if c.utility > 0.0 and \
@@ -240,6 +242,8 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                         return (decision, dispatcher)
                     else:
                         return (SchedulerDecision.DROP, None)
+                    #'''
+                    return (SchedulerDecision.DROP, None)
 
             elif self.local_rejection_fallback == "drop":
                 return (SchedulerDecision.DROP, None)
@@ -259,8 +263,52 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
         # Local rejection due to lack of resources
         if decision == SchedulerDecision.EXEC_VAR and not self.can_execute_locally(f):
+
+            '''
             self.curr_local_blocked_reqs += 1
+
+            if self.local_rejection_fallback == "fgcs24" or self.local_rejection_fallback == "reschedule":
+                probabilities[SchedulerDecision.EXEC_VAR] = 0.0
+                probabilities[SchedulerDecision.EXEC] = 0.0
+
+                if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
+                    for cloud_decision, prob in probabilities.items():
+                        if conf.OFFLOAD_CLOUD_DECISION in cloud_decision.name:
+                            probabilities[decision] = 0.0
+
+                s = sum(probabilities.values())
+                if s > 0.0:
+                    probabilities = self.renormalize_probs(probabilities, s)
+                    decision, node = self.rng.choice(list(probabilities.keys()), p=list(probabilities.values())), None
+                else:   
+                    # NOTE: we may add new Cloud offloadings even if p_cloud=0
+                    # Attempt Cloud offloading if utility allows
+                    if c.utility > 0.0 and \
+                            self.simulation.stats.cost / self.simulation.t * 3600 < self.budget \
+                            and (self.allow_multi_offloading or len(offloaded_from) == 0):
+
+                        cloud_decisions = []
+                        cloud_probs = []
+                        for cloud_decision, prob in probabilities.items():
+                            if conf.OFFLOAD_CLOUD_DECISION in cloud_decision.name:
+                                cloud_decisions.append(cloud_decision)
+                                cloud_probs.append(prob)
+
+                        decision, dispatcher = self.pick_greener_cloud_region()
+
+                        return (decision, dispatcher)
+                    else:
+                        return (SchedulerDecision.DROP, None)
+
+                return (SchedulerDecision.DROP, None)
+
+            elif self.local_rejection_fallback == "drop":
+                return (SchedulerDecision.DROP, None)
+            else:
+                raise RuntimeError(f"Unknown local rejection fallback: {self.local_rejection_fallback}")
+            '''
             return (SchedulerDecision.DROP, None)
+
 
         if conf.OFFLOAD_CLOUD_DECISION in decision.name and self.strict_budget_enforce:
             if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
@@ -609,45 +657,35 @@ class RandomPolicy(Policy):
         super().__init__(simulation, node)
         self.rng = self.simulation.policy_rng1
         self.rng_variant = self.simulation.rng_variant
-        self.edge_enabled = simulation.config.getboolean(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, fallback="true")
         self.decisions = list(SchedulerDecision)
+        self.decisions.remove(SchedulerDecision.OFFLOAD_EDGE)
 
     def schedule(self, f, c, offloaded_from):
-        if not self.simulation.is_approximate_computing_enabled:
-            decision = self.rng.choice(self.decisions[:1] + self.decisions[2:])
+        decisions = self.decisions
+        if not f.has_variants:
+            decisions = decisions[:1]+decisions[2:]
+            decision = self.rng.choice(decisions)
 
             if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
-                decision = self.rng.choice(self.decisions[2:])
+                decision = self.rng.choice(decisions[2:])
+            return (decision, None)
         else:
-            if not f.has_variants:
-                decision = self.rng.choice(self.decisions[:1] + self.decisions[2:])
+            decision = self.rng.choice(decisions)
 
-                if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
-                    decision = self.rng.choice(self.decisions[2:])
-            else:
-                decision = self.rng.choice(self.decisions)
+            if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
+                decision = self.rng.choice(decisions[1:])
+            if decision == SchedulerDecision.EXEC_VAR:
+                lightest_variant = min(f.variants, key=lambda variant: variant.speedup)
+                lightest_variant_func = lightest_variant.self_function
 
-                if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
-                    decision = self.rng.choice(self.decisions[1:])
+                if self.can_execute_locally(lightest_variant_func):
+                    f.active_variant = lightest_variant_func
+                else:
+                    decisions = decisions[2:]
+                    decision = self.rng.choice(decisions)
 
-                #se sto qui sicuro non mi esce EXEC e ho delle varianti
-                if decision == SchedulerDecision.EXEC_VAR:
+            return (decision, None)
 
-                    # if request was offloaded and decision is exec_var -> exec
-                    if len(offloaded_from) > 0:
-                        decision = SchedulerDecision.EXEC
-                        if not self.can_execute_locally(f):
-                            decision = self.rng.choice(self.decisions[2:])
-                    else:
-                        random_variant = self.rng_variant.choice(self.simulation.function_variants[f])
-                        random_variant_func = random_variant
-                        if self.can_execute_locally(random_variant_func):
-                            f.active_variant = random_variant_func
-                        else:
-                            decision = self.rng.choice(self.decisions[2:])
-
-        self.compute_g_co2_decision(self.node, f, c, decision)
-        return decision, None
 
     def update(self):
         pass

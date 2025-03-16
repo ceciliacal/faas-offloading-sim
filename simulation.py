@@ -1,6 +1,4 @@
 import configparser
-import csv
-import os
 import sys
 import time
 from datetime import datetime
@@ -16,10 +14,10 @@ import stateful
 from arrivals import ArrivalProcess
 from co2_footprint import compute_local_energy, compute_local_variant_energy, compute_cloud_energy, compute_edge_energy
 from faas import *
-from statistics import Stats
 from infrastructure import *
 from policy import SchedulerDecision, add_enum_members
 from stateful import key_locator
+from statistics import Stats
 from utils import plot
 
 
@@ -514,12 +512,14 @@ class Simulation:
                 curr_node = remote_node
             if n.region.is_cloud():
                 #cloud node
+                assert len(event.offloaded_from) == 2
                 initial_node = event.offloaded_from[0]
                 dispatcher = event.offloaded_from[1]
                 #energy for function processing on cloud node + offloading from local node to dispatcher
                 function_co2_emission = compute_cloud_energy(f, dispatcher, duration, n, initial_node)
             else:
                 #edge node
+                assert len(event.offloaded_from) == 1
                 initial_node = event.offloaded_from[0]
                 function_co2_emission = compute_edge_energy(f, n.curr_memory, n.processing_power_consumption,
                                                             duration, initial_node.tx_energy_consumption,
@@ -528,6 +528,7 @@ class Simulation:
                                                             n.tx_energy_consumption,
                                                             n.co2_footprint.co2_intensity)
         else:
+            #todo: togliere distinzione if default tanto compute_local_energy e compute_local_variant_energy sono uguali
             if f.is_default:
                 #default function
                 function_co2_emission = compute_local_energy(f, n, duration)
@@ -618,7 +619,7 @@ class Simulation:
         if sched_decision == SchedulerDecision.EXEC_VAR:
 
             assert n.region.is_cloud() == False
-            assert len(event.offloaded_from) == 0
+            #assert len(event.offloaded_from) == 0
 
             f = f.active_variant
 
@@ -641,8 +642,6 @@ class Simulation:
             self.schedule(float(self.t + init_time + duration),
                           Completion(arrival_time, f, c, n, init_time > 0, duration, None,
                                      data_access_time))
-
-            #self.update_co2_stats(n,f,sched_decision)
 
         elif sched_decision == SchedulerDecision.EXEC:
 

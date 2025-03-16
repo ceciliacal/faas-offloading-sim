@@ -6,7 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-def plot_boxplots(input_file_name, output_folder="plots_new"):
+def plot_boxplots(input_file_name, output_folder="140325_results_probabilistic/plots"):
     csv_file = os.path.join(os.path.dirname(__file__), input_file_name)
     os.makedirs(output_folder, exist_ok=True)
     data = pd.read_csv(csv_file)
@@ -333,7 +333,21 @@ def mean_std(input_file_name):
 
 # Usage example
 if __name__ == "__main__":
-    input_file_name = "180225_mainComparisonBrown_250225.csv"
+    #input_file_name = "/home/cecilia/workspace/faas-offloading/050325_results_baseline/mainComparisonBrown_Baseline_1half.csv"
+    #input_file_name = "/home/cecilia/workspace/faas-offloading/050325_results_baseline/mainComparisonGreen_Baseline_1half.csv"
+    #input_file_name = "/home/cecilia/workspace/faas-offloading/050325_results_probabilistic/mainComparisonBrown_normalized_1half.csv"
+    #input_file_name = "/home/cecilia/workspace/faas-offloading/050325_results_probabilistic/mainComparisonGreen_normalized.csv"
+    #input_file_name = "/home/cecilia/workspace/faas-offloading/050325_results_probabilistic/mainComparisonBrown.csv"
+    #input_file_name = "/home/cecilia/workspace/faas-offloading/050325_results_probabilistic/mainComparisonGreen.csv"
+    #input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_probabilistic/mainComparisonBrown_temp.csv"
+    #input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_probabilistic/mainComparisonBrown_1half.csv"
+    #input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_probabilistic/mainComparisonBrown_normalized_1half.csv"
+    #input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_probabilistic/mainComparisonGreen_1half.csv"
+    input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_probabilistic/mainComparisonGreen_normalized_1half.csv"
+
+
+
+
     #mean_std(input_file_name)
     plot_boxplots(input_file_name)
     #plot_boxplots_cost(input_file_name)

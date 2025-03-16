@@ -198,13 +198,17 @@ def generate_random_temp_spec_variants(rng, n_functions=5, variants_mode=0, n_va
             f["speedup"].extend(float(rng.uniform(0.25, 0.85)) for _ in range(n_variants - 1))
             f["utility"].extend(f["speedup"][1:])
 
+
+    functions_arrival_distributions = {f["name"]: "exp" for f in functions}
+
+    '''
     if dynamic_rate_coeff > 1.0:
         print("Forcing Poisson arrivals")
         functions_arrival_distributions = {f["name"]: "exp" for f in functions}
     else:
         functions_arrival_distributions = rng.choice(ARRIVAL_DISTRIBUTIONS, size=n_functions)
         functions_arrival_distributions = {f["name"]: d for f, d in zip(functions, functions_arrival_distributions)}
-
+    '''
 
     ntemp = tempfile.NamedTemporaryFile(mode="w")
     write_spec(ntemp, functions, classes, nodes, load_coeff, dynamic_rate_coeff, arrivals_to_single_node,
