@@ -132,46 +132,24 @@ def generate_random_temp_spec (rng, n_functions=5, load_coeff=1.0, dynamic_rate_
 def generate_random_temp_spec_variants(rng, n_functions=5, variants_mode=0, n_variants=2, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=False,
                               n_classes=2, cloud_cost_reg_a=0.00001, cloud_cost_reg_b=0.00001, cloud_speedup=1.0):
     classes = [
-        {'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 1.0},
+        {'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 3.0},
         {'name': 'standard', 'max_resp_time': 0.5, 'utility': 0.01, 'arrival_weight': 7.0}
     ]
     functions = [{'name': 'f1', 'memory': 512, 'duration_mean': 0.4, 'duration_scv': 1.0, 'init_mean': 0.5}, {'name': 'f2', 'memory': 512, 'duration_mean': 0.2, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f3', 'memory': 128, 'duration_mean': 0.3, 'duration_scv': 1.0, 'init_mean': 0.6}, {'name': 'f4', 'memory': 1024, 'duration_mean': 0.25, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f5', 'memory': 256, 'duration_mean': 0.45, 'duration_scv': 1.0, 'init_mean': 0.5}]
 
-
     nodes = [
-        #edge node a
         {'name': 'edge_node_a', 'region': 'edge_zone_1', 'memory': 3072,
-         'processing_power_consumption': 100.0, 'tx_energy_consumption': 25000.0, 'rx_energy_consumption': 20000.0,
-         'tx_energy_consumption_local': 30000.0, 'tx_energy_consumption_remote': 90000.0,
-         'rx_energy_consumption_local': 22000.0, 'rx_energy_consumption_remote': 60000.0 },
-        # edge node b
+         'processing_power_consumption': 100.0, 'tx_energy_consumption': 51200.0, 'rx_energy_consumption': 30720.0},
         {'name': 'edge_node_b', 'region': 'edge_zone_1', 'memory': 3072,
-                  'processing_power_consumption': 100.0, 'tx_energy_consumption': 25000.0, 'rx_energy_consumption': 20000.0,
-         'tx_energy_consumption_local': 30000.0, 'tx_energy_consumption_remote': 90000.0,
-         'rx_energy_consumption_local': 22000.0, 'rx_energy_consumption_remote': 60000.0 },
-        # edge node c
+         'processing_power_consumption': 100.0, 'tx_energy_consumption': 51200.0, 'rx_energy_consumption': 30720.0},
         {'name': 'edge_node_c', 'region': 'edge_zone_1', 'memory': 3072,
-         'processing_power_consumption': 100.0, 'tx_energy_consumption': 25000.0, 'rx_energy_consumption': 20000.0,
-         'tx_energy_consumption_local': 30000.0, 'tx_energy_consumption_remote': 90000.0,
-         'rx_energy_consumption_local': 22000.0, 'rx_energy_consumption_remote': 60000.0},
-        # cloud node a
+         'processing_power_consumption': 100.0, 'tx_energy_consumption': 51200.0, 'rx_energy_consumption': 30720.0},
         {'name': 'cloud_node_a', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 128000,
-         'processing_power_consumption': 800.0, 'tx_energy_consumption': 1500.0, 'rx_energy_consumption': 1000.0},
-        # cloud node b
+         'processing_power_consumption': 800.0, 'tx_energy_consumption': 5120.0, 'rx_energy_consumption': 3072.0},
         {'name': 'cloud_node_b', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 128000,
-         'processing_power_consumption': 800.0, 'tx_energy_consumption': 1500.0, 'rx_energy_consumption': 1000.0},
-        # dispatcher node a
-        {'name': 'dispatcher_a', 'region': 'cloud_region_a', 'memory': 0, 'policy': 'dispatcher-policy',
-         'tx_energy_consumption': 1500.0, 'rx_energy_consumption': 1000.0,
-         'tx_energy_consumption_local': 30000.0, 'tx_energy_consumption_remote': 85000.0,
-         'rx_energy_consumption_local': 22000.0, 'rx_energy_consumption_remote': 60000.0
-         },
-        # dispatcher node b
-        {'name': 'dispatcher_b', 'region': 'cloud_region_b', 'memory': 0, 'policy': 'dispatcher-policy',
-         'tx_energy_consumption': 1500.0, 'rx_energy_consumption': 1000.0,
-         'tx_energy_consumption_local': 30000.0, 'tx_energy_consumption_remote': 85000.0,
-         'rx_energy_consumption_local': 22000.0, 'rx_energy_consumption_remote': 60000.0
-         }
+         'processing_power_consumption': 800.0, 'tx_energy_consumption': 5120.0, 'rx_energy_consumption': 3072.0},
+        {'name': 'dispatcher_a', 'region': 'cloud_region_a', 'memory': 0, 'policy': 'dispatcher-policy'},
+        {'name': 'dispatcher_b', 'region': 'cloud_region_b', 'memory': 0, 'policy': 'dispatcher-policy'}
     ]
 
     # Extend functions list if needed

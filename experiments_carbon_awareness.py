@@ -18,7 +18,7 @@ DEFAULT_DURATION = 259200
 PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
 COST_REG_CLOUD_HIGH = 0.00003
 COST_REG_CLOUD_LOW = 0.00001
-BUDGETS=[0.5, 5, 20, 50, 2]
+BUDGETS=[0.5, 5, 20, 50]
 
 
 def print_results (results, filename=None):

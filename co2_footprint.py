@@ -74,31 +74,21 @@ def compute_cloud_energy(function, dispatcher, serv_time_cloud, cloud_node, init
     power_cons_cloud = dispatcher.avg_processing_power_consumption
     m_f = function.memory
     co2_cloud = dispatcher.co2_footprint.co2_intensity
-    input_size_mean = function.inputSizeMean    #KB
+    input_size_mean = function.inputSizeMean
     output_size_mean = function.outputSizeMean
-
-    if co2_cloud == initial_node.co2_footprint.co2_intensity:   #local cloud region
-        dispatcher_rx_energy = dispatcher.rx_energy_consumption_local
-        dispatcher_tx_energy = dispatcher.tx_energy_consumption_local
-        local_node_rx_energy = initial_node.rx_energy_consumption_local
-        local_node_tx_energy = initial_node.tx_energy_consumption_local
-    else:
-        dispatcher_rx_energy = dispatcher.rx_energy_consumption_remote
-        dispatcher_tx_energy = dispatcher.tx_energy_consumption_remote
-        local_node_rx_energy = initial_node.rx_energy_consumption_remote
-        local_node_tx_energy = initial_node.tx_energy_consumption_remote
-
-    dispatcher_rx_energy_dc = dispatcher.rx_energy_consumption
-    dispatcher_tx_energy_dc = dispatcher.tx_energy_consumption
+    dispatcher_rx_energy = dispatcher.avg_rx_energy_consumption
+    dispatcher_tx_energy = dispatcher.avg_tx_energy_consumption
+    local_node_rx_energy = initial_node.rx_energy_consumption
+    local_node_tx_energy = initial_node.tx_energy_consumption
     cloud_node_rx_energy = cloud_node.rx_energy_consumption
     cloud_node_tx_energy = cloud_node.tx_energy_consumption
 
     return (
-        ((power_cons_cloud * float(m_f / m_u) * serv_time_cloud) +
-         input_size_mean * (local_node_tx_energy + dispatcher_rx_energy) +
-         input_size_mean * (dispatcher_tx_energy_dc + cloud_node_rx_energy) +
-         output_size_mean * (cloud_node_tx_energy + dispatcher_rx_energy_dc)+
-         output_size_mean * (dispatcher_tx_energy + local_node_rx_energy)) *
-        (1 / (3600 * 1000)) *
-        float(co2_cloud)
+            ((power_cons_cloud * float(m_f / m_u) * serv_time_cloud) +
+             input_size_mean * (local_node_tx_energy + dispatcher_rx_energy) +
+             input_size_mean * (dispatcher_tx_energy + cloud_node_rx_energy) +
+             output_size_mean * (cloud_node_tx_energy + dispatcher_rx_energy) +
+             output_size_mean * (dispatcher_tx_energy + local_node_rx_energy)) *
+            (1 / (3600 * 1000)) *
+            float(co2_cloud)
     )

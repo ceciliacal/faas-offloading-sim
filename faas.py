@@ -44,11 +44,13 @@ class ContainerPool:
     def __repr__ (self):
         return repr(self.pool)
 
+
 class Node:
-    def __init__(self, name, memory, speedup, region, co2_footprint, processing_power_consumption,
-                 tx_energy_consumption, rx_energy_consumption, tx_energy_consumption_local, rx_energy_consumption_local,
-                 tx_energy_consumption_remote, rx_energy_consumption_remote, cost=0.0, custom_sched_policy=None,
-                 peer_exposed_memory_fraction=1.0):
+    def __init__(self, name, memory, speedup, region, co2_footprint,
+                 processing_power_consumption,
+                 tx_energy_consumption,
+                 rx_energy_consumption,
+                 cost=0.0, custom_sched_policy=None, peer_exposed_memory_fraction=1.0, g_co2_emissions = None):
         self.name = name
         self.total_memory = memory
         self.curr_memory = memory
@@ -64,14 +66,14 @@ class Node:
         self.co2_footprint = co2_footprint
 
         self.processing_power_consumption = processing_power_consumption     #watt
-        self.tx_energy_consumption = tx_energy_consumption  / 1e9            #Joule/KB
+        self.tx_energy_consumption = tx_energy_consumption  / 1e9            #Joule/byte
         self.rx_energy_consumption = rx_energy_consumption  / 1e9
         self.g_co2_emissions = {}   #key: <function, schedulerDecision>, value: g CO2
 
-        self.tx_energy_consumption_local = tx_energy_consumption_local / 1e9        #to local Cloud region
-        self.tx_energy_consumption_remote = tx_energy_consumption_remote / 1e9      #to Remote Cloud region
-        self.rx_energy_consumption_local = rx_energy_consumption_local / 1e9
-        self.rx_energy_consumption_remote = rx_energy_consumption_remote / 1e9
+        #self.tx_energy_consumption_local = tx_energy_consumption_local / 1e9        #to local Cloud region
+        #self.tx_energy_consumption_remote = tx_energy_consumption_remote / 1e9      #to Remote Cloud region
+        #self.rx_energy_consumption_local = rx_energy_consumption_local / 1e9
+        #self.rx_energy_consumption_remote = rx_energy_consumption_remote / 1e9
 
 
     def __repr__(self):
@@ -93,14 +95,13 @@ class Dispatcher(Node):
                  processing_power_consumption,
                  tx_energy_consumption,
                  rx_energy_consumption,
-                 tx_energy_consumption_local, rx_energy_consumption_local,
-                 tx_energy_consumption_remote, rx_energy_consumption_remote,
                  cost=0.0, custom_sched_policy="dispatcher-policy", peer_exposed_memory_fraction=0.0):
 
-        super().__init__(name, memory, speedup, region, co2_footprint, processing_power_consumption,
-                         tx_energy_consumption, rx_energy_consumption, tx_energy_consumption_local, rx_energy_consumption_local,
-                 tx_energy_consumption_remote, rx_energy_consumption_remote, cost, custom_sched_policy,
-                         peer_exposed_memory_fraction)
+        super().__init__(name, memory, speedup, region, co2_footprint,
+                         processing_power_consumption,
+                         tx_energy_consumption,
+                         rx_energy_consumption,
+                         cost, custom_sched_policy, peer_exposed_memory_fraction)
         self.aggregated_region_memory = 0.0
         self.avg_speedup = 0.0
         self.aggregated_region_cost = 0.0
@@ -110,9 +111,10 @@ class Dispatcher(Node):
         self.avg_cold_starts:dict = {}   #key = function, value = avg #cold starts
 
         self.avg_processing_power_consumption = 0.0
-        #self.avg_tx_energy_consumption = 0.0
-        #self.avg_rx_energy_consumption = 0.0
+        self.avg_tx_energy_consumption = 0.0
+        self.avg_rx_energy_consumption = 0.0
         self.cloud_nodes_list = []
+
 
 
 @dataclass
