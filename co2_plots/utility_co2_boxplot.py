@@ -6,9 +6,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-def plot_boxplots(input_file_name, output_folder="140325_results_probabilistic/plots"):
+def plot_boxplots(input_file_name, output_folder_rel):
     csv_file = os.path.join(os.path.dirname(__file__), input_file_name)
-    os.makedirs(output_folder, exist_ok=True)
+    os.makedirs(output_folder_rel, exist_ok=True)
     data = pd.read_csv(csv_file)
 
     required_columns = [cp.BUDGET, cp.VAR_MODE, cp.ALPHA, cp.BETA, cp.POLICY, cp.UTILITY, cp.CO2_EMISS_TOTAL, cp.SEED]
@@ -72,16 +72,18 @@ def plot_boxplots(input_file_name, output_folder="140325_results_probabilistic/p
 
         # Adjust layout and save plot
         plt.tight_layout()
-        exp_scenario = input_file_name.split(".")[0]
+        base_dir = os.path.dirname(input_file_name)
+        output_folder = os.path.join(base_dir, output_folder_rel)
+        exp_scenario = os.path.splitext(os.path.basename(input_file_name))[0]
         filename = f"{exp_scenario}_budget-{budget}_variant-{variant_mode}.png"
         save_path = os.path.join(output_folder, filename)
         plt.savefig(save_path, dpi=300)
         plt.show()
 
 
-def plot_boxplots_cost(input_file_name, output_folder="plots_cost"):
+def plot_boxplots_cost(input_file_name, output_folder_rel):
     csv_file = os.path.join(os.path.dirname(__file__), input_file_name)
-    os.makedirs(output_folder, exist_ok=True)
+    os.makedirs(output_folder_rel, exist_ok=True)
     data = pd.read_csv(csv_file)
 
     # Ensure relevant columns exist
@@ -170,7 +172,9 @@ def plot_boxplots_cost(input_file_name, output_folder="plots_cost"):
 
         # Adjust layout and save plot
         plt.tight_layout()
-        exp_scenario = input_file_name.split(".")[0]
+        base_dir = os.path.dirname(input_file_name)
+        output_folder = os.path.join(base_dir, output_folder_rel)
+        exp_scenario = os.path.splitext(os.path.basename(input_file_name))[0]
         filename = f"{exp_scenario}_budget-{budget}_variant-{variant_mode}.png"
         save_path = os.path.join(output_folder, filename)
         plt.savefig(save_path, dpi=300)
@@ -333,29 +337,37 @@ def mean_std(input_file_name):
 
 # Usage example
 if __name__ == "__main__":
+    brown = "brown_plots"
+    green = "green_plots"
     #input_file_name = "/home/cecilia/workspace/faas-offloading/050325_results_baseline/mainComparisonBrown_Baseline_1half.csv"
     #input_file_name = "/home/cecilia/workspace/faas-offloading/050325_results_baseline/mainComparisonGreen_Baseline_1half.csv"
     #input_file_name = "/home/cecilia/workspace/faas-offloading/050325_results_probabilistic/mainComparisonBrown_normalized_1half.csv"
     #input_file_name = "/home/cecilia/workspace/faas-offloading/050325_results_probabilistic/mainComparisonGreen_normalized.csv"
     #input_file_name = "/home/cecilia/workspace/faas-offloading/050325_results_probabilistic/mainComparisonBrown.csv"
     #input_file_name = "/home/cecilia/workspace/faas-offloading/050325_results_probabilistic/mainComparisonGreen.csv"
-    #input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_probabilistic/mainComparisonBrown_temp.csv"
-    #input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_probabilistic/mainComparisonBrown_1half.csv"
-    #input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_probabilistic/mainComparisonBrown_normalized_1half.csv"
-    #input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_probabilistic/mainComparisonGreen_1half.csv"
-    input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_probabilistic/mainComparisonGreen_normalized_1half.csv"
+    #input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_probabilistic/mainComparisonBrown_normalized.csv"
+    #input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_greedy/mainComparisonBrown_Greedy_1half.csv"
+
+    '''
+    input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_baseline/mainComparisonGreen_Baseline.csv"
+    plot_boxplots(input_file_name, green)
+    input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_baseline/mainComparisonBrown_Baseline.csv"
+    plot_boxplots(input_file_name, brown)
+    input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_greedy/mainComparisonGreen_Greedy.csv"
+    plot_boxplots(input_file_name, green)
+    input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_greedy/mainComparisonBrown_Greedy.csv"
+    plot_boxplots(input_file_name, brown)
+    
+    input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_probabilistic/mainComparisonBrown_allPolicies.csv"
+    #plot_boxplots(input_file_name, brown)
+    plot_boxplots_cost(input_file_name, brown)
+    '''
+    input_file_name = "/home/cecilia/workspace/faas-offloading/140325_results_probabilistic/mainComparisonBrown_allPolicies.csv"
+    plot_boxplots_cost(input_file_name, brown)
+    #plot_boxplots_cost(input_file_name, "green_plots_all")
 
 
 
 
-    #mean_std(input_file_name)
-    plot_boxplots(input_file_name)
-    #plot_boxplots_cost(input_file_name)
-    #plot_boxplots_cost_probabilistic_only(input_file_name)
-    #plot_boxplots_utility_co2(input_file_name)
-    #input_file_name = "200125_mainComparisonGreen_seedOK.csv"
-    #plot_boxplots(input_file_name)
-    #plot_boxplots_cost_probabilistic_only(input_file_name)
-    #plot_boxplots_utility_co2(input_file_name)
 
 

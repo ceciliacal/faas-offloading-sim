@@ -12,12 +12,13 @@ from main import read_spec_file
 from numpy.random import SeedSequence, default_rng
 
 DEFAULT_CONFIG_FILE = "config.ini"
-DEFAULT_OUT_DIR = "140325"
+DEFAULT_OUT_DIR = "210325"
 DEFAULT_DURATION = 259200
 #SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
 COST_REG_CLOUD_HIGH = 0.00003
 COST_REG_CLOUD_LOW = 0.00001
+BUDGETS=[0.5, 5, 20, 50, 2]
 
 
 def print_results (results, filename=None):
@@ -182,7 +183,7 @@ def experiment_main_comparison_brown_greedy(args, config, seeds, flag_seeds):
     for seed in seeds:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         seed_sequence = SeedSequence(seed)
-        for budget in [0.5, 2, 20, 50]:
+        for budget in BUDGETS:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
                 for pol in POLICIES:
@@ -210,7 +211,7 @@ def experiment_main_comparison_brown_greedy(args, config, seeds, flag_seeds):
                     rng = default_rng(seed_sequence.spawn(1)[0])
                     temp_spec_file = generate_random_temp_spec_variants(
                         rng, variants_mode=variant_mode, arrivals_to_single_node=False,
-                        cloud_cost_reg_a=COST_REG_CLOUD_HIGH, cloud_cost_reg_b=COST_REG_CLOUD_LOW
+                        cloud_cost_reg_a=COST_REG_CLOUD_LOW, cloud_cost_reg_b=COST_REG_CLOUD_HIGH
 
                     )
                     infra = default_infra(is_edge_green=False)
@@ -266,7 +267,7 @@ def experiment_main_comparison_brown_baseline(args, config, seeds, flag_seeds):
     for seed in seeds:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         seed_sequence = SeedSequence(seed)
-        for budget in [0.5, 2, 20, 50]:
+        for budget in BUDGETS:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
                 for pol in POLICIES:
@@ -347,7 +348,7 @@ def experiment_main_comparison_brown(args, config, seeds, flag_seeds):
     for seed in seeds:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         seed_sequence = SeedSequence(seed)
-        for budget in [0.5, 2, 20, 50]:
+        for budget in BUDGETS:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
                 for pol in POLICIES:
@@ -441,7 +442,7 @@ def experiment_main_comparison_brown_normalized(args, config, seeds, flag_seeds)
     for seed in seeds:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         seed_sequence = SeedSequence(seed)
-        for budget in [0.5, 2, 20, 50]:
+        for budget in BUDGETS:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
                 for pol in POLICIES:
@@ -535,7 +536,7 @@ def experiment_main_comparison_green(args, config, seeds, flag_seeds):
     for seed in seeds:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         seed_sequence = SeedSequence(seed)
-        for budget in [0.5, 2, 20, 50]:
+        for budget in BUDGETS:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
                 for pol in POLICIES:
@@ -632,7 +633,7 @@ def experiment_main_comparison_green_greedy(args, config, seeds, flag_seeds):
     for seed in seeds:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         seed_sequence = SeedSequence(seed)
-        for budget in [0.5, 2, 20, 50]:
+        for budget in BUDGETS:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
                 for pol in POLICIES:
@@ -715,7 +716,7 @@ def experiment_main_comparison_green_baseline(args, config, seeds, flag_seeds):
     for seed in seeds:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         seed_sequence = SeedSequence(seed)
-        for budget in [0.5, 2, 20, 50]:
+        for budget in BUDGETS:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
                 for pol in POLICIES:
@@ -797,7 +798,7 @@ def experiment_main_comparison_green_normalized(args, config, seeds, flag_seeds)
     for seed in seeds:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         seed_sequence = SeedSequence(seed)
-        for budget in [0.5, 2, 20, 50]:
+        for budget in BUDGETS:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
                 for pol in POLICIES:

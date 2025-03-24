@@ -55,6 +55,11 @@ def read_spec_file(spec_file_name, infra, config):
             tx_energy_consumption = n["tx_energy_consumption"] if "tx_energy_consumption" in n else 0.0
             rx_energy_consumption = n["rx_energy_consumption"] if "rx_energy_consumption" in n else 0.0
 
+            tx_energy_consumption_local = n["tx_energy_consumption_local"] if "tx_energy_consumption_local" in n else 0.0
+            rx_energy_consumption_local = n["rx_energy_consumption_local"] if "rx_energy_consumption_local" in n else 0.0
+            tx_energy_consumption_remote = n["tx_energy_consumption_remote"] if "tx_energy_consumption_remote" in n else 0.0
+            rx_energy_consumption_remote = n["rx_energy_consumption_remote"] if "rx_energy_consumption_remote" in n else 0.0
+
             # Compute carbon emissions
             carbon_emission = co2_footprint.CO2footprint(node_name)
 
@@ -64,6 +69,10 @@ def read_spec_file(spec_file_name, infra, config):
                              processing_power_consumption,
                              tx_energy_consumption,
                              rx_energy_consumption,
+                             tx_energy_consumption_local,
+                             rx_energy_consumption_local,
+                             tx_energy_consumption_remote,
+                             rx_energy_consumption_remote,
                              cost=cost,
                              custom_sched_policy=custom_policy,
                              peer_exposed_memory_fraction=peer_exposed_memory_fraction)

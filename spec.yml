@@ -13,22 +13,39 @@ nodes:
     region: edge_zone_1
     memory: 3072
     processing_power_consumption: 100.0   #Watt!!!!!! WATT
-    tx_energy_consumption: 50.0          #nanoJoule/byte (0.1 nJ/byte = 10^-9 Joule/byte)
-    rx_energy_consumption: 30.0
+    tx_energy_consumption: 25000.0        #nJ/KB
+    rx_energy_consumption: 20000.0
+
+    tx_energy_consumption_local: 30000.0  # Edge-to-Dispatcher (same region)
+    tx_energy_consumption_remote: 90000.0  # Edge-to-Dispatcher (same region)
+    rx_energy_consumption_local: 22000.0  # Reception from dispatcher (remote region)
+    rx_energy_consumption_remote: 60000.0   # Reception from dispatcher (remote region)
+
+
 
   - name: edge_node_b
     region: edge_zone_1
     memory: 3072
     processing_power_consumption: 100.0
-    tx_energy_consumption: 50.0
-    rx_energy_consumption: 30.0
+    tx_energy_consumption: 25000.0  #nJ/KB
+    rx_energy_consumption: 20000.0
+
+    tx_energy_consumption_local: 30000.0  # Edge-to-Dispatcher (same region)
+    tx_energy_consumption_remote: 90000.0  # Edge-to-Dispatcher (same region)
+    rx_energy_consumption_local: 22000.0  # Reception from dispatcher (remote region)
+    rx_energy_consumption_remote: 60000.0   # Reception from dispatcher (remote region)
 
   - name: edge_node_c
     region: edge_zone_1
     memory: 3072
     processing_power_consumption: 100.0
-    tx_energy_consumption: 50.0
-    rx_energy_consumption: 30.0
+    tx_energy_consumption: 25000.0
+    rx_energy_consumption: 20000.0
+
+    tx_energy_consumption_local: 30000.0  # Edge-to-Dispatcher (same region)
+    tx_energy_consumption_remote: 90000.0  # Edge-to-Dispatcher (same region)
+    rx_energy_consumption_local: 22000.0  # Reception from dispatcher (remote region)
+    rx_energy_consumption_remote: 60000.0   # Reception from dispatcher (remote region)
 
   - name: cloud_node_a
     region: cloud_region_a
@@ -36,8 +53,9 @@ nodes:
     speedup: 1.0
     memory: 128000
     processing_power_consumption: 800.0  #Watt #CONVERSIONI in faas.py in kW e J/byte
-    tx_energy_consumption: 5.0
-    rx_energy_consumption: 3.0          #nanoJoule/byte (1 nJ/byte = 10^-9 Joule/byte)
+    tx_energy_consumption: 1500.0
+    rx_energy_consumption: 1000.0          #nanoJoule/byte (1 nJ/byte = 10^-9 Joule/byte)
+
 
   - name: cloud_node_b
     region: cloud_region_b
@@ -45,18 +63,35 @@ nodes:
     speedup: 1.0
     memory: 128000
     processing_power_consumption: 800.0
-    tx_energy_consumption: 5.0
-    rx_energy_consumption: 3.0
+    tx_energy_consumption: 1500.0         # Cloud-to-Dispatcher (same region)
+    rx_energy_consumption: 1000.0         # Reception from Dispatcher (same region)
+
 
   - name: dispatcher_a
     region: cloud_region_a
     memory: 0
     policy: dispatcher-policy
+    tx_energy_consumption: 1500.0         # (same data center)
+    rx_energy_consumption: 1000.0         # (same data center)
+
+    tx_energy_consumption_local: 30000.0  # Dispatcher → Edge (same region)
+    tx_energy_consumption_remote: 80000.0  # Dispatcher → Edge (remote region)
+    rx_energy_consumption_local: 22000.0  # Reception from Edge (same region)
+    rx_energy_consumption_remote: 60000.0  # Reception from Edge (remote region)
+
 
   - name: dispatcher_b
     region: cloud_region_b
     memory: 0
     policy: dispatcher-policy
+    tx_energy_consumption: 1500.0         # (same data center)
+    rx_energy_consumption: 1000.0         # (same data center)
+
+    tx_energy_consumption_local: 30000.0  # Dispatcher → Edge (same region)
+    tx_energy_consumption_remote: 80000.0  # Dispatcher → Edge (remote region)
+    rx_energy_consumption_local: 22000.0  # Reception from Edge (same region)
+    rx_energy_consumption_remote: 60000.0  # Reception from Edge (remote region)
+
 
 functions:
   - name: f1

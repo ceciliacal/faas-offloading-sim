@@ -232,8 +232,8 @@ class CloudRegionDispatcherRandomPolicy(Policy):
         node.aggregated_region_cost = (sum(cloud_node.cost for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.cost = (sum(cloud_node.cost for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.avg_processing_power_consumption = (sum(cloud_node.processing_power_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
-        node.avg_tx_energy_consumption = (sum(cloud_node.tx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
-        node.avg_rx_energy_consumption = (sum(cloud_node.rx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
+        #node.avg_tx_energy_consumption = (sum(cloud_node.tx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
+        #node.avg_rx_energy_consumption = (sum(cloud_node.rx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.cloud_nodes_list = self.cloud_region_nodes
 
     def update(self):

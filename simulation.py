@@ -760,22 +760,6 @@ class Simulation:
         return scheduler_decision, remote_node
 
 
-    def update_co2_stats(self, n, f, sched_decision):
-        n_co2_grams = n.g_co2_emissions[f][sched_decision]
-
-        self.stats.co2_emission_function2node[(f, n)] += n_co2_grams
-        self.stats.co2_emission_total += n_co2_grams
-        self.stats.co2_emission_per_node[n] += n_co2_grams
-
-        node_footprint = n.co2_footprint
-
-        joule_energy = ((n.g_co2_emissions[f][sched_decision]) * KWH) / node_footprint.co2_intensity
-        energy_stats_list = [str(node_footprint.co2_intensity), str(node_footprint.co2_datetime), str(joule_energy),
-                             str(n_co2_grams)]
-
-        self.stats.energy_consumption_per_node[n] += joule_energy
-        #self.stats.energy_consumption_function2node[(f, n)] += energy_stats_list
-        self.stats.energy_consumption_total += joule_energy
 
     def read_co2_intensity(self, node, is_co2_trace_over):
         n = node.co2_footprint.count
