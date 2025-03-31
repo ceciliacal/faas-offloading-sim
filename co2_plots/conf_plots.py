@@ -8,4 +8,5 @@ CO2_EMISS_TOTAL = "CO2EmissTotal"
 SEED = "Seed"
 COST = "Cost"
 TOTAL_PROC_TIME = "TotalProcTime"
-
+NORM_UTILITY = "NormUtility"
+COMPLETIONS_DISTRIBUTION = "CompletionsDistribution"

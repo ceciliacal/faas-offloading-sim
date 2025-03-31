@@ -12,13 +12,15 @@ from main import read_spec_file
 from numpy.random import SeedSequence, default_rng
 
 DEFAULT_CONFIG_FILE = "config.ini"
-DEFAULT_OUT_DIR = "210325"
+DEFAULT_OUT_DIR = "250325"
 DEFAULT_DURATION = 259200
 #SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
 COST_REG_CLOUD_HIGH = 0.00003
 COST_REG_CLOUD_LOW = 0.00001
-BUDGETS=[0.5, 5, 20, 50]
+#BUDGETS=[0.5, 5, 20, 50]
+BUDGETS=[5]
+
 
 
 def print_results (results, filename=None):
@@ -885,8 +887,8 @@ if __name__ == "__main__":
     flag_1half = "1half"
     flag_2half = "2half"
 
-    # BROWN SCENARIO
-    if args.experiment.lower() == "brown_probabilistic_1half":  #sess1
+    # BROWN SCENARIO source env/bin/activate
+    if args.experiment.lower() == "brown_probabilistic_1half":  #sess1 python3 experiments_carbon_awareness.py --experiment
         SEEDS = [1, 293, 287844, 2902, 944]
         experiment_main_comparison_brown(args, config, SEEDS, flag_1half)
     elif args.experiment.lower() == "brown_probabilistic_2half":    #sess2

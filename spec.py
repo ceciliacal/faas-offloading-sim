@@ -132,7 +132,7 @@ def generate_random_temp_spec (rng, n_functions=5, load_coeff=1.0, dynamic_rate_
 def generate_random_temp_spec_variants(rng, n_functions=5, variants_mode=0, n_variants=2, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=False,
                               n_classes=2, cloud_cost_reg_a=0.00001, cloud_cost_reg_b=0.00001, cloud_speedup=1.0):
     classes = [
-        {'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 3.0},
+        {'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 1.0},
         {'name': 'standard', 'max_resp_time': 0.5, 'utility': 0.01, 'arrival_weight': 7.0}
     ]
     functions = [{'name': 'f1', 'memory': 512, 'duration_mean': 0.4, 'duration_scv': 1.0, 'init_mean': 0.5}, {'name': 'f2', 'memory': 512, 'duration_mean': 0.2, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f3', 'memory': 128, 'duration_mean': 0.3, 'duration_scv': 1.0, 'init_mean': 0.6}, {'name': 'f4', 'memory': 1024, 'duration_mean': 0.25, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f5', 'memory': 256, 'duration_mean': 0.45, 'duration_scv': 1.0, 'init_mean': 0.5}]
