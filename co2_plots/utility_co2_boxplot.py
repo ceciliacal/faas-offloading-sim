@@ -28,6 +28,12 @@ node_colors_green_scenario = {
     "edge_node_c": "palegoldenrod"
 }
 
+import os
+import json
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
 def plot_bar(input_file_name, output_folder_rel):
     csv_file = os.path.join(os.path.dirname(__file__), input_file_name)
     os.makedirs(output_folder_rel, exist_ok=True)
@@ -57,9 +63,9 @@ def plot_bar(input_file_name, output_folder_rel):
                 plot_data[policy] = group_data[group_data[cp.POLICY] == policy]
 
         # Prepare figure
-        fig, ax = plt.subplots(figsize=(14, 6))
-        width = 0.15  # Width of each individual bar
-        spacing = 0.9  # Space between policy groups
+        fig, ax = plt.subplots(figsize=(12, 6))
+        width = 0.2  # Wider bars for better stacking visualization
+        spacing = 0.5  # More spacing between policies
 
         x_positions = []
         x_labels_completion = []
@@ -75,16 +81,11 @@ def plot_bar(input_file_name, output_folder_rel):
                 except (json.JSONDecodeError, KeyError):
                     continue  # Skip invalid JSON entries
 
-                if variant_mode == 1:
-                    completion_values = {key: {"(f,s)": 0, "(f,c)": 0, "(v,s)": 0,
-                                               "(v,c)": 0}
-                                         for key in  node_colors.keys()}
-                else:
-                    completion_values = {key: {"(f,s)": 0, "(f,c)": 0}
-                                         for key in  node_colors.keys()}
+                completion_values = {key: {"(f,s)": 0, "(f,c)": 0, "(v,s)": 0, "(v,c)": 0}
+                                     for key in node_colors.keys()}
 
                 for node, node_data in completion_json.items():
-                    if node in  node_colors:
+                    if node in node_colors:
                         completion_values[node]["(f,s)"] = node_data["total"]["standard"]
                         completion_values[node]["(f,c)"] = node_data["total"]["critical"]
                         if variant_mode == 1:
@@ -98,61 +99,93 @@ def plot_bar(input_file_name, output_folder_rel):
 
             # Aggregate values for the policy
             aggregated_values = {
-                "(f,s)": {node: sum(c[node]["(f,s)"] for c in completions) for node in
-                               node_colors},
-                "(f,c)": {node: sum(c[node]["(f,c)"] for c in completions) for node in
-                                    node_colors},
+                "(f,s)": {node: sum(c[node]["(f,s)"] for c in completions) for node in node_colors},
+                "(f,c)": {node: sum(c[node]["(f,c)"] for c in completions) for node in node_colors},
+                "(v,s)": {node: sum(c[node]["(v,s)"] for c in completions) for node in node_colors},
+                "(v,c)": {node: sum(c[node]["(v,c)"] for c in completions) for node in node_colors}
             }
 
-            if variant_mode == 1:
-                aggregated_values["(v,s)"] = {node: sum(c[node]["(v,s)"] for c in completions) for
-                                                  node in  node_colors}
-                aggregated_values["(v,c)"] = {node: sum(c[node]["(v,c)"] for c in completions) for
-                                                       node in  node_colors}
-
             # X-tick positions for this policy
-            num_labels = len(aggregated_values)
-            bar_positions = np.arange(num_labels) * width + (i * spacing)
+            bar_positions = np.array([i * spacing, i * spacing + width])  # Two bars per policy
             x_positions.extend(bar_positions)
-            x_labels_completion.extend(aggregated_values.keys())
+            x_labels_completion.extend(["Standard", "Critical"])
 
             # Store center position for policy label
             policy_tick_positions.append(np.mean(bar_positions))
             policy_label = policy_labels_dict.get(policy_name, policy_name)
             policy_labels_list.append(policy_label)
 
-            bottom = np.zeros(num_labels)
+            bottom_fs = np.zeros(len(node_colors))  # Bottom tracking for (f,s)
+            bottom_fc = np.zeros(len(node_colors))  # Bottom tracking for (f,c)
 
-            for node, color in  node_colors.items():
-                values = [aggregated_values[label][node] for label in aggregated_values.keys()]
-                ax.bar(bar_positions, values, width, label=node if i == 0 else "", color=color, bottom=bottom,
-                       edgecolor="black")
-                bottom += np.array(values)
+            for node, color in node_colors.items():
+                # Base values
+                fs_values = aggregated_values["(f,s)"][node]
+                fc_values = aggregated_values["(f,c)"][node]
+                vs_values = aggregated_values["(v,s)"][node]
+                vc_values = aggregated_values["(v,c)"][node]
+
+                # Plot (f,s) and (f,c) normally
+                ax.bar(bar_positions[0], fs_values, width, label=node if i == 0 else "", color=color,
+                       edgecolor="black", bottom=bottom_fs)
+                ax.bar(bar_positions[1], fc_values, width, color=color, edgecolor="black", bottom=bottom_fc)
+
+                # Stack (v,s) on (f,s) with hatch pattern
+                if variant_mode == 1:
+                    ax.bar(bar_positions[0], vs_values, width, color=color, edgecolor="black",
+                           hatch="x", bottom=bottom_fs + fs_values)
+                    ax.bar(bar_positions[1], vc_values, width, color=color, edgecolor="black",
+                           hatch="x", bottom=bottom_fc + fc_values)
+
+                # Update bottom for stacking
+                bottom_fs += np.array(fs_values) + np.array(vs_values)
+                bottom_fc += np.array(fc_values) + np.array(vc_values)
 
         # Set x-axis labels (First level: Closest to bars)
         ax.set_xticks(x_positions)
         ax.set_xticklabels(x_labels_completion, rotation=0, ha="center", fontsize=12)
 
-        # **NEW: Add second-level x labels (Policies BELOW the first labels)**
+        # Add second-level x labels (Policies BELOW the first labels)
         for pos, policy in zip(policy_tick_positions, policy_labels_list):
-            ax.text(pos, -max(bottom) * 0.12, policy, ha='center', va='top', fontsize=13)
+            ax.text(pos, -max(bottom_fs) * 0.12, policy, ha='center', va='top', fontsize=13)
 
-        # Set title ABOVE the figure
+        '''
+         # Set title ABOVE the figure
         if variant_mode == 1:
             ax.set_title(f"Requests Distribution - Budget={budget} - with Function Variants")
         else:
             ax.set_title(f"Requests Distribution - Budget={budget} - without Function Variants")
 
+        '''
+
         ax.set_ylabel("Number of Completed Requests", fontsize=13)
-        mylabels = ["Cloud region A", "Cloud region B", "Edge node 1", "Edge node 2", "Edge node 3"]
-        ax.legend(labels=mylabels,loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0, frameon=True, edgecolor="black")
+        mylabels = {}
+        mylabels["cloud_node_a"] = "Cloud region A"
+        mylabels["cloud_node_b"] = "Cloud region B"
+        mylabels["edge_node_a"] = "Edge node A"
+        mylabels["edge_node_b"] = "Edge node B"
+        mylabels["edge_node_c"] = "Edge node C"
+
+        legend_handles = []
+        for node, color in node_colors.items():
+            # Base handle (solid color)
+            legend_handles.append(Patch(facecolor=color, edgecolor="black", label=f"{mylabels[node]}"))
+
+        # Variant handle (pattern)
+        legend_handles.append(Patch(facecolor="white", edgecolor="black", hatch="x", label=f"Function Variant"))
+        # Variant handle (pattern)
+
+        ax.legend(handles=legend_handles, loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0,
+                  frameon=True, edgecolor="black", title="Legend")
         plt.subplots_adjust(right=0.8, bottom=0.2)  # Extend space (increase if needed)
 
         output_path = os.path.join(output_folder_rel, f"completion_{budget}_{variant_mode}.png")
-        plt.savefig(output_path)
+        #plt.savefig(output_path)
         plt.show()
         plt.close()
 
+
+from matplotlib.patches import Patch
 
 def plot_boxplots(input_file_name, output_folder_rel, shape):
     csv_file = os.path.join(os.path.dirname(__file__), input_file_name)
@@ -906,8 +939,8 @@ if __name__ == "__main__":
     #json_folder = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/"
     #process_csv_json_completionsDistributions(csv_path, json_folder, "green")
 
-    input_file_name = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonBrown_allPolicies.csv"
-    plot_boxplots_cost(input_file_name, brown, "h")
+    #input_file_name = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonBrown_allPolicies.csv"
+    #plot_boxplots_cost(input_file_name, brown, "h")
 
     input_file_name = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonBrown.csv"
     plot_bar(input_file_name, brown)
