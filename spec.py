@@ -148,6 +148,14 @@ def generate_random_temp_spec_variants(rng, n_functions=5, variants_mode=0, n_va
          'processing_power_consumption': 800.0, 'tx_energy_consumption': 5120.0, 'rx_energy_consumption': 3072.0},
         {'name': 'cloud_node_b', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 128000,
          'processing_power_consumption': 800.0, 'tx_energy_consumption': 5120.0, 'rx_energy_consumption': 3072.0},
+        {'name': 'cloud_node_a1', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 128000,
+         'processing_power_consumption': 800.0, 'tx_energy_consumption': 5120.0, 'rx_energy_consumption': 3072.0},
+        {'name': 'cloud_node_b1', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 128000,
+         'processing_power_consumption': 800.0, 'tx_energy_consumption': 5120.0, 'rx_energy_consumption': 3072.0},
+        {'name': 'cloud_node_a2', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 128000,
+         'processing_power_consumption': 800.0, 'tx_energy_consumption': 5120.0, 'rx_energy_consumption': 3072.0},
+        {'name': 'cloud_node_b2', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 128000,
+         'processing_power_consumption': 800.0, 'tx_energy_consumption': 5120.0, 'rx_energy_consumption': 3072.0},
         {'name': 'dispatcher_a', 'region': 'cloud_region_a', 'memory': 0, 'policy': 'dispatcher-policy'},
         {'name': 'dispatcher_b', 'region': 'cloud_region_b', 'memory': 0, 'policy': 'dispatcher-policy'}
     ]

@@ -235,6 +235,7 @@ class CloudRegionDispatcherRandomPolicy(Policy):
         node.avg_tx_energy_consumption = (sum(cloud_node.tx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.avg_rx_energy_consumption = (sum(cloud_node.rx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.cloud_nodes_list = self.cloud_region_nodes
+        self.current_index = 0
 
     def update(self):
         self.node.aggregated_region_memory = sum(cloud_node.curr_memory for cloud_node in self.cloud_region_nodes)
@@ -261,9 +262,19 @@ class CloudRegionDispatcherRandomPolicy(Policy):
             #print("update policy dispatcher ->self.node.avg_cold_starts[f] = ",self.node.avg_cold_starts)
 
 
-
     def schedule(self, f, c, offloaded_from):
-        selected_node = self.rng.choice(self.cloud_region_nodes)
+        selected_node = None
+        for node in self.cloud_region_nodes:
+            #check if f is already in a warm pool
+            if f in node.warm_pool:
+                selected_node = node
+                break
+
+        #cold start, selecting node using rr
+        if selected_node is None:
+            selected_node = self.cloud_region_nodes[self.current_index]
+            self.current_index = (self.current_index + 1) % len(self.cloud_region_nodes)
+
         decision = conf.OFFLOAD_CLOUD_DECISION+self.region.name.upper()
         return (decision, selected_node)
 

@@ -48,6 +48,42 @@ nodes:
     tx_energy_consumption: 5120.0
     rx_energy_consumption: 3072.0
 
+  - name: cloud_node_a1
+    region: cloud_region_a
+    cost: 0.00001
+    speedup: 1.0
+    memory: 128000
+    processing_power_consumption: 800.0  #Watt #CONVERSIONI in faas.py in kW e J/byte
+    tx_energy_consumption: 5120.0
+    rx_energy_consumption: 3072.0          #nanoJoule/byte (1 nJ/byte = 10^-9 Joule/byte)
+
+  - name: cloud_node_b1
+    region: cloud_region_b
+    cost: 0.00003
+    speedup: 1.0
+    memory: 128000
+    processing_power_consumption: 800.0
+    tx_energy_consumption: 5120.0
+    rx_energy_consumption: 3072.0
+
+  - name: cloud_node_a2
+    region: cloud_region_a
+    cost: 0.00001
+    speedup: 1.0
+    memory: 128000
+    processing_power_consumption: 800.0  #Watt #CONVERSIONI in faas.py in kW e J/byte
+    tx_energy_consumption: 5120.0
+    rx_energy_consumption: 3072.0          #nanoJoule/byte (1 nJ/byte = 10^-9 Joule/byte)
+
+  - name: cloud_node_b2
+    region: cloud_region_b
+    cost: 0.00003
+    speedup: 1.0
+    memory: 128000
+    processing_power_consumption: 800.0
+    tx_energy_consumption: 5120.0
+    rx_energy_consumption: 3072.0
+
   - name: dispatcher_a
     region: cloud_region_a
     memory: 0
