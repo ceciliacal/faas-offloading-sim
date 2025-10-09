@@ -773,20 +773,6 @@ class Simulation:
             node.co2_footprint.co2_intensity = nth_row[conf.CO2_TRACES_COL_INTENSITY_DIRECT]
             node.co2_footprint.count = n + 1
 
-            #print("in update_co2_intensity: node: ", node.name, " co2_datetime: ", node.co2_footprint.co2_datetime,
-            #      " co2_intensity: ", node.co2_footprint.co2_intensity, " count: ", node.co2_footprint.count,
-            #      " energy: ", self.stats.energy_consumption_per_node[node], " grams CO2: ",self.stats.co2_emission_per_node[node])
-            '''
-                        row = [
-                node.name,
-                node.co2_footprint.co2_datetime,
-                node.co2_footprint.co2_intensity,
-                self.stats.energy_consumption_per_node[node],
-                self.stats.co2_emission_per_node[node]
-            ]
-            # Append the row to the list
-            self.rows_to_write_update_co2.append(row)
-            '''
 
         else:
             is_co2_trace_over[node] = True

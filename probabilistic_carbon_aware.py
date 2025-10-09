@@ -263,50 +263,6 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
         # Local rejection due to lack of resources
         if decision == SchedulerDecision.EXEC_VAR and not self.can_execute_locally(f):
-
-            '''
-            self.curr_local_blocked_reqs += 1
-
-            if self.local_rejection_fallback == "fgcs24" or self.local_rejection_fallback == "reschedule":
-                probabilities[SchedulerDecision.EXEC_VAR] = 0.0
-                probabilities[SchedulerDecision.EXEC] = 0.0
-
-                if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
-                    for cloud_decision, prob in probabilities.items():
-                        if conf.OFFLOAD_CLOUD_DECISION in cloud_decision.name:
-                            probabilities[decision] = 0.0
-
-                s = sum(probabilities.values())
-                if s > 0.0:
-                    probabilities = self.renormalize_probs(probabilities, s)
-                    decision, node = self.rng.choice(list(probabilities.keys()), p=list(probabilities.values())), None
-                else:   
-                    # NOTE: we may add new Cloud offloadings even if p_cloud=0
-                    # Attempt Cloud offloading if utility allows
-                    if c.utility > 0.0 and \
-                            self.simulation.stats.cost / self.simulation.t * 3600 < self.budget \
-                            and (self.allow_multi_offloading or len(offloaded_from) == 0):
-
-                        cloud_decisions = []
-                        cloud_probs = []
-                        for cloud_decision, prob in probabilities.items():
-                            if conf.OFFLOAD_CLOUD_DECISION in cloud_decision.name:
-                                cloud_decisions.append(cloud_decision)
-                                cloud_probs.append(prob)
-
-                        decision, dispatcher = self.pick_greener_cloud_region()
-
-                        return (decision, dispatcher)
-                    else:
-                        return (SchedulerDecision.DROP, None)
-
-                return (SchedulerDecision.DROP, None)
-
-            elif self.local_rejection_fallback == "drop":
-                return (SchedulerDecision.DROP, None)
-            else:
-                raise RuntimeError(f"Unknown local rejection fallback: {self.local_rejection_fallback}")
-            '''
             return (SchedulerDecision.DROP, None)
 
 

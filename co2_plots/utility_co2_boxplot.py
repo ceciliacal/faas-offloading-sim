@@ -822,22 +822,23 @@ def plot_carbon_intensity_utc(pl_csv_path: str,
 
     # 5) X-axis ticks every 6 hours
     locator = mdates.HourLocator(byhour=range(0, 24, 12), tz=mdates.UTC)
-    formatter = mdates.DateFormatter('%H:%M\n%Y-%m-%d', tz=mdates.UTC)
+    formatter = mdates.DateFormatter('%H:%M\n%y-%m-%d', tz=mdates.UTC)
     ax.xaxis.set_major_locator(locator)
     ax.xaxis.set_major_formatter(formatter)
-    ax.tick_params(axis='x', rotation=0, pad=10, labelsize=13)
-    ax.tick_params(axis='y', labelsize=12)  # bigger y-tick labels
+    ax.tick_params(axis='x', rotation=0, pad=15, labelsize=15)
+    ax.tick_params(axis='y', labelsize=15)  # bigger y-tick labels
 
     ax.set_xlim(start_ts, end_ts)
 
     # 6) Labels, legend, layout
-    ax.set_xlabel('Datetime', fontsize=16)  # <--- Bigger X label
-    ax.set_ylabel('gCO₂eq/kWh', fontsize=16)  # <--- Bigger Y label
-    ax.set_title('Carbon Intensity', fontsize=18)  # <--- Bigger Title
-    ax.legend(fontsize=14)  # <--- Bigger Legend
+    ax.set_xlabel('Datetime', fontsize=18)  # <--- Bigger X label
+    ax.set_ylabel('gCO₂eq/kWh', fontsize=18)  # <--- Bigger Y label
+    ax.set_title('Carbon Intensity', fontsize=20)  # <--- Bigger Title
+    ax.legend(fontsize=15)  # <--- Bigger Legend
     ax.legend()
     plt.tight_layout()
     plt.show()
+    plt.sa
 
 # Usage example
 if __name__ == "__main__":
@@ -855,17 +856,16 @@ if __name__ == "__main__":
     #input_file_name = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonGreen_allPolicies.csv"
     #plot_boxplots_cost(input_file_name, green, "v")
 
-    input_file_name = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonGreen.csv"
-    plot_bar(input_file_name, green)
+    #input_file_name = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonGreen.csv"
+    #plot_bar(input_file_name, green)
 
-    '''
-        plot_carbon_intensity_utc(
-        pl_csv_path='/home/cecilia/workspace/faas-offloading/co2_traces/PL_2023_hourly.csv',
-        fr_csv_path='/home/cecilia/workspace/faas-offloading/co2_traces/FR_2023_hourly.csv',
-        pl_color='brown',
-        fr_color='green'
+
+    plot_carbon_intensity_utc(
+    pl_csv_path='/home/cecilia/workspace/faas-offloading/co2_traces/PL_2023_hourly.csv',
+    fr_csv_path='/home/cecilia/workspace/faas-offloading/co2_traces/FR_2023_hourly.csv',
+    pl_color='brown',
+    fr_color='green'
     )
-    '''
 
 
 
