@@ -1,10 +1,12 @@
 {
+
   "cloud_regions": {
-    "cloud_region_a": [128000, 0.28, 800.0, 5120.0, 3072.0],
-    "cloud_region_b": [128000, 0.28, 800.0, 5120.0, 3072.0]
+    "cloud_region_a": [128000, 0.28, 800.0, 5120.0, 3072.0, 0.0],
+    "cloud_region_b": [128000, 0.28, 800.0, 5120.0, 3072.0, 1.0]
   },
   "possible_decisions": [
-    "LOCAL_EXEC",
+    "EXEC",
+    "EXEC_VAR",
     "OFFLOAD_EDGE",
     "OFFLOAD_CLOUD_cloud_region_a",
     "OFFLOAD_CLOUD_cloud_region_b",
@@ -12,6 +14,10 @@
   ],
   "functions": ["f1", "f2", "f3"],
   "classes": ["standard", "critical"],
+  "variants": {
+  "f1": ["f1_var_0.8"],
+  "f2": ["f2_var_0.5"],  "f3": ["f3_var_0.5"]
+},
 
   "arrival_rates": {
     "f1": {"critical": 2.0, "standard": 1.0},
@@ -121,11 +127,7 @@
     "f2": 1024,
     "f3": 1536
   },
-  "function_inputSizeMean": {
-    "f1": 500000,
-    "f2": 750000,
-    "f3": 1200000
-  },
+
 
   "class_maxRt": {
     "critical": 0.250,

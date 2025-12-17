@@ -11,15 +11,35 @@ class RequestHandler(BaseHTTPRequestHandler):
         post_data = self.rfile.read(content_length).decode('utf-8')
         print(post_data)
 
-        #try:
+        # try:
         params = OptCarbonAwareProblemParams.from_json(post_data)
-        result = MyLPOptimizer().solve(params)
-        resp = self.probs_to_nested(result)
+
+        # result: dict[(func, class)] -> {decisionName: prob}
+        # decision_fc_probability_var:
+        #     dict[func][variant][class] -> PuLP variable
+        result, decision_fc_probability_var = MyLPOptimizer(params).solve()
+
+        # Nest the main decision probs as: func -> class -> decision -> prob
+        probs_nested = self.probs_to_nested(result)
+
+        # Nest variant probs as: func -> variant -> class -> float
+        var_probs_nested = self.var_probs_to_nested(decision_fc_probability_var)
+
+        # Build the combined response object expected by Go:
+        # {
+        #   "probs": {...},
+        #   "decision_fc_probability_var": {...}
+        # }
+        resp = {
+            "probs": probs_nested,
+            "decision_fc_probability_var": var_probs_nested,
+        }
+
         response = json.dumps(resp).encode('utf-8')
         self.send_response(200)
-        #except Exception as e:
-        #    response = json.dumps({"error": str(e)}).encode('utf-8')
-        #    self.send_response(400)
+        # except Exception as e:
+        #     response = json.dumps({"error": str(e)}).encode('utf-8')
+        #     self.send_response(400)
 
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(response)))
@@ -31,6 +51,23 @@ class RequestHandler(BaseHTTPRequestHandler):
         for (func, klass), decisions in probs.items():
             out.setdefault(func, {})[klass] = decisions
         return out
+
+    def var_probs_to_nested(self, decision_fc_probability_var):
+        """
+        Convert decision_fc_probability_var (dict: func -> variant -> class -> LpVar)
+        into a plain nested dict: func -> variant -> class -> float
+        suitable for JSON serialization.
+        """
+        out = {}
+        for func, by_variant in decision_fc_probability_var.items():
+            func_dict = out.setdefault(func, {})
+            for variant_name, by_class in by_variant.items():
+                variant_dict = func_dict.setdefault(variant_name, {})
+                for klass, lp_var in by_class.items():
+                    # lp_var is a PuLP variable, extract its value
+                    variant_dict[klass] = float(lp_var.varValue)
+        return out
+
 
 # === Start server ===
 def run(server_class=HTTPServer, handler_class=RequestHandler, port=8080):

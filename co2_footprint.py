@@ -92,3 +92,27 @@ def compute_cloud_energy(function, dispatcher, serv_time_cloud, cloud_node, init
             (1 / (3600 * 1000)) *
             float(co2_cloud)
     )
+
+def compute_energy(function, duration, current_node, initial_node, aggr_initial_node_memory):
+    #Compute the emitted co2 grams for a function offloaded to a specific cloud region.
+
+    if aggr_initial_node_memory <= 0.0:
+        return 0.0
+
+    current_node_power_cons = current_node.avg_processing_power_consumption
+    m_f = function.memory
+    current_node_co2_intensity = current_node.co2_footprint.co2_intensity
+    input_size_mean = function.inputSizeMean
+    output_size_mean = function.outputSizeMean
+    initial_node_rx_energy = current_node.avg_rx_energy_consumption
+    initial_node_tx_energy = current_node.avg_tx_energy_consumption
+    local_node_rx_energy = initial_node.rx_energy_consumption
+    local_node_tx_energy = initial_node.tx_energy_consumption
+
+    return (
+            ((current_node_power_cons * float(m_f / m_u) * duration) +
+             input_size_mean * (local_node_tx_energy + initial_node_rx_energy) +
+             output_size_mean * (initial_node_tx_energy + local_node_rx_energy)) *
+            (1 / (3600 * 1000)) *
+            float(current_node_co2_intensity)
+    )

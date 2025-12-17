@@ -35,7 +35,7 @@ nodes:
     cost: 0.00001
     speedup: 1.0
     memory: 128000
-    processing_power_consumption: 800.0  #Watt #CONVERSIONI in faas.py in kW e J/byte
+    processing_power_consumption: 800.0  #Watt #CONVERSIONI in faas.py in (kW e) J/byte
     tx_energy_consumption: 5120.0
     rx_energy_consumption: 3072.0          #nanoJoule/byte (1 nJ/byte = 10^-9 Joule/byte)
 

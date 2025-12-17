@@ -2,7 +2,6 @@ from enum import Enum, auto
 from pacsltk import perfmodel
 
 import conf
-from co2_footprint import compute_local_energy, compute_cloud_energy, compute_local_variant_energy, compute_edge_energy
 from faas import Dispatcher
 from collections import defaultdict
 

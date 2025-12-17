@@ -447,7 +447,11 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
             for v in V[f]:
                 params.local_node.g_co2_emissions[v][exec_var_key] = decision_eP.get(exec_var_key, {}).get((f, v), 0.0)
 
-    #print("[optimizer] -  probs: ",probs)
+    print("[optimizer] -  probs: ",probs)
+    print("[optimizer] -  decision_fc_probability_var: ",decision_fc_probability_var)
+    #decision_eP[scheduler_decision] = eP_local (eP_local[f] = value)
+    #params.local_node.g_co2_emissions[f][scheduler_decision] = eP_local[f]
+
     return probs, decision_fc_probability_var
 
 
