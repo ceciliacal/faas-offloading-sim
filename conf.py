@@ -64,10 +64,15 @@ OFFLOAD_CLOUD_DECISION = "OFFLOAD_CLOUD_"
 ENABLE_APPROXIMATE_COMPUTING = "enable-approximate-computing"
 ALPHA = "of-alpha"
 BETA = "of-beta"
-
+UTILIZATION_WINDOW_SAMPLES = "utilization-window-samples"
+UTILIZATION_UPDATE_INTERVAL = "utilization-update-interval"
+LATENCY_UPDATE_INTERVAL = "latency-update-interval"
+LATENCY_DEV_ST = "latency-dev-st"
+LATENCY_CAP = "latency-cap"
 import configparser
 
 def parse_config_file(config_file):
     config = configparser.ConfigParser()
     config.read(config_file)
     return config
+

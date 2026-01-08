@@ -7,12 +7,14 @@ from itertools import chain
 
 from numpy.random import SeedSequence, default_rng
 
+import conf
 import policy
 import probabilistic
 import probabilistic_carbon_aware
 import stateful
 from arrivals import ArrivalProcess
-from co2_footprint import compute_local_energy, compute_local_variant_energy, compute_cloud_energy, compute_edge_energy
+from co2_footprint import compute_local_energy, compute_cloud_energy, compute_edge_energy, \
+    compute_transmission_energy_edge, compute_transmission_energy_cloud
 from faas import *
 from infrastructure import *
 from policy import SchedulerDecision, add_enum_members
@@ -82,15 +84,17 @@ class StatPrinter(Event):
 class DispatcherUpdate(Event):
     pass
 
+@dataclass
+class NodeUtilizationUpdate(Event):
+    pass
 
-
+@dataclass
+class LatencyUpdate(Event):
+    pass
 
 OFFLOADING_OVERHEAD = 0.005
 ARRIVAL_TRACE_PERIOD = 60.0
 KWH = 3600*1000
-
-
-
 
 @dataclass
 class Simulation:
@@ -120,12 +124,10 @@ class Simulation:
         self.verbosity = self.config.getint(conf.SEC_SIM, conf.VERBOSITY, fallback=0)
         self.is_approximate_computing_enabled = self.config.getboolean(conf.SEC_SIM, conf.ENABLE_APPROXIMATE_COMPUTING, fallback=False)
 
-
-
         # Seeds
         n_arrival_processes = sum([len(arrival_procs) for arrival_procs in self.node2arrivals.values()])
         # Spawn off child SeedSequences to pass to child processes.
-        child_seeds = self.seed_sequence.spawn(8 + 3 * n_arrival_processes)
+        child_seeds = self.seed_sequence.spawn(9 + 3 * n_arrival_processes)
         self.service_rng = default_rng(child_seeds[0])
         self.node_choice_rng = default_rng(child_seeds[1])
         self.policy_rng1 = default_rng(child_seeds[2])
@@ -135,8 +137,7 @@ class Simulation:
         self.cloud_region_choice = default_rng(child_seeds[5])
         self.cloud_node_random_choice = default_rng(child_seeds[6])
         self.rng_variant = default_rng(child_seeds[7])
-
-        #self.edge_region_choice = default_rng(child_seeds[6])
+        self.latency_rng = default_rng(child_seeds[8])
 
         i = 8
         for n, arvs in self.node2arrivals.items():
@@ -157,10 +158,11 @@ class Simulation:
             if region.is_cloud():
                 avg_speedup = 0
                 cloud_nodes = self.infra.get_cloud_nodes_by_region(region)
-                for node in cloud_nodes:
-                    avg_speedup = avg_speedup + node.speedup
-                avg_speedup = avg_speedup / len(cloud_nodes)
-                avg_regional_init_time[region] = avg_speedup
+                if len(cloud_nodes) > 0:
+                    for node in cloud_nodes:
+                        avg_speedup = avg_speedup + node.speedup
+                    avg_speedup = avg_speedup / len(cloud_nodes)
+                    avg_regional_init_time[region] = avg_speedup
 
         for node in self.infra.get_nodes(ignore_non_processing=False):
             if node.speedup > 0:
@@ -227,7 +229,7 @@ class Simulation:
         elif configured_policy == "probabilistic-carbon-aware":
             return probabilistic_carbon_aware.ProbabilisticCarbonAwarePolicy(self, node,True)
         elif configured_policy == "dispatcher-policy":
-            return policy.CloudRegionDispatcherRandomPolicy(self, node)
+            return policy.CloudRegionDispatcherPolicy(self, node)
         elif configured_policy == "random":
             return probabilistic.RandomPolicy(self, node)
         else:
@@ -295,6 +297,17 @@ class Simulation:
         self.carbon_intensity_update_interval = self.config.getfloat(conf.SEC_CARBON, conf.CARBON_INTENSITY_UPDATE_INTERVAL, fallback=-1)
         self.policy_dispatcher_update_interval = self.config.getfloat(conf.DISPATCHER, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
 
+        self.utilization_update_interval = self.config.getfloat(conf.SEC_CONTAINER, conf.UTILIZATION_UPDATE_INTERVAL, fallback=5)
+        self.latency_update_interval = self.config.getfloat(conf.SEC_CARBON, conf.LATENCY_UPDATE_INTERVAL, fallback=-1)
+        self.latency_dev_st = self.config.getfloat(conf.SEC_CARBON, conf.LATENCY_DEV_ST, fallback=0.1)
+        self.latency_cap = self.config.getfloat(conf.SEC_CARBON, conf.LATENCY_CAP, fallback=0.0)
+
+        self.instant_utilization_tmp_dict = {n: deque(maxlen=1000) for n in self.infra.get_nodes()}
+        self.lp_utilization_tmp_dict = {n: deque(maxlen=1000) for n in self.infra.get_nodes()}
+
+        self.instant_energy_tmp_dict = {n: deque(maxlen=1000) for n in self.infra.get_nodes()}
+        self.lp_energy_tmp_dict = {n: deque(maxlen=1000) for n in self.infra.get_nodes()}
+
         self.stats_file = sys.stdout
 
         self.count_policy_update = 0
@@ -340,6 +353,10 @@ class Simulation:
             self.schedule(self.carbon_intensity_update_interval, CarbonIntensityUpdate())
         if self.policy_dispatcher_update_interval > 0.0:    #for cloud nodes status update
             self.schedule(self.policy_dispatcher_update_interval, DispatcherUpdate())
+        if self.utilization_update_interval > 0.0:
+            self.schedule(self.utilization_update_interval, NodeUtilizationUpdate())
+        if self.latency_update_interval > 0.0:
+            self.schedule(self.latency_update_interval, LatencyUpdate())
 
         while len(self.events) > 0:
             t, e = heappop(self.events)
@@ -366,7 +383,6 @@ class Simulation:
             for arv in arvs:
                 arv.close()
 
-        #self.write_CO2_emissions_to_csv()
         return self.stats
 
     def move_key(self, k, src_node, dest_node):
@@ -401,7 +417,7 @@ class Simulation:
         if not self.node2arrivals:
             for _, event in self.events:
                 if isinstance(event, (CheckExpiredContainers, PolicyUpdate, CarbonIntensityUpdate,
-                                      DispatcherUpdate, ArrivalRateUpdate, StatPrinter)):
+                                      DispatcherUpdate, ArrivalRateUpdate, StatPrinter, NodeUtilizationUpdate, LatencyUpdate)):
                     event.canceled = True
             self.external_arrivals_allowed = False
 
@@ -439,6 +455,29 @@ class Simulation:
                 #print("node co2: "+n.co2_footprint)
                 p.update()
                 self.stats.update_policy_upd_time(n, time.time() - upd_t0)
+
+                '''
+                if not isinstance(n, Dispatcher):
+                    
+                                       #todo: poi TOGLIERE
+                    # --- window-average instant utilization (same window as policy update) ---
+                    k = max(1, int(round(self.policy_update_interval / self.utilization_update_interval)))
+
+                    if len(n.utilization_list) > 0:
+                        tail = list(n.utilization_list)[-k:]
+                        inst_u = sum(tail) / len(tail)
+                    else:
+                        inst_u = 0.0
+
+                    # LP memory utilization (after your optimizer fix above)
+                    if len(self.lp_utilization_tmp_dict[n]) > 0:
+                        lp_u = self.lp_utilization_tmp_dict[n][-1]
+                    else:
+                        lp_u = None
+
+                    print(f"[t={self.t:8.2f}] node={n}  inst_u={inst_u:.4f}  lp_u={lp_u if lp_u is not None else 'NA'}")
+                '''
+
 
             # Migrate keys
             if self.key_migration_policy is not None:
@@ -489,6 +528,30 @@ class Simulation:
                 self.stats.update_memory_usage(event.node, self.t)
                 event.node.curr_memory += f.memory
                 event.node.warm_pool.pool = event.node.warm_pool.pool[1:]
+        elif isinstance(event, NodeUtilizationUpdate):
+            for n in self.node2policy:
+                if not isinstance(n, Dispatcher):
+                    total_occupied_memory = n.total_memory - n.curr_memory
+                    warm_containers_memory = sum([entry[0].memory for entry in n.warm_pool.pool])
+                    instant_utilization = (total_occupied_memory - warm_containers_memory) / n.total_memory
+                    instant_utilization = max(0.0, min(1.0, instant_utilization))
+                    #n.add_utilization(instant_utilization)
+                    #self.stats.node2utilization[n].append(instant_utilization)
+
+                    #E = P * T [ J = W * sec ]
+                    #gCO2(t) = (Pmax - Pidle)*instant_utilization*utilization_update_interval*(1/KWH)*node_co2_intensity
+                    P = n.processing_power_consumption - n.idle_power_consumption
+                    I = n.co2_footprint.co2_intensity
+
+                    emitted_gCO2_interval_by_node = P * instant_utilization * self.utilization_update_interval * (1/KWH) * I
+                    self.stats.co2_emission_per_node[n] += emitted_gCO2_interval_by_node
+                    self.stats.co2_emission_total += emitted_gCO2_interval_by_node
+
+            self.schedule(t + self.utilization_update_interval, event)
+        elif isinstance(event, LatencyUpdate):
+            self.update_latencies_abs_gaussian(self.latency_dev_st, self.latency_cap)
+            print("latencies: ",self.infra.latency.items())
+            self.schedule(t + self.latency_update_interval, event)
         else:
             raise RuntimeError("")
 
@@ -505,6 +568,10 @@ class Simulation:
 
         assert not isinstance(n, Dispatcher)
         # Account for the time needed to send back the result
+
+        function_transmission_energy = 0.0
+        I = 0.0
+
         if event.offloaded_from != None and len(event.offloaded_from) > 0:
             curr_node = n
             for remote_node in reversed(event.offloaded_from):
@@ -517,26 +584,43 @@ class Simulation:
                 dispatcher = event.offloaded_from[1]
                 #energy for function processing on cloud node + offloading from local node to dispatcher
                 function_co2_emission = compute_cloud_energy(f, dispatcher, duration, n, initial_node)
+                function_transmission_energy = compute_transmission_energy_cloud(f,dispatcher, initial_node, n)
+
+                I = dispatcher.co2_footprint.co2_intensity
+
             else:
                 #edge node
                 assert len(event.offloaded_from) == 1
                 initial_node = event.offloaded_from[0]
                 function_co2_emission = compute_edge_energy(f, n.curr_memory, n.processing_power_consumption,
+                                                            n.idle_power_consumption,
                                                             duration, initial_node.tx_energy_consumption,
                                                             n.rx_energy_consumption,
                                                             initial_node.rx_energy_consumption,
                                                             n.tx_energy_consumption,
                                                             n.co2_footprint.co2_intensity)
-        else:
-            #todo: togliere distinzione if default tanto compute_local_energy e compute_local_variant_energy sono uguali
-            if f.is_default:
-                #default function
-                function_co2_emission = compute_local_energy(f, n, duration)
-            else:
-                #function variant
-                function_co2_emission = compute_local_variant_energy(f, n, duration)
 
-        self.stats.co2_emission_total += function_co2_emission
+                function_transmission_energy = compute_transmission_energy_edge(f,
+                                                                                initial_node.tx_energy_consumption,
+                                                                                initial_node.rx_energy_consumption,
+                                                                                n.tx_energy_consumption,
+                                                                                n.rx_energy_consumption)
+                I = n.co2_footprint.co2_intensity
+
+        else:
+            function_co2_emission = compute_local_energy(f, n, duration)
+
+        function_transmission_co2_emission = function_transmission_energy * (1 / KWH) * I
+
+        self.stats.co2_emission_totalOld += function_co2_emission
+        self.stats.co2_emission_per_nodeOld[n] += function_co2_emission
+
+        self.stats.co2_emission_total += function_transmission_co2_emission
+        self.stats.co2_emission_per_node[n] += function_transmission_co2_emission
+
+        #u_f = n.utilization_during_function_execution(duration)
+        #self.instant_utilization_tmp_dict[n].append(u_f)
+        #self.instant_energy_tmp_dict[n].append(function_co2_emission)
 
         self.stats.resp_time_sum[(f, c, n)] += rt
         if (f, c, n) in self.resp_time_samples:
@@ -729,7 +813,7 @@ class Simulation:
         data_access_time = 0
         # we add the time to access state
         for k, prob in f.accessed_keys:
-            # check if it is accessed 
+            # check if it is accessed
             if self.keys_rng.random() <= prob:
                 # check if the key is on the node
                 if k not in n.kv_store:
@@ -786,4 +870,32 @@ class Simulation:
                     node.g_co2_emissions[function] = {}
                 for decision in list(SchedulerDecision):
                     node.g_co2_emissions[function][decision] = 0.0
+
+    def update_latencies_abs_gaussian(self, sigma_sec, cap_extra_sec):
+        """
+        L(t) = mu + min(|X|, cap),  X ~ N(0, sigma^2)
+        - variazione indipendente per ogni coppia (edge, cloud)
+        - latenza non diminuisce mai sotto il base
+        - cap < gap_min => preserva l'ordine di vicinanza
+        """
+        for key, mu in self.infra.base_latency.items():
+            src, dst = key
+
+            # Esempio: variare solo coppia edge-cloud
+            if (not src.is_cloud()) and dst.is_cloud():
+
+                # rumore indipendente per ogni coppia
+                x = float(self.latency_rng.normal(loc=0.0, scale=sigma_sec))
+                extra = abs(x)
+
+                # cap dell'incremento (in secondi)
+                if cap_extra_sec > 0.0:
+                    extra = min(extra, cap_extra_sec)
+
+                self.infra.latency[key] = mu + extra
+            else:
+                self.infra.latency[key] = mu
+                continue
+
+
 

@@ -12,7 +12,7 @@ from main import read_spec_file
 from numpy.random import SeedSequence, default_rng
 
 DEFAULT_CONFIG_FILE = "config.ini"
-DEFAULT_OUT_DIR = "270525"
+DEFAULT_OUT_DIR = "191225"
 DEFAULT_DURATION = 259200
 #SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
@@ -152,6 +152,7 @@ def relevant_stats_dict (stats):
 
     result["TotalProcTime"] = stats.total_processing_time
     result["CO2EmissTotal"] = stats.co2_emission_total
+    result["CO2EmissTotalOld"] = stats.co2_emission_totalOld
     result["ExtArrivals"] = sum(stats.ext_arrivals.values())
 
     return result
@@ -183,7 +184,6 @@ def experiment_main_comparison_brown_greedy(args, config, seeds, flag_seeds):
 
     for seed in seeds:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
-        seed_sequence = SeedSequence(seed)
         for budget in BUDGETS:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
@@ -209,6 +209,7 @@ def experiment_main_comparison_brown_greedy(args, config, seeds, flag_seeds):
                         print("Skipping conf")
                         continue
 
+                    seed_sequence = SeedSequence(seed)
                     rng = default_rng(seed_sequence.spawn(1)[0])
                     temp_spec_file = generate_random_temp_spec_variants(
                         rng, variants_mode=variant_mode, arrivals_to_single_node=False,
@@ -267,7 +268,6 @@ def experiment_main_comparison_brown_baseline(args, config, seeds, flag_seeds):
 
     for seed in seeds:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
-        seed_sequence = SeedSequence(seed)
         for budget in BUDGETS:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
@@ -293,6 +293,7 @@ def experiment_main_comparison_brown_baseline(args, config, seeds, flag_seeds):
                         print("Skipping conf")
                         continue
 
+                    seed_sequence = SeedSequence(seed)
                     rng = default_rng(seed_sequence.spawn(1)[0])
                     temp_spec_file = generate_random_temp_spec_variants(
                         rng, variants_mode=variant_mode, arrivals_to_single_node=False,
@@ -348,7 +349,6 @@ def experiment_main_comparison_brown(args, config, seeds, flag_seeds):
 
     for seed in seeds:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
-        seed_sequence = SeedSequence(seed)
         for budget in BUDGETS:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
@@ -389,6 +389,7 @@ def experiment_main_comparison_brown(args, config, seeds, flag_seeds):
                             print("Skipping conf")
                             continue
 
+                        seed_sequence = SeedSequence(seed)
                         rng = default_rng(seed_sequence.spawn(1)[0])
                         temp_spec_file = generate_random_temp_spec_variants(
                             rng, variants_mode=variant_mode, arrivals_to_single_node=False,
@@ -442,7 +443,6 @@ def experiment_main_comparison_brown_normalized(args, config, seeds, flag_seeds)
 
     for seed in seeds:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
-        seed_sequence = SeedSequence(seed)
         for budget in BUDGETS:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
@@ -482,6 +482,7 @@ def experiment_main_comparison_brown_normalized(args, config, seeds, flag_seeds)
                             print("Skipping conf")
                             continue
 
+                        seed_sequence = SeedSequence(seed)
                         rng = default_rng(seed_sequence.spawn(1)[0])
                         temp_spec_file = generate_random_temp_spec_variants(
                             rng, variants_mode=variant_mode, arrivals_to_single_node=False,
@@ -536,7 +537,6 @@ def experiment_main_comparison_green(args, config, seeds, flag_seeds):
 
     for seed in seeds:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
-        seed_sequence = SeedSequence(seed)
         for budget in BUDGETS:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
@@ -576,6 +576,7 @@ def experiment_main_comparison_green(args, config, seeds, flag_seeds):
                             print("Skipping conf")
                             continue
 
+                        seed_sequence = SeedSequence(seed)
                         rng = default_rng(seed_sequence.spawn(1)[0])
                         temp_spec_file = generate_random_temp_spec_variants(
                             rng, variants_mode=variant_mode, arrivals_to_single_node=False,
@@ -633,7 +634,6 @@ def experiment_main_comparison_green_greedy(args, config, seeds, flag_seeds):
 
     for seed in seeds:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
-        seed_sequence = SeedSequence(seed)
         for budget in BUDGETS:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
@@ -659,6 +659,7 @@ def experiment_main_comparison_green_greedy(args, config, seeds, flag_seeds):
                         print("Skipping conf")
                         continue
 
+                    seed_sequence = SeedSequence(seed)
                     rng = default_rng(seed_sequence.spawn(1)[0])
                     temp_spec_file = generate_random_temp_spec_variants(
                         rng, variants_mode=variant_mode, arrivals_to_single_node=False,
@@ -716,7 +717,6 @@ def experiment_main_comparison_green_baseline(args, config, seeds, flag_seeds):
 
     for seed in seeds:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
-        seed_sequence = SeedSequence(seed)
         for budget in BUDGETS:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
@@ -742,6 +742,7 @@ def experiment_main_comparison_green_baseline(args, config, seeds, flag_seeds):
                         print("Skipping conf")
                         continue
 
+                    seed_sequence = SeedSequence(seed)
                     rng = default_rng(seed_sequence.spawn(1)[0])
                     temp_spec_file = generate_random_temp_spec_variants(
                         rng, variants_mode=variant_mode, arrivals_to_single_node=False,
@@ -798,7 +799,6 @@ def experiment_main_comparison_green_normalized(args, config, seeds, flag_seeds)
 
     for seed in seeds:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
-        seed_sequence = SeedSequence(seed)
         for budget in BUDGETS:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
@@ -837,6 +837,7 @@ def experiment_main_comparison_green_normalized(args, config, seeds, flag_seeds)
                             print("Skipping conf")
                             continue
 
+                        seed_sequence = SeedSequence(seed)
                         rng = default_rng(seed_sequence.spawn(1)[0])
                         temp_spec_file = generate_random_temp_spec_variants(
                             rng, variants_mode=variant_mode, arrivals_to_single_node=False,
@@ -886,14 +887,14 @@ if __name__ == "__main__":
     flag_1half = "1half"
     flag_2half = "2half"
 
-    # BROWN SCENARIO source env/bin/activate
-    if args.experiment.lower() == "brown_probabilistic_1half":  #sess1 python3 experiments_carbon_awareness.py --experiment
+    # BROWN SCENARIO source green_env/bin/activate
+    if args.experiment.lower() == "brown_probabilistic_1half":  #sess1 python3 experiments_carbon_awareness.py --experiment brown_probabilistic_1half
         SEEDS = [1, 293, 287844, 2902, 944]
         experiment_main_comparison_brown(args, config, SEEDS, flag_1half)
-    elif args.experiment.lower() == "brown_probabilistic_2half":    #sess2
+    elif args.experiment.lower() == "brown_probabilistic_2half":    #sess2 python3 experiments_carbon_awareness.py --experiment brown_probabilistic_2half
         SEEDS = [9573, 102903, 193, 456, 71]
         experiment_main_comparison_brown(args, config, SEEDS, flag_2half)
-    elif args.experiment.lower() == "brown_baseline_1half": #sess3
+    elif args.experiment.lower() == "brown_baseline_1half": #sess3 python3 experiments_carbon_awareness.py --experiment brown_baseline_1half
         SEEDS = [1, 293, 287844, 2902, 944]
         experiment_main_comparison_brown_baseline(args, config, SEEDS, flag_1half)  #stopped
     elif args.experiment.lower() == "brown_baseline_2half": #sess4

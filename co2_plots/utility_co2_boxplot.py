@@ -750,38 +750,38 @@ def check_if_nan(value):
 # process_csv_json("data.csv", "json_files_folder")
 
 def createMainComparisonBrown():
-    input_file_name1 = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonBrown_1half.csv"
-    input_file_name2 = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonBrown_2half.csv"
-    output_file = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonBrown.csv"
+    input_file_name1 = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown_1half.csv"
+    input_file_name2 = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown_2half.csv"
+    output_file = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown.csv"
     merge_2_csv_files(input_file_name1, input_file_name2, output_file)
 
 
-    input_file_name1 = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonBrown.csv"
-    input_file_name2 = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonBrown_normalized_1half.csv"
-    output_file = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonBrown.csv"
+    input_file_name1 = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown.csv"
+    input_file_name2 = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown_normalized_1half.csv"
+    output_file = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown.csv"
     merge_2_csv_files(input_file_name1, input_file_name2, output_file)
 
-    input_file_name1 = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonBrown.csv"
-    input_file_name2 = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonBrown_normalized_2half.csv"
-    output_file = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonBrown.csv"
+    input_file_name1 = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown.csv"
+    input_file_name2 = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown_normalized_2half.csv"
+    output_file = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown.csv"
 
     merge_2_csv_files(input_file_name1, input_file_name2, output_file)
 
 def createMainComparisonGreen():
-    input_file_name1 = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonGreen_1half.csv"
-    input_file_name2 = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonGreen_2half.csv"
-    output_file = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonGreen.csv"
+    input_file_name1 = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonGreen_1half.csv"
+    input_file_name2 = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonGreen_2half.csv"
+    output_file = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonGreen.csv"
     merge_2_csv_files(input_file_name1, input_file_name2, output_file)
 
 
-    input_file_name1 = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonGreen.csv"
-    input_file_name2 = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonGreen_normalized_1half.csv"
-    output_file = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonGreen.csv"
+    input_file_name1 = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonGreen.csv"
+    input_file_name2 = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonGreen_normalized_1half.csv"
+    output_file = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonGreen.csv"
     merge_2_csv_files(input_file_name1, input_file_name2, output_file)
 
-    input_file_name1 = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonGreen.csv"
-    input_file_name2 = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonGreen_normalized_2half.csv"
-    output_file = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonGreen.csv"
+    input_file_name1 = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonGreen.csv"
+    input_file_name2 = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonGreen_normalized_2half.csv"
+    output_file = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonGreen.csv"
 
     merge_2_csv_files(input_file_name1, input_file_name2, output_file)
 
@@ -840,32 +840,105 @@ def plot_carbon_intensity_utc(pl_csv_path: str,
     plt.show()
     plt.sa
 
+import pandas as pd
+import numpy as np
+
+def merge_csv_align_columns(csv_paths, output_path):
+    dfs = []
+    all_cols = set()
+
+    # read all, collect union of columns
+    for p in csv_paths:
+        d = pd.read_csv(p)
+
+        # make sure these exist everywhere (so plot_bar/groupby never fails)
+        for c in ["OF-Alpha", "OF-Beta", "CompletionsDistribution"]:
+            if c not in d.columns:
+                d[c] = np.nan
+
+        dfs.append(d)
+        all_cols |= set(d.columns)
+
+    # choose a nice stable column order (keeps your CSV readable)
+    preferred = [
+        "Policy","Budget","Seed","Variant_mode","OF-Alpha","OF-Beta",
+        "Utility","Penalty","NetUtility","Cost","BudgetExcessPerc",
+        "EnergyConsNode","EnergyConsTotal","TotalProcTime","CO2EmissTotal","ExtArrivals",
+        "CompletionsDistribution","Completions","Violations","NetCompletions","NormUtility"
+    ]
+    cols = [c for c in preferred if c in all_cols] + [c for c in all_cols if c not in preferred]
+
+    out = pd.concat([d.reindex(columns=cols) for d in dfs], ignore_index=True)
+    out.to_csv(output_path, index=False)
+    print(f"Saved {len(out)} rows -> {output_path}")
+
+
+def createAllPoliciesBrown():
+    brown_csvs = [
+        "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown_1half.csv",
+        "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown_2half.csv",
+        "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown_normalized_1half.csv",
+        "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown_normalized_2half.csv",
+
+        # add your greedy / baseline csvs here too
+        "/home/cecilia/workspace/faas-offloading/191225_results_baseline/mainComparisonBrown_Baseline_1half.csv",
+        "/home/cecilia/workspace/faas-offloading/191225_results_baseline/mainComparisonBrown_Baseline_2half.csv",
+        "/home/cecilia/workspace/faas-offloading/191225_results_greedy/mainComparisonBrown_Greedy_1half.csv",
+        "/home/cecilia/workspace/faas-offloading/191225_results_greedy/mainComparisonBrown_Greedy_2half.csv",
+
+    ]
+
+    out_csv = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown_allPolicies.csv"
+    merge_csv_align_columns(brown_csvs, out_csv)
+
 # Usage example
 if __name__ == "__main__":
-    brown = "brown_plots_new"
-    green = "green_plots_new"
+    brown = "brown_plots_191225"
+    green = "green_plots_191225"
     brown_norm = "brown_norm_plots"
 
-    #createMainComparisonBrown()
     #createMainComparisonGreen()
 
-    #csv_path ="/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonGreen.csv"
-    #json_folder = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/"
+    # =====================
+    createAllPoliciesBrown()
+
+    csv_path ="/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown_allPolicies.csv"
+    json_folder = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/"
+    process_csv_json_completionsDistributions(csv_path, json_folder, "brown")
+
+    input_file_name = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown_allPolicies.csv"
+    plot_boxplots_cost(input_file_name, brown, "v")
+
+    # =====================
+    createMainComparisonBrown()
+
+    csv_path ="/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown.csv"
+    json_folder = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/"
+    process_csv_json_completionsDistributions(csv_path, json_folder, "brown")
+
+    input_file_name = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonBrown.csv"
+    plot_bar(input_file_name, brown)
+    # =====================
+
+    #csv_path ="/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonGreen.csv"
+    #json_folder = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/"
     #process_csv_json_completionsDistributions(csv_path, json_folder, "green")
 
-    #input_file_name = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonGreen_allPolicies.csv"
+    #input_file_name = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonGreen_allPolicies.csv"
     #plot_boxplots_cost(input_file_name, green, "v")
 
-    #input_file_name = "/home/cecilia/workspace/faas-offloading/250325_results_probabilistic/mainComparisonGreen.csv"
+    #input_file_name = "/home/cecilia/workspace/faas-offloading/191225_results_probabilistic/mainComparisonGreen.csv"
     #plot_bar(input_file_name, green)
 
-
+    '''
     plot_carbon_intensity_utc(
     pl_csv_path='/home/cecilia/workspace/faas-offloading/co2_traces/PL_2023_hourly.csv',
     fr_csv_path='/home/cecilia/workspace/faas-offloading/co2_traces/FR_2023_hourly.csv',
     pl_color='brown',
     fr_color='green'
-    )
+    ) 
+    '''
+
 
 
 

@@ -17,6 +17,8 @@ from simulation import Simulation
 
 def read_spec_file(spec_file_name, infra, config):
     peer_exposed_memory_fraction = config.getfloat(conf.SEC_SIM, conf.EDGE_EXPOSED_FRACTION, fallback=0.5)
+    utilization_update_interval = config.getfloat(conf.SEC_CONTAINER, conf.UTILIZATION_UPDATE_INTERVAL,
+                                                            fallback=5)
 
     with open(spec_file_name, "r") as stream:
         spec = yaml.safe_load(stream)
@@ -53,6 +55,8 @@ def read_spec_file(spec_file_name, infra, config):
             custom_policy = n["policy"] if "policy" in n else None
             processing_power_consumption = n[
                 "processing_power_consumption"] if "processing_power_consumption" in n else 0.0
+            idle_power_consumption = n[
+                "idle_power_consumption"] if "idle_power_consumption" in n else 0.0
             tx_energy_consumption = n["tx_energy_consumption"] if "tx_energy_consumption" in n else 0.0
             rx_energy_consumption = n["rx_energy_consumption"] if "rx_energy_consumption" in n else 0.0
 
@@ -63,8 +67,10 @@ def read_spec_file(spec_file_name, infra, config):
             NodeClass = faas.Dispatcher if conf.DISPATCHER in node_name else faas.Node
             node = NodeClass(node_name, memory, speedup, reg, carbon_emission,
                              processing_power_consumption,
+                             idle_power_consumption,
                              tx_energy_consumption,
                              rx_energy_consumption,
+                             utilization_update_interval,
                              cost=cost,
                              custom_sched_policy=custom_policy,
                              peer_exposed_memory_fraction=peer_exposed_memory_fraction)
@@ -300,12 +306,39 @@ def main():
     config = conf.parse_config_file(config_file)
     simulation = init_simulation(config)
     final_stats = simulation.run()
-    print("co2_emission_nodes: ", final_stats.co2_emission_per_node)
+    print("co2_emission_totalOld: ",final_stats.co2_emission_totalOld)
     print("co2_emission_total: ",final_stats.co2_emission_total)
-    print("emission_intensity: ",final_stats.emission_intensity)
-    print("total_processing_time: ",final_stats.total_processing_time)
+
+    '''
+    instant_u = simulation.instant_utilization_tmp_dict
+    lp_u = simulation.lp_utilization_tmp_dict
+    print("instant u: ",instant_u)
+    print("lp u: ",lp_u)
+
+    print("lp u AVG per node:")
+    for node, dq in lp_u.items():
+        print(f"  {node}: {avg_deque(dq):.6f}  (n={len(dq)})")
+
+    print("instant u AVG per node:")
+    for node, dq in instant_u.items():
+        print(f"  {node}: {avg_deque(dq):.6f}  (n={len(dq)})")
+
+    instant_e = simulation.instant_energy_tmp_dict
+    lp_e = simulation.lp_energy_tmp_dict
+    print("instant e: ",instant_e)
+    print("lp e: ",lp_e)
+
+    print("lp e AVG per node:")
+    for node, dq in lp_e.items():
+        print(f"  {node}: {avg_deque(dq):.6f}  (n={len(dq)})")
+
+    print("instant e AVG per node:")
+    for node, dq in instant_e.items():
+        print(f"  {node}: {avg_deque(dq):.6f}  (n={len(dq)})")
+    '''
 
 
-
+def avg_deque(dq):
+    return (sum(dq) / len(dq)) if dq else 0.0
 if __name__ == "__main__":
     main()

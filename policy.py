@@ -219,7 +219,7 @@ class CloudPolicy(Policy):
         else:
             return (SchedulerDecision.DROP, None)
 
-class CloudRegionDispatcherRandomPolicy(Policy):
+class CloudRegionDispatcherPolicy(Policy):
 
     def __init__(self, simulation, node: Dispatcher):
         super().__init__(simulation, node)
@@ -231,6 +231,7 @@ class CloudRegionDispatcherRandomPolicy(Policy):
         node.aggregated_region_cost = (sum(cloud_node.cost for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.cost = (sum(cloud_node.cost for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.avg_processing_power_consumption = (sum(cloud_node.processing_power_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
+        node.avg_idle_power_consumption = (sum(cloud_node.idle_power_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.avg_tx_energy_consumption = (sum(cloud_node.tx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.avg_rx_energy_consumption = (sum(cloud_node.rx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.cloud_nodes_list = self.cloud_region_nodes
@@ -256,27 +257,36 @@ class CloudRegionDispatcherRandomPolicy(Policy):
             self.node.avg_execution_time_sum[f] = avg_exec_time
             self.node.avg_cold_starts[f] = avg_cold_starts
 
-            #print("update policy dispatcher -> self.node.avg_node2completions[f] = ",self.node.avg_node2completions)
-            #print("update policy dispatcher ->self.node.avg_exec_time[f] = ",self.node.avg_execution_time_sum)
-            #print("update policy dispatcher ->self.node.avg_cold_starts[f] = ",self.node.avg_cold_starts)
-
 
     def schedule(self, f, c, offloaded_from):
-        selected_node = None
-        for node in self.cloud_region_nodes:
-            #check if f is already in a warm pool
-            if f in node.warm_pool:
+        n = len(self.cloud_region_nodes)
+        if n == 0:
+            return (SchedulerDecision.DROP, None)  # or raise
+
+        start = self.current_index
+
+        # 1) Prefer warm nodes, but iterate in RR order (avoid always picking the first)
+        for i in range(n):
+            idx = (start + i) % n
+            node = self.cloud_region_nodes[idx]
+            if f in node.warm_pool and node.curr_memory >= f.memory:
                 selected_node = node
-                break
+                self.current_index = (idx + 1) % n  # advance RR from chosen node
+                decision = conf.OFFLOAD_CLOUD_DECISION + self.region.name.upper()
+                return (decision, selected_node)
 
-        #cold start, selecting node using rr
-        if selected_node is None:
-            selected_node = self.cloud_region_nodes[self.current_index]
-            self.current_index = (self.current_index + 1) % len(self.cloud_region_nodes)
+        # 2) No warm node available -> cold start RR, but skip full nodes
+        for i in range(n):
+            idx = (start + i) % n
+            node = self.cloud_region_nodes[idx]
+            if node.curr_memory >= f.memory:
+                selected_node = node
+                self.current_index = (idx + 1) % n
+                decision = conf.OFFLOAD_CLOUD_DECISION + self.region.name.upper()
+                return (decision, selected_node)
 
-        decision = conf.OFFLOAD_CLOUD_DECISION+self.region.name.upper()
-        return (decision, selected_node)
-
+        # 3) All nodes full -> decide what you want (DROP / queue / force-evict / etc.)
+        return (SchedulerDecision.DROP, None)
 
 class GreedyPolicy(Policy):
 

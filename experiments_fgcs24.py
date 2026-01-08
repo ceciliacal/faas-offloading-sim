@@ -148,7 +148,7 @@ def experiment_varying_arrivals (args, config):
 
                             rng = default_rng(seed_sequence.spawn(1)[0])
                             temp_spec_file = generate_random_temp_spec (rng, dynamic_rate_coeff=dyn_rate_coeff)
-                            infra = default_infra() #todo: mettere pure regioni
+                            infra = default_infra()
                             stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
 
                             temp_spec_file.close()

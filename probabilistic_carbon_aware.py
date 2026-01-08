@@ -1,3 +1,4 @@
+import numpy as np
 from pacsltk import perfmodel
 
 import conf
@@ -24,7 +25,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         self.edge_enabled = simulation.config.getboolean(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, fallback="true")
         self.strict_budget_enforce = strict_budget_enforce
 
-        self.rng_cloud_region = self.simulation.cloud_region_choice
+        self.rng_variant = self.simulation.rng_variant
 
         self.num_regions_cloud = int(simulation.infra.num_regions_cloud)
         assert (self.num_regions_cloud == len(simulation.infra.dispatchers))
@@ -88,6 +89,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         self.cold_start_prob_edge = {}
 
         self.aggregated_edge_power_consumption = 0.0
+        self.aggregated_edge_idle_power_consumption = 0.0
         self.aggregated_edge_energy_tx = 0.0
         self.aggregated_edge_energy_rx = 0.0
         self.co2_green_threshold = 150.0
@@ -186,7 +188,6 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
         # If the request has already been offloaded, cannot offload again
         if len(offloaded_from) > 0:
-            probabilities[SchedulerDecision.EXEC_VAR] = 0.0
             if not self.allow_multi_offloading:
                 probabilities[SchedulerDecision.OFFLOAD_EDGE] = 0.0
                 for decision, prob in probabilities.items():
@@ -222,27 +223,6 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                     probabilities = self.renormalize_probs(probabilities, s)
                     decision, node = self.rng.choice(list(probabilities.keys()), p=list(probabilities.values())), None
                 else:
-
-                    #'''
-                    # NOTE: we may add new Cloud offloadings even if p_cloud=0
-                    # Attempt Cloud offloading if utility allows
-                    if c.utility > 0.0 and \
-                            self.simulation.stats.cost / self.simulation.t * 3600 < self.budget \
-                            and (self.allow_multi_offloading or len(offloaded_from) == 0):
-
-                        cloud_decisions = []
-                        cloud_probs = []
-                        for cloud_decision, prob in probabilities.items():
-                            if conf.OFFLOAD_CLOUD_DECISION in cloud_decision.name:
-                                cloud_decisions.append(cloud_decision)
-                                cloud_probs.append(prob)
-
-                        decision, dispatcher = self.pick_greener_cloud_region()
-
-                        return (decision, dispatcher)
-                    else:
-                        return (SchedulerDecision.DROP, None)
-                    #'''
                     return (SchedulerDecision.DROP, None)
 
             elif self.local_rejection_fallback == "drop":
@@ -258,12 +238,43 @@ class ProbabilisticCarbonAwarePolicy(Policy):
             for function_variant, class_probability in variants_probs.items():
                 variant_choice[function_variant] = class_probability[c]  #.varValue
 
-            selected_variant, prob = max(variant_choice.items(), key=lambda item: item[1])
+            variants = list(variant_choice.keys())
+            probs = np.array(list(variant_choice.values()), dtype=float)
+
+            # normalize (in case they don't sum to 1)
+            s = probs.sum()
+            if s <= 0:
+                return (SchedulerDecision.DROP, None)
+            probs /= s
+
+            selected_variant = self.rng_variant.choice(variants, p=probs)
             f.active_variant = selected_variant
 
         # Local rejection due to lack of resources
         if decision == SchedulerDecision.EXEC_VAR and not self.can_execute_locally(f):
-            return (SchedulerDecision.DROP, None)
+
+            self.curr_local_blocked_reqs += 1
+
+            if self.local_rejection_fallback == "fgcs24" or self.local_rejection_fallback == "reschedule":
+                probabilities[SchedulerDecision.EXEC_VAR] = 0.0
+                probabilities[SchedulerDecision.EXEC] = 0.0
+
+                if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
+                    for cloud_decision, prob in probabilities.items():
+                        if conf.OFFLOAD_CLOUD_DECISION in cloud_decision.name:
+                            probabilities[decision] = 0.0
+
+                s = sum(probabilities.values())
+                if s > 0.0:
+                    probabilities = self.renormalize_probs(probabilities, s)
+                    decision, node = self.rng.choice(list(probabilities.keys()), p=list(probabilities.values())), None
+                else:
+                    return (SchedulerDecision.DROP, None)
+
+            elif self.local_rejection_fallback == "drop":
+                return (SchedulerDecision.DROP, None)
+            else:
+                raise RuntimeError(f"Unknown local rejection fallback: {self.local_rejection_fallback}")
 
 
         if conf.OFFLOAD_CLOUD_DECISION in decision.name and self.strict_budget_enforce:
@@ -452,6 +463,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                 # Set default values when there are no neighbors
                 self.aggregated_edge_memory = 0
                 self.aggregated_edge_power_consumption = 0
+                self.aggregated_edge_idle_power_consumption = 0
                 self.aggregated_edge_energy_tx = 0
                 self.aggregated_edge_energy_rx = 0
                 self.edge_rtt = 0  # Default to 0 as no latency can be calculated
@@ -462,11 +474,13 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                                                           neighbors]))
 
                 p = sum(neighbor.processing_power_consumption for neighbor in neighbors)
+                p_idle = sum(neighbor.idle_power_consumption for neighbor in neighbors)
                 tx = sum(neighbor.tx_energy_consumption for neighbor in neighbors)
                 rx = sum(neighbor.rx_energy_consumption for neighbor in neighbors)
 
                 num = len(neighbors)
                 self.aggregated_edge_power_consumption = p / num
+                self.aggregated_edge_idle_power_consumption = p_idle / num
                 self.aggregated_edge_energy_tx = tx / num
                 self.aggregated_edge_energy_rx = rx / num
 
@@ -582,7 +596,10 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                                              self.co2_green_threshold,
                                              self.of_alpha,
                                              self.of_beta,
-                                             self.simulation.t
+                                             self.simulation.t,
+                                             self.simulation.lp_utilization_tmp_dict,
+                                             self.simulation.lp_energy_tmp_dict,
+                                            self.aggregated_edge_idle_power_consumption
                                              )
 
         opt = self.get_optimizer()

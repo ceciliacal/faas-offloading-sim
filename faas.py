@@ -1,3 +1,4 @@
+from collections import deque
 from dataclasses import dataclass,field
 
 class ContainerPool:
@@ -48,9 +49,12 @@ class ContainerPool:
 class Node:
     def __init__(self, name, memory, speedup, region, co2_footprint,
                  processing_power_consumption,
+                 idle_power_consumption,
                  tx_energy_consumption,
                  rx_energy_consumption,
-                 cost=0.0, custom_sched_policy=None, peer_exposed_memory_fraction=1.0, g_co2_emissions = None):
+                 utilization_update_interval,
+                 cost=0.0, custom_sched_policy=None, peer_exposed_memory_fraction=1.0,
+                 ):
         self.name = name
         self.total_memory = memory
         self.curr_memory = memory
@@ -69,12 +73,22 @@ class Node:
         self.tx_energy_consumption = tx_energy_consumption  / 1e9            #Joule/byte
         self.rx_energy_consumption = rx_energy_consumption  / 1e9
         self.g_co2_emissions = {}   #key: <function, schedulerDecision>, value: g CO2
+        self.idle_power_consumption = idle_power_consumption
 
-        #self.tx_energy_consumption_local = tx_energy_consumption_local / 1e9        #to local Cloud region
-        #self.tx_energy_consumption_remote = tx_energy_consumption_remote / 1e9      #to Remote Cloud region
-        #self.rx_energy_consumption_local = rx_energy_consumption_local / 1e9
-        #self.rx_energy_consumption_remote = rx_energy_consumption_remote / 1e9
+        self.utilization_list = deque(maxlen=1000)
+        self.utilization_samples_interval = utilization_update_interval
 
+    def add_utilization(self, value: float):
+        self.utilization_list.append(value)
+
+    def utilization_during_function_execution(self, duration_sec: float) -> float:
+        n = max(1, int(round(duration_sec / self.utilization_samples_interval)))  # samples in that duration
+        if not self.utilization_list:
+            return 0.0
+
+        # take last n samples (or fewer if not enough yet)
+        tail = list(self.utilization_list)[-n:]
+        return  sum(tail) / len(tail)   #average
 
     def __repr__(self):
         return self.name
@@ -93,14 +107,18 @@ class Node:
 class Dispatcher(Node):
     def __init__(self, name, memory, speedup, region, co2_footprint,
                  processing_power_consumption,
+                 idle_power_consumption,
                  tx_energy_consumption,
                  rx_energy_consumption,
+                 utilization_update_interval,
                  cost=0.0, custom_sched_policy="dispatcher-policy", peer_exposed_memory_fraction=0.0):
 
         super().__init__(name, memory, speedup, region, co2_footprint,
                          processing_power_consumption,
+                         idle_power_consumption,
                          tx_energy_consumption,
                          rx_energy_consumption,
+                         utilization_update_interval,
                          cost, custom_sched_policy, peer_exposed_memory_fraction)
         self.aggregated_region_memory = 0.0
         self.avg_speedup = 0.0
@@ -114,6 +132,8 @@ class Dispatcher(Node):
         self.avg_tx_energy_consumption = 0.0
         self.avg_rx_energy_consumption = 0.0
         self.cloud_nodes_list = []
+        self.avg_idle_power_consumption = 0.0
+
 
 
 

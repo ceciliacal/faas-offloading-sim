@@ -33,6 +33,10 @@ class OptCarbonAwareProblemParams:
     alpha: float = 0.0
     beta: float = 0.0
     t: float = 0.0
+    utilization_LP_dict: dict = None,
+    energy_LP_dict: dict = None,
+    aggregated_edge_idle_power_consumption: float = float("inf")
+
 
     def fun_classes(self):
         for f in self.functions:

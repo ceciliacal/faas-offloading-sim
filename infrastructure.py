@@ -36,6 +36,7 @@ class Infrastructure:
     def __init__ (self, regions, network_latency: dict, bandwidth_mbps: dict):
         self.regions = [n for n in regions]
         self.latency = network_latency
+        self.base_latency = network_latency
         self.bandwidth_mbps = bandwidth_mbps
         self.region_nodes = {r: []  for r in self.regions}
         self.region_dict = {r.name: r for r in self.regions}

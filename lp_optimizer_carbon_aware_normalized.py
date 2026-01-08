@@ -4,7 +4,7 @@ import os
 import pulp as pl
 
 import conf
-from co2_footprint import compute_cloud_energy, compute_edge_energy, compute_local_variant_energy, compute_local_energy
+from co2_footprint import compute_cloud_energy, compute_edge_energy, compute_local_energy
 from optimization_carbon_aware import OptCarbonAwareProblemParams
 
 warm_start = False
@@ -133,10 +133,10 @@ def compute_energy_consumption(params):
         # Local variant energy
         if f.has_variants:
             for v in params.variants[f]:
-                local_variant_consumption = compute_local_variant_energy(
-                    function_variant=v,
-                    node=params.local_node,
-                    serv_time_local_variant=params.serv_time_local[v]
+                local_variant_consumption = compute_local_energy(
+                    v,
+                    params.local_node,
+                    params.serv_time_local[v]
                 )
                 if local_variant_consumption == 0.0:
                     local_variant_consumption = large_penalty
@@ -147,6 +147,7 @@ def compute_energy_consumption(params):
             function=f,
             aggregated_edge_memory=params.aggregated_edge_memory,
             aggregated_edge_power_consumption=params.aggregated_edge_power_consumption,
+            aggregated_edge_idle_power_consumption=params.aggregated_edge_idle_power_consumption,
             serv_time_edge=params.serv_time_edge[f],
             local_tx_energy=params.local_node.tx_energy_consumption,
             edge_rx_energy=params.aggregated_edge_energy_rx,
@@ -496,6 +497,16 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
                 # Add the decision and its corresponding probability to each (f,c) pair
                 probs[key][decision] = pl.value(probability)
 
+    variants_probs = {}  # {f: {variant: {c: float}}}
+    for f in F:
+        if not f.has_variants:
+            continue
+        variants_probs[f] = {}
+        for v in V[f]:
+            variants_probs[f][v] = {}
+            for c in C:
+                val = pl.value(pL_variants[f][v][c])
+                variants_probs[f][v][c] = 0.0 if val is None else float(val)
 
     # workaround to avoid numerical issues
     for f, c in F_C:
@@ -506,18 +517,6 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
             probs[(f, c)] = {decision: prob / s for decision, prob in probs[(f, c)].items()}
         if VERBOSE > 0:
             print(f"{f}-{c}: {probs[(f, c)]}")
-
-    # populating local node's updated emissions calculation
-    for f in F:
-        exec_var_key = next((decision for decision in decision_eP if "VAR" in decision.name), None)
-        for decision, eP in decision_eP.items():
-            if "VAR" not in decision.name:
-                params.local_node.g_co2_emissions[f][decision] = eP[f]
-        if f.has_variants and exec_var_key:
-            for v in V[f]:
-                params.local_node.g_co2_emissions[v][exec_var_key] = decision_eP.get(exec_var_key, {}).get((f, v), 0.0)
-
-    #print("[optimizer",params.local_node,"] -  probs: ",probs)
 
     #calculation only to see real values
     '''
@@ -581,7 +580,7 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
     print("======")
     '''
 
-    return probs, decision_fc_probability_var
+    return probs, variants_probs
 
 
 

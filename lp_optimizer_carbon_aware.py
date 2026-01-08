@@ -4,7 +4,7 @@ import os
 import pulp as pl
 
 import conf
-from co2_footprint import compute_cloud_energy, compute_edge_energy, compute_local_variant_energy, compute_local_energy
+from co2_footprint import compute_cloud_energy, compute_edge_energy, compute_local_energy
 from optimization_carbon_aware import OptCarbonAwareProblemParams
 
 warm_start = False
@@ -103,10 +103,10 @@ def compute_energy_consumption(params):
         # Local variant energy
         if f.has_variants:
             for v in params.variants[f]:
-                local_variant_consumption = compute_local_variant_energy(
-                    function_variant=v,
-                    node=params.local_node,
-                    serv_time_local_variant=params.serv_time_local[v]
+                local_variant_consumption = compute_local_energy(
+                    v,
+                    params.local_node,
+                    params.serv_time_local[v]
                 )
                 if local_variant_consumption == 0.0:
                     local_variant_consumption = large_penalty
@@ -117,6 +117,7 @@ def compute_energy_consumption(params):
             function=f,
             aggregated_edge_memory=params.aggregated_edge_memory,
             aggregated_edge_power_consumption=params.aggregated_edge_power_consumption,
+            aggregated_edge_idle_power_consumption=params.aggregated_edge_idle_power_consumption,
             serv_time_edge=params.serv_time_edge[f],
             local_tx_energy=params.local_node.tx_energy_consumption,
             edge_rx_energy=params.aggregated_edge_energy_rx,
@@ -378,6 +379,15 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
         shares = {(f, c): pl.value(x[f][c]) for f, c in F_C}
         print(f"Shares: {shares}")
 
+    #record_local_utilization(params, F_C, pL)
+    record_local_mem_utilization(params, F, C, pL, pL_variants, V)
+
+    vals = [eP_local.get(f, 0.0) for f in F]
+    eP_local_avg = sum(vals) / len(vals) if vals else 0.0
+
+    params.energy_LP_dict[params.local_node].append(eP_local_avg)
+    #params.energy_LP_dict[params.local_node].append(eP_local)
+
     decision_fc_probability = {}
     decision_fc_probability_var = {}
     decision_eP = {}
@@ -426,6 +436,16 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
                 # Add the decision and its corresponding probability to each (f,c) pair
                 probs[key][decision] = pl.value(probability)
 
+    variants_probs = {}  # {f: {variant: {c: float}}}
+    for f in F:
+        if not f.has_variants:
+            continue
+        variants_probs[f] = {}
+        for v in V[f]:
+            variants_probs[f][v] = {}
+            for c in C:
+                val = pl.value(pL_variants[f][v][c])
+                variants_probs[f][v][c] = 0.0 if val is None else float(val)
 
     # workaround to avoid numerical issues
     for f, c in F_C:
@@ -437,22 +457,7 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
         if VERBOSE > 0:
             print(f"{f}-{c}: {probs[(f, c)]}")
 
-    # populating local node's updated emissions calculation
-    for f in F:
-        exec_var_key = next((decision for decision in decision_eP if "VAR" in decision.name), None)
-        for decision, eP in decision_eP.items():
-            if "VAR" not in decision.name:
-                params.local_node.g_co2_emissions[f][decision] = eP[f]
-        if f.has_variants and exec_var_key:
-            for v in V[f]:
-                params.local_node.g_co2_emissions[v][exec_var_key] = decision_eP.get(exec_var_key, {}).get((f, v), 0.0)
-
-    print("[optimizer] -  probs: ",probs)
-    print("[optimizer] -  decision_fc_probability_var: ",decision_fc_probability_var)
-    #decision_eP[scheduler_decision] = eP_local (eP_local[f] = value)
-    #params.local_node.g_co2_emissions[f][scheduler_decision] = eP_local[f]
-
-    return probs, decision_fc_probability_var
+    return probs, variants_probs
 
 
 def solve(problem):
@@ -474,4 +479,62 @@ def solve(problem):
     problem.solve(solver)
     return pl.LpStatus[problem.status]
 
+def compute_local_utilization(params, F_C, pL) -> float:
+    util = 0.0
+    for f, c in F_C:
+        p_val = pl.value(pL[f][c])
+        if p_val is None:
+            raise RuntimeError("pL has no value (LP not solved or infeasible).")
+        util += params.arrival_rates[(f, c)] * p_val * params.serv_time_local[f]
+    return util
 
+def record_local_utilization(params, F_C, pL):
+    util = compute_local_utilization(params, F_C, pL)
+    params.utilization_LP_dict[params.local_node].append(util)
+    return util
+
+def compute_local_mem_utilization(params, F, C, pL, pL_variants, V) -> float:
+    """
+    Expected *active* memory utilization fraction on the local node, per LP.
+    Comparable to Simulation's instant_utilization = active_mem / total_memory.
+    """
+    denom = float(params.local_node.total_memory)
+    if denom <= 0.0:
+        return 0.0
+
+    mem_busy = 0.0
+
+    # Default local exec
+    for f in F:
+        for c in C:
+            p_val = pl.value(pL[f][c])
+            if p_val is None:
+                raise RuntimeError("pL has no value (LP not solved or infeasible).")
+            mem_busy += (
+                params.arrival_rates[(f, c)]
+                * p_val
+                * params.serv_time_local[f]
+                * float(f.memory)
+            )
+
+        # Local variants (if any): arrival rate is still for the default (f,c)
+        if f.has_variants:
+            for v in V[f]:
+                for c in C:
+                    pv = pl.value(pL_variants[f][v][c])
+                    if pv is None:
+                        raise RuntimeError("pL_variants has no value.")
+                    mem_busy += (
+                        params.arrival_rates[(f, c)]
+                        * pv
+                        * params.serv_time_local[v]
+                        * float(v.memory)
+                    )
+
+    return mem_busy / denom
+
+
+def record_local_mem_utilization(params, F, C, pL, pL_variants, V):
+    u_mem = compute_local_mem_utilization(params, F, C, pL, pL_variants, V)
+    params.utilization_LP_dict[params.local_node].append(u_mem)
+    return u_mem
