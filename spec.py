@@ -148,8 +148,11 @@ def generate_random_temp_spec_variants(rng, n_functions=5, variants_mode=0, n_va
          'processing_power_consumption': 800.0, 'tx_energy_consumption': 5120.0, 'rx_energy_consumption': 3072.0},
         {'name': 'cloud_node_b', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 128000,
          'processing_power_consumption': 800.0, 'tx_energy_consumption': 5120.0, 'rx_energy_consumption': 3072.0},
+         {'name': 'cloud_node_c', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 128000,
+         'processing_power_consumption': 800.0, 'tx_energy_consumption': 5120.0, 'rx_energy_consumption': 3072.0},
         {'name': 'dispatcher_a', 'region': 'cloud_region_a', 'memory': 0, 'policy': 'dispatcher-policy'},
-        {'name': 'dispatcher_b', 'region': 'cloud_region_b', 'memory': 0, 'policy': 'dispatcher-policy'}
+        {'name': 'dispatcher_b', 'region': 'cloud_region_b', 'memory': 0, 'policy': 'dispatcher-policy'},
+        {'name': 'dispatcher_c', 'region': 'cloud_region_c', 'memory': 0, 'policy': 'dispatcher-policy'}
     ]
 
     # Extend functions list if needed
@@ -393,21 +396,21 @@ regions_data_brown_edge = [
       "cloud_region_b": 0.02
     },
     "name": "cloud_region_a",
-    "neighbors": [
-      "cloud_region_b"
-    ],
+    "neighbors": [],
     "zones": [
       {
         "bandwidth_mbps": {
-          "cloud_region_a": 10000,
-          "cloud_region_b": 1000,
-          "edge_zone_1": 5000
+            "cloud_region_a": 10000,
+            "cloud_region_b": 1000,
+            "cloud_region_c": 7000.0,
+            "edge_zone_1": 5000
         },
         "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
         "latency_sec": {
-          "cloud_region_a": 0.015,
-          "cloud_region_b": 0.05,
-          "edge_zone_1": 0.005
+            "cloud_region_a": 0.015,
+            "cloud_region_b": 0.05,
+            "cloud_region_c": 0.03,
+            "edge_zone_1": 0.005
         },
         "name": "edge_zone_1"
       }
@@ -424,10 +427,25 @@ regions_data_brown_edge = [
       "cloud_region_b": 0.0001
     },
     "name": "cloud_region_b",
-    "neighbors": [
-      "cloud_region_a"
-    ],
+    "neighbors": [],
     "zones": []
+  },
+  {
+        "bandwidth_mbps": {
+            "cloud_region_a": 50000,
+            "cloud_region_b": 50000,
+            "cloud_region_c": 100000.0  # self
+
+        },
+        "co2_traces_file": "co2_traces/IT-CNO_2023_hourly.csv",
+        "latency_sec": {
+            "cloud_region_a": 0.02,
+            "cloud_region_b": 0.02,
+            "cloud_region_c": 0.0001
+        },
+        "name": "cloud_region_c",
+        "neighbors": [],
+        "zones": []
   }
 ]
 
