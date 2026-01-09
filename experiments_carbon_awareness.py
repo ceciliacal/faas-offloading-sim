@@ -147,8 +147,6 @@ def relevant_stats_dict (stats):
     result["NetUtility"] = stats.utility-stats.penalty
     result["Cost"] = stats.cost
     result["BudgetExcessPerc"] = max(0, (stats.cost-stats.budget)/stats.budget*100)
-    result["EnergyConsNode"] = stats.energy_consumption_per_node
-    result["EnergyConsTotal"] = stats.energy_consumption_total
 
     result["TotalProcTime"] = stats.total_processing_time
     result["CO2EmissTotal"] = stats.co2_emission_total

@@ -35,8 +35,8 @@ class Infrastructure:
 
     def __init__ (self, regions, network_latency: dict, bandwidth_mbps: dict):
         self.regions = [n for n in regions]
-        self.latency = network_latency
-        self.base_latency = network_latency
+        self.latency = dict(network_latency)
+        self.base_latency = dict(network_latency)
         self.bandwidth_mbps = bandwidth_mbps
         self.region_nodes = {r: []  for r in self.regions}
         self.region_dict = {r.name: r for r in self.regions}
@@ -211,6 +211,13 @@ class Infrastructure:
         for dispatcher in self.dispatchers:
             if dispatcher.region.name == reg_name:
                 return dispatcher
+
+    def get_base_latency(self, a, b):
+        if (a, b) in self.base_latency:
+            return self.base_latency[(a, b)]
+        if (b, a) in self.base_latency:
+            return self.base_latency[(b, a)]
+        raise KeyError((a, b))
 
     def __repr__ (self):
         s=""

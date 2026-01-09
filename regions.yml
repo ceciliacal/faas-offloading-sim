@@ -4,9 +4,11 @@ regions:  #cloud regions
     latency_sec:
       cloud_region_a: 0.0001
       cloud_region_b: 0.0200
+      edge_zone_1: 0.015
     bandwidth_mbps:
       cloud_region_a: 100000.0
       cloud_region_b: 50000.0
+      edge_zone_1:    10000.0
     neighbors:
 
     zones:  #edge regions referring to this cloud region

@@ -613,7 +613,6 @@ class Simulation:
         function_transmission_co2_emission = function_transmission_energy * (1 / KWH) * I
 
         self.stats.co2_emission_totalOld += function_co2_emission
-        self.stats.co2_emission_per_nodeOld[n] += function_co2_emission
 
         self.stats.co2_emission_total += function_transmission_co2_emission
         self.stats.co2_emission_per_node[n] += function_transmission_co2_emission
@@ -872,30 +871,22 @@ class Simulation:
                     node.g_co2_emissions[function][decision] = 0.0
 
     def update_latencies_abs_gaussian(self, sigma_sec, cap_extra_sec):
-        """
-        L(t) = mu + min(|X|, cap),  X ~ N(0, sigma^2)
-        - variazione indipendente per ogni coppia (edge, cloud)
-        - latenza non diminuisce mai sotto il base
-        - cap < gap_min => preserva l'ordine di vicinanza
-        """
-        for key, mu in self.infra.base_latency.items():
-            src, dst = key
+        self.infra.latency.update(self.infra.base_latency)
 
-            # Esempio: variare solo coppia edge-cloud
-            if (not src.is_cloud()) and dst.is_cloud():
+        edges = [n for n in self.infra.regions if not n.is_cloud()]
+        clouds = [n for n in self.infra.regions if n.is_cloud()]
 
-                # rumore indipendente per ogni coppia
+        for e in edges:
+            for c in clouds:
+                mu = self.infra.get_base_latency(e, c)
+
                 x = float(self.latency_rng.normal(loc=0.0, scale=sigma_sec))
                 extra = abs(x)
-
-                # cap dell'incremento (in secondi)
-                if cap_extra_sec > 0.0:
+                if cap_extra_sec and cap_extra_sec > 0.0:
                     extra = min(extra, cap_extra_sec)
 
-                self.infra.latency[key] = mu + extra
-            else:
-                self.infra.latency[key] = mu
-                continue
+                self.infra.latency[(e, c)] = mu + extra
+                self.infra.latency[(c, e)] = mu + extra
 
 
 

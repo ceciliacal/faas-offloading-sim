@@ -54,11 +54,11 @@ class Stats:
         self.cold_starts_cloud_nodes = {(r, f, n): 0 for r in infra.regions for f in functions for n in infra.get_cloud_nodes_by_region(r)}
 
         self.total_processing_time = 0.0
+
         self.co2_emission_totalOld = 0.0 #co2 grams
         self.co2_emission_total = 0.0 #co2 grams
 
         self.co2_emission_per_node = {n: 0.0 for n in self.nodes}
-        self.co2_emission_per_nodeOld = {n: 0.0 for n in self.nodes}
 
     def to_dict (self):
         stats = {}
