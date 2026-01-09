@@ -50,8 +50,8 @@ class Node:
     def __init__(self, name, memory, speedup, region, co2_footprint,
                  processing_power_consumption,
                  idle_power_consumption,
-                 tx_energy_consumption,
-                 rx_energy_consumption,
+                 tx_power_consumption,
+                 rx_power_consumption,
                  utilization_update_interval,
                  cost=0.0, custom_sched_policy=None, peer_exposed_memory_fraction=1.0,
                  ):
@@ -70,8 +70,8 @@ class Node:
         self.co2_footprint = co2_footprint
 
         self.processing_power_consumption = processing_power_consumption     #watt
-        self.tx_energy_consumption = tx_energy_consumption  / 1e9            #Joule/byte
-        self.rx_energy_consumption = rx_energy_consumption  / 1e9
+        self.tx_power_consumption = tx_power_consumption            #mW
+        self.rx_power_consumption = rx_power_consumption
         self.g_co2_emissions = {}   #key: <function, schedulerDecision>, value: g CO2
         self.idle_power_consumption = idle_power_consumption
 
@@ -108,16 +108,16 @@ class Dispatcher(Node):
     def __init__(self, name, memory, speedup, region, co2_footprint,
                  processing_power_consumption,
                  idle_power_consumption,
-                 tx_energy_consumption,
-                 rx_energy_consumption,
+                 tx_power_consumption,
+                 rx_power_consumption,
                  utilization_update_interval,
                  cost=0.0, custom_sched_policy="dispatcher-policy", peer_exposed_memory_fraction=0.0):
 
         super().__init__(name, memory, speedup, region, co2_footprint,
                          processing_power_consumption,
                          idle_power_consumption,
-                         tx_energy_consumption,
-                         rx_energy_consumption,
+                         tx_power_consumption,
+                         rx_power_consumption,
                          utilization_update_interval,
                          cost, custom_sched_policy, peer_exposed_memory_fraction)
         self.aggregated_region_memory = 0.0
@@ -129,8 +129,8 @@ class Dispatcher(Node):
         self.avg_cold_starts:dict = {}   #key = function, value = avg #cold starts
 
         self.avg_processing_power_consumption = 0.0
-        self.avg_tx_energy_consumption = 0.0
-        self.avg_rx_energy_consumption = 0.0
+        self.avg_tx_power_consumption = 0.0
+        self.avg_rx_power_consumption = 0.0
         self.cloud_nodes_list = []
         self.avg_idle_power_consumption = 0.0
 

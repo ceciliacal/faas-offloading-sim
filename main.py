@@ -57,8 +57,8 @@ def read_spec_file(spec_file_name, infra, config):
                 "processing_power_consumption"] if "processing_power_consumption" in n else 0.0
             idle_power_consumption = n[
                 "idle_power_consumption"] if "idle_power_consumption" in n else 0.0
-            tx_energy_consumption = n["tx_energy_consumption"] if "tx_energy_consumption" in n else 0.0
-            rx_energy_consumption = n["rx_energy_consumption"] if "rx_energy_consumption" in n else 0.0
+            tx_power_consumption = n["tx_power_consumption"] if "tx_power_consumption" in n else 0.0
+            rx_power_consumption = n["rx_power_consumption"] if "rx_power_consumption" in n else 0.0
 
             # Compute carbon emissions
             carbon_emission = co2_footprint.CO2footprint(node_name)
@@ -68,8 +68,8 @@ def read_spec_file(spec_file_name, infra, config):
             node = NodeClass(node_name, memory, speedup, reg, carbon_emission,
                              processing_power_consumption,
                              idle_power_consumption,
-                             tx_energy_consumption,
-                             rx_energy_consumption,
+                             tx_power_consumption,
+                             rx_power_consumption,
                              utilization_update_interval,
                              cost=cost,
                              custom_sched_policy=custom_policy,

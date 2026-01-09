@@ -220,6 +220,8 @@ class Simulation:
             return probabilistic.RandomPolicy(self, node)
         elif configured_policy == "random-multi-region":
             return probabilistic_carbon_aware.RandomPolicy(self, node)
+        elif configured_policy == "random-multi-region-no-drop":
+            return probabilistic_carbon_aware.RandomPolicyNoDrop(self, node)
         elif configured_policy == "random-stateful":
             return stateful.RandomStatefulOffloadingPolicy(self, node)
         elif configured_policy == "state-aware":
@@ -594,17 +596,17 @@ class Simulation:
                 initial_node = event.offloaded_from[0]
                 function_co2_emission = compute_edge_energy(f, n.curr_memory, n.processing_power_consumption,
                                                             n.idle_power_consumption,
-                                                            duration, initial_node.tx_energy_consumption,
-                                                            n.rx_energy_consumption,
-                                                            initial_node.rx_energy_consumption,
-                                                            n.tx_energy_consumption,
+                                                            duration, initial_node.tx_power_consumption,
+                                                            n.rx_power_consumption,
+                                                            initial_node.rx_power_consumption,
+                                                            n.tx_power_consumption,
                                                             n.co2_footprint.co2_intensity)
 
                 function_transmission_energy = compute_transmission_energy_edge(f,
-                                                                                initial_node.tx_energy_consumption,
-                                                                                initial_node.rx_energy_consumption,
-                                                                                n.tx_energy_consumption,
-                                                                                n.rx_energy_consumption)
+                                                                                initial_node.tx_power_consumption,
+                                                                                initial_node.rx_power_consumption,
+                                                                                n.tx_power_consumption,
+                                                                                n.rx_power_consumption)
                 I = n.co2_footprint.co2_intensity
 
         else:
@@ -876,17 +878,26 @@ class Simulation:
         edges = [n for n in self.infra.regions if not n.is_cloud()]
         clouds = [n for n in self.infra.regions if n.is_cloud()]
 
+        loc = 0.0
+        scale = float(sigma_sec)
+        a = (0.0 - loc) / scale
+        b = (float(cap_extra_sec) - loc) / scale
+
         for e in edges:
             for c in clouds:
                 mu = self.infra.get_base_latency(e, c)
 
-                x = float(self.latency_rng.normal(loc=0.0, scale=sigma_sec))
-                extra = abs(x)
-                if cap_extra_sec and cap_extra_sec > 0.0:
-                    extra = min(extra, cap_extra_sec)
+                #x = float(self.latency_rng.normal(loc=0.0, scale=sigma_sec))
+
+                #extra = abs(x)
+                #if cap_extra_sec and cap_extra_sec > 0.0: #todo trunc normal
+                #    extra = min(extra, cap_extra_sec)
+
+                extra = float(truncnorm.rvs(a, b, loc=0.0, scale=scale,
+                            random_state=self.latency_rng))
 
                 self.infra.latency[(e, c)] = mu + extra
                 self.infra.latency[(c, e)] = mu + extra
 
-
+from scipy.stats import truncnorm
 

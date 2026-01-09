@@ -232,8 +232,8 @@ class CloudRegionDispatcherPolicy(Policy):
         node.cost = (sum(cloud_node.cost for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.avg_processing_power_consumption = (sum(cloud_node.processing_power_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
         node.avg_idle_power_consumption = (sum(cloud_node.idle_power_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
-        node.avg_tx_energy_consumption = (sum(cloud_node.tx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
-        node.avg_rx_energy_consumption = (sum(cloud_node.rx_energy_consumption for cloud_node in self.cloud_region_nodes))/(len(self.cloud_region_nodes))
+        node.avg_tx_power_consumption = (sum(cloud_node.tx_power_consumption for cloud_node in self.cloud_region_nodes)) / (len(self.cloud_region_nodes))
+        node.avg_rx_power_consumption = (sum(cloud_node.rx_power_consumption for cloud_node in self.cloud_region_nodes)) / (len(self.cloud_region_nodes))
         node.cloud_nodes_list = self.cloud_region_nodes
         self.current_index = 0
 

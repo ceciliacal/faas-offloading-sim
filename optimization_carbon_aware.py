@@ -27,8 +27,8 @@ class OptCarbonAwareProblemParams:
     init_time_edge: dict = None
     bandwidth_edge: float = float("inf")
     aggregated_edge_power_consumption: float = float("inf")
-    aggregated_edge_energy_tx: float = float("inf")
-    aggregated_edge_energy_rx: float = float("inf")
+    aggregated_edge_power_tx: float = float("inf")
+    aggregated_edge_power_rx: float = float("inf")
     co2_green_threshold: float = float("inf")
     alpha: float = 0.0
     beta: float = 0.0

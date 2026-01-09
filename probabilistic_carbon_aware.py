@@ -90,8 +90,8 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
         self.aggregated_edge_power_consumption = 0.0
         self.aggregated_edge_idle_power_consumption = 0.0
-        self.aggregated_edge_energy_tx = 0.0
-        self.aggregated_edge_energy_rx = 0.0
+        self.aggregated_edge_power_tx = 0.0
+        self.aggregated_edge_power_rx = 0.0
         self.co2_green_threshold = 150.0
 
         self.possible_decisions = list(SchedulerDecision)
@@ -464,8 +464,8 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                 self.aggregated_edge_memory = 0
                 self.aggregated_edge_power_consumption = 0
                 self.aggregated_edge_idle_power_consumption = 0
-                self.aggregated_edge_energy_tx = 0
-                self.aggregated_edge_energy_rx = 0
+                self.aggregated_edge_power_tx = 0
+                self.aggregated_edge_power_rx = 0
                 self.edge_rtt = 0  # Default to 0 as no latency can be calculated
                 self.edge_bw = 0  # Default to 0 as no bandwidth can be calculated
             else:
@@ -475,14 +475,14 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
                 p = sum(neighbor.processing_power_consumption for neighbor in neighbors)
                 p_idle = sum(neighbor.idle_power_consumption for neighbor in neighbors)
-                tx = sum(neighbor.tx_energy_consumption for neighbor in neighbors)
-                rx = sum(neighbor.rx_energy_consumption for neighbor in neighbors)
+                tx = sum(neighbor.tx_power_consumption for neighbor in neighbors)
+                rx = sum(neighbor.rx_power_consumption for neighbor in neighbors)
 
                 num = len(neighbors)
                 self.aggregated_edge_power_consumption = p / num
                 self.aggregated_edge_idle_power_consumption = p_idle / num
-                self.aggregated_edge_energy_tx = tx / num
-                self.aggregated_edge_energy_rx = rx / num
+                self.aggregated_edge_power_tx = tx / num
+                self.aggregated_edge_power_rx = rx / num
 
                 self.edge_rtt = sum(
                     self.simulation.infra.get_latency(self.node, x) * prob
@@ -591,15 +591,15 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                                              self.init_time_edge,
                                              self.edge_bw,
                                              self.aggregated_edge_power_consumption,
-                                             self.aggregated_edge_energy_tx,
-                                             self.aggregated_edge_energy_rx,
+                                             self.aggregated_edge_power_tx,
+                                             self.aggregated_edge_power_rx,
                                              self.co2_green_threshold,
                                              self.of_alpha,
                                              self.of_beta,
                                              self.simulation.t,
                                              self.simulation.lp_utilization_tmp_dict,
                                              self.simulation.lp_energy_tmp_dict,
-                                            self.aggregated_edge_idle_power_consumption
+                                             self.aggregated_edge_idle_power_consumption
                                              )
 
         opt = self.get_optimizer()
@@ -648,11 +648,51 @@ class RandomPolicy(Policy):
             if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
                 decision = self.rng.choice(decisions[1:])
             if decision == SchedulerDecision.EXEC_VAR:
-                lightest_variant = min(f.variants, key=lambda variant: variant.speedup)
-                lightest_variant_func = lightest_variant.self_function
+                var = self.rng_variant.choice(f.variants)
+                func = var.self_function
 
-                if self.can_execute_locally(lightest_variant_func):
-                    f.active_variant = lightest_variant_func
+                if self.can_execute_locally(func):
+                    f.active_variant = func
+                else:
+                    decisions = decisions[2:]
+                    decision = self.rng.choice(decisions)
+
+            return (decision, None)
+
+
+    def update(self):
+        pass
+
+class RandomPolicyNoDrop(Policy):
+
+    def __init__(self, simulation, node):
+        super().__init__(simulation, node)
+        self.rng = self.simulation.policy_rng1
+        self.rng_variant = self.simulation.rng_variant
+        self.decisions = list(SchedulerDecision)
+        self.decisions.remove(SchedulerDecision.OFFLOAD_EDGE)
+        self.decisions.remove(SchedulerDecision.DROP)
+
+    def schedule(self, f, c, offloaded_from):
+        decisions = self.decisions
+        if not f.has_variants:
+            decisions = decisions[:1]+decisions[2:]
+            decision = self.rng.choice(decisions)
+
+            if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
+                decision = self.rng.choice(decisions[2:])
+            return (decision, None)
+        else:
+            decision = self.rng.choice(decisions)
+
+            if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
+                decision = self.rng.choice(decisions[1:])
+            if decision == SchedulerDecision.EXEC_VAR:
+                var = self.rng_variant.choice(f.variants)
+                func = var.self_function
+
+                if self.can_execute_locally(func):
+                    f.active_variant = func
                 else:
                     decisions = decisions[2:]
                     decision = self.rng.choice(decisions)

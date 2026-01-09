@@ -12,7 +12,7 @@ from main import read_spec_file
 from numpy.random import SeedSequence, default_rng
 
 DEFAULT_CONFIG_FILE = "config.ini"
-DEFAULT_OUT_DIR = "080126"
+DEFAULT_OUT_DIR = "090126"
 DEFAULT_DURATION = 259200
 #SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
@@ -251,7 +251,7 @@ def experiment_main_comparison_brown_baseline(args, config, seeds, flag_seeds):
     config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "600")
     config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
 
-    POLICIES = ["random-multi-region",
+    POLICIES = ["random-multi-region","random-multi-region-no-drop",
                 "basic-multi-region"]
 
     # Check existing results
@@ -700,7 +700,7 @@ def experiment_main_comparison_green_baseline(args, config, seeds, flag_seeds):
     config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "600")
     config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
 
-    POLICIES = ["random-multi-region",
+    POLICIES = ["random-multi-region","random-multi-region-no-drop",
                 "basic-multi-region"]
 
     # Check existing results
@@ -894,25 +894,25 @@ if __name__ == "__main__":
         experiment_main_comparison_brown(args, config, SEEDS, flag_2half)
     elif args.experiment.lower() == "brown_baseline_1half": #sess3 python3 experiments_carbon_awareness.py --experiment brown_baseline_1half
         SEEDS = [1, 293, 287844, 2902, 944]
-        experiment_main_comparison_brown_baseline(args, config, SEEDS, flag_1half)  #stopped
+        experiment_main_comparison_brown_baseline(args, config, SEEDS, flag_1half)  #python3 experiments_carbon_awareness.py --experiment brown_baseline_2half
     elif args.experiment.lower() == "brown_baseline_2half": #sess4
         SEEDS = [9573, 102903, 193, 456, 71]
         experiment_main_comparison_brown_baseline(args, config, SEEDS, flag_2half)
-    elif args.experiment.lower() == "brown_greedy_1half":   #sess5
+    elif args.experiment.lower() == "brown_greedy_1half":   #sess5 python3 experiments_carbon_awareness.py --experiment brown_greedy_1half
         SEEDS = [1, 293, 287844, 2902, 944]
-        experiment_main_comparison_brown_greedy(args, config, SEEDS, flag_1half)    #stopped
+        experiment_main_comparison_brown_greedy(args, config, SEEDS, flag_1half)    #python3 experiments_carbon_awareness.py --experiment brown_greedy_2half
     elif args.experiment.lower() == "brown_greedy_2half":   #sess6
         SEEDS = [9573, 102903, 193, 456, 71]
         experiment_main_comparison_brown_greedy(args, config, SEEDS, flag_2half)
-    elif args.experiment.lower() == "brown_probabilistic_norm_1half":   #sess7
+    elif args.experiment.lower() == "brown_probabilistic_norm_1half":   #sess7   python3 experiments_carbon_awareness.py --experiment brown_probabilistic_norm_1half
         SEEDS = [1, 293, 287844, 2902, 944]
         experiment_main_comparison_brown_normalized(args, config, SEEDS, flag_1half)
-    elif args.experiment.lower() == "brown_probabilistic_norm_2half":   #sess8
+    elif args.experiment.lower() == "brown_probabilistic_norm_2half":   #sess8 python3 experiments_carbon_awareness.py --experiment brown_probabilistic_norm_2half
         SEEDS = [9573, 102903, 193, 456, 71]
         experiment_main_comparison_brown_normalized(args, config, SEEDS, flag_2half)    #stopped
 
     #GREEN SCENARIO
-    elif args.experiment.lower() == "green_probabilistic_1half":    #sess11
+    elif args.experiment.lower() == "green_probabilistic_1half":    #sess11 source green_env/bin/activate
         SEEDS = [1, 293, 287844, 2902, 944]
         experiment_main_comparison_green(args, config, SEEDS, flag_1half)
     elif args.experiment.lower() == "green_probabilistic_2half":    #sess12

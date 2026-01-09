@@ -119,10 +119,10 @@ def compute_energy_consumption(params):
             aggregated_edge_power_consumption=params.aggregated_edge_power_consumption,
             aggregated_edge_idle_power_consumption=params.aggregated_edge_idle_power_consumption,
             serv_time_edge=params.serv_time_edge[f],
-            local_tx_energy=params.local_node.tx_energy_consumption,
-            edge_rx_energy=params.aggregated_edge_energy_rx,
-            local_rx_energy=params.local_node.rx_energy_consumption,
-            edge_tx_energy=params.aggregated_edge_energy_tx,
+            local_tx_energy=params.local_node.tx_power_consumption,
+            edge_rx_energy=params.aggregated_edge_power_rx,
+            local_rx_energy=params.local_node.rx_power_consumption,
+            edge_tx_energy=params.aggregated_edge_power_tx,
             co2_edge=params.local_node.co2_footprint.co2_intensity
         )
         if edge_consumption == 0.0:

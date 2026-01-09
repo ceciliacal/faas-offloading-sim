@@ -551,9 +551,9 @@ class MyLPOptimizer:
                 aggregated_edge_power_consumption=params.aggregated_edge_power_consumption,
                 serv_time_edge=params.serv_time_edge[f],
                 local_tx_energy=params.node_tx_energy_consumption,
-                edge_rx_energy=params.aggregated_edge_energy_rx,
+                edge_rx_energy=params.aggregated_edge_power_rx,
                 local_rx_energy=params.node_rx_energy_consumption,
-                edge_tx_energy=params.aggregated_edge_energy_tx,
+                edge_tx_energy=params.aggregated_edge_power_tx,
                 co2_edge=params.node_co2_footprint,
                 cpu_usage=params.cpu_usage_edge[f],
             )

@@ -132,24 +132,33 @@ def generate_random_temp_spec (rng, n_functions=5, load_coeff=1.0, dynamic_rate_
 def generate_random_temp_spec_variants(rng, n_functions=5, variants_mode=0, n_variants=2, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=False,
                               n_classes=2, cloud_cost_reg_a=0.00001, cloud_cost_reg_b=0.00001, cloud_speedup=1.0):
     classes = [
-        {'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 1.0},
+        {'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 3.0},
         {'name': 'standard', 'max_resp_time': 0.5, 'utility': 0.01, 'arrival_weight': 7.0}
     ]
     functions = [{'name': 'f1', 'memory': 512, 'duration_mean': 0.4, 'duration_scv': 1.0, 'init_mean': 0.5}, {'name': 'f2', 'memory': 512, 'duration_mean': 0.2, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f3', 'memory': 128, 'duration_mean': 0.3, 'duration_scv': 1.0, 'init_mean': 0.6}, {'name': 'f4', 'memory': 1024, 'duration_mean': 0.25, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f5', 'memory': 256, 'duration_mean': 0.45, 'duration_scv': 1.0, 'init_mean': 0.5}]
 
     nodes = [
         {'name': 'edge_node_a', 'region': 'edge_zone_1', 'memory': 3072,
-         'processing_power_consumption': 100.0, 'tx_energy_consumption': 51200.0, 'rx_energy_consumption': 30720.0},
+         'processing_power_consumption': 75.0, 'idle_power_consumption': 15.0,
+         'tx_power_consumption': 300.0, 'rx_power_consumption': 300.0},
+        
         {'name': 'edge_node_b', 'region': 'edge_zone_1', 'memory': 3072,
-         'processing_power_consumption': 100.0, 'tx_energy_consumption': 51200.0, 'rx_energy_consumption': 30720.0},
+         'processing_power_consumption': 75.0, 'idle_power_consumption': 15.0,
+         'tx_power_consumption': 300.0, 'rx_power_consumption': 300.0},
+        
         {'name': 'edge_node_c', 'region': 'edge_zone_1', 'memory': 3072,
-         'processing_power_consumption': 100.0, 'tx_energy_consumption': 51200.0, 'rx_energy_consumption': 30720.0},
+         'processing_power_consumption': 75.0, 'idle_power_consumption': 15.0,
+         'tx_power_consumption': 300.0, 'rx_power_consumption': 300.0},
+        
         {'name': 'cloud_node_a', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 128000,
-         'processing_power_consumption': 800.0, 'tx_energy_consumption': 5120.0, 'rx_energy_consumption': 3072.0},
+         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
+        
         {'name': 'cloud_node_b', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 128000,
-         'processing_power_consumption': 800.0, 'tx_energy_consumption': 5120.0, 'rx_energy_consumption': 3072.0},
-         {'name': 'cloud_node_c', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 128000,
-         'processing_power_consumption': 800.0, 'tx_energy_consumption': 5120.0, 'rx_energy_consumption': 3072.0},
+         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
+
+        {'name': 'cloud_node_c', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 128000,
+         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
+
         {'name': 'dispatcher_a', 'region': 'cloud_region_a', 'memory': 0, 'policy': 'dispatcher-policy'},
         {'name': 'dispatcher_b', 'region': 'cloud_region_b', 'memory': 0, 'policy': 'dispatcher-policy'},
         {'name': 'dispatcher_c', 'region': 'cloud_region_c', 'memory': 0, 'policy': 'dispatcher-policy'}
@@ -384,119 +393,149 @@ def generate_regions_yaml(is_edge_green=True):
     print(f"New file '{file_name}' created.")
     return file_path
 
-regions_data_brown_edge = [
-  {
-    "bandwidth_mbps": {
-      "cloud_region_a": 100000,
-      "cloud_region_b": 50000
-    },
+regions_data_brown_edge =   [{
+    "name": "cloud_region_a",
     "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
     "latency_sec": {
       "cloud_region_a": 0.0001,
-      "cloud_region_b": 0.02
+      "cloud_region_b": 0.0200,
+      "cloud_region_c": 0.0100,
+      "edge_zone_1": 0.015
     },
-    "name": "cloud_region_a",
+    "bandwidth_mbps": {
+      "cloud_region_a": 10000.0,
+      "cloud_region_b": 10000.0,
+      "cloud_region_c": 10000.0,
+      "edge_zone_1": 80.0
+    },
     "neighbors": [],
     "zones": [
       {
-        "bandwidth_mbps": {
-            "cloud_region_a": 10000,
-            "cloud_region_b": 1000,
-            "cloud_region_c": 7000.0,
-            "edge_zone_1": 5000
-        },
+        "name": "edge_zone_1",
         "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
         "latency_sec": {
-            "cloud_region_a": 0.015,
-            "cloud_region_b": 0.05,
-            "cloud_region_c": 0.03,
-            "edge_zone_1": 0.005
+          "cloud_region_a": 0.015,
+          "cloud_region_b": 0.05,
+          "cloud_region_c": 0.03,
+          "edge_zone_1": 0.0050
         },
-        "name": "edge_zone_1"
+        "bandwidth_mbps": {
+          "cloud_region_a": 80.0,
+          "cloud_region_b": 80.0,
+          "cloud_region_c": 80.0,
+          "edge_zone_1": 100.0
+        },
+        "neighbors": []
       }
     ]
   },
   {
-    "bandwidth_mbps": {
-      "cloud_region_a": 50000,
-      "cloud_region_b": 100000
-    },
+    "name": "cloud_region_b",
     "co2_traces_file": "co2_traces/FR_2023_hourly.csv",
     "latency_sec": {
-      "cloud_region_a": 0.02,
-      "cloud_region_b": 0.0001
+      "cloud_region_a": 0.0200,
+      "cloud_region_b": 0.0001,
+      "cloud_region_c": 0.0100,
+
     },
-    "name": "cloud_region_b",
+    "bandwidth_mbps": {
+      "cloud_region_a": 10000.0,
+      "cloud_region_b": 10000.0,
+      "cloud_region_c": 10000.0,
+      "edge_zone_1": 80.0
+    },
     "neighbors": [],
     "zones": []
   },
   {
-        "bandwidth_mbps": {
-            "cloud_region_a": 50000,
-            "cloud_region_b": 50000,
-            "cloud_region_c": 100000.0  # self
-
-        },
-        "co2_traces_file": "co2_traces/IT-CNO_2023_hourly.csv",
-        "latency_sec": {
-            "cloud_region_a": 0.02,
-            "cloud_region_b": 0.02,
-            "cloud_region_c": 0.0001
-        },
-        "name": "cloud_region_c",
-        "neighbors": [],
-        "zones": []
+    "name": "cloud_region_c",
+    "co2_traces_file": "co2_traces/IT-CNO_2023_hourly.csv",
+    "latency_sec": {
+      "cloud_region_a": 0.0200,
+      "cloud_region_b": 0.0200,
+      "cloud_region_c": 0.0001
+    },
+    "bandwidth_mbps": {
+      "cloud_region_a": 10000.0,
+      "cloud_region_b": 10000.0,
+      "cloud_region_c": 10000.0,
+      "edge_zone_1": 80.0
+    },
+    "neighbors": [],
+    "zones": []
   }
 ]
-
-regions_data_green_edge = [
-    {
-        "bandwidth_mbps": {
-            "cloud_region_a": 100000,
-            "cloud_region_b": 50000
-        },
+regions_data_green_edge=  [{
+    "name": "cloud_region_a",
+    "co2_traces_file": "co2_traces/FR_2023_hourly.csv",
+    "latency_sec": {
+      "cloud_region_a": 0.0001,
+      "cloud_region_b": 0.0200,
+      "cloud_region_c": 0.0100,
+      "edge_zone_1": 0.015
+    },
+    "bandwidth_mbps": {
+      "cloud_region_a": 10000.0,
+      "cloud_region_b": 10000.0,
+      "cloud_region_c": 10000.0,
+      "edge_zone_1": 80.0
+    },
+    "neighbors": [],
+    "zones": [
+      {
+        "name": "edge_zone_1",
         "co2_traces_file": "co2_traces/FR_2023_hourly.csv",
         "latency_sec": {
-            "cloud_region_a": 0.0001,
-            "cloud_region_b": 0.02
+          "cloud_region_a": 0.015,
+          "cloud_region_b": 0.05,
+          "cloud_region_c": 0.03,
+          "edge_zone_1": 0.0050
         },
-        "name": "cloud_region_a",
-        "neighbors": [
-            "cloud_region_b"
-        ],
-        "zones": [
-            {
-                "bandwidth_mbps": {
-                    "cloud_region_a": 10000,
-                    "cloud_region_b": 1000,
-                    "edge_zone_1": 5000
-                },
-                "co2_traces_file": "co2_traces/FR_2023_hourly.csv",
-                "latency_sec": {
-                    "cloud_region_a": 0.015,
-                    "cloud_region_b": 0.05,
-                    "edge_zone_1": 0.005
-                },
-                "name": "edge_zone_1"
-            }
-        ]
-    },
-    {
         "bandwidth_mbps": {
-            "cloud_region_a": 50000,
-            "cloud_region_b": 100000
+          "cloud_region_a": 80.0,
+          "cloud_region_b": 80.0,
+          "cloud_region_c": 80.0,
+          "edge_zone_1": 100.0
         },
-        "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
-        "latency_sec": {
-            "cloud_region_a": 0.02,
-            "cloud_region_b": 0.0001
-        },
-        "name": "cloud_region_b",
-        "neighbors": [
-            "cloud_region_a"
-        ],
-        "zones": []
-    }
+        "neighbors": []
+      }
+    ]
+  },
+  {
+    "name": "cloud_region_b",
+    "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
+    "latency_sec": {
+      "cloud_region_a": 0.0200,
+      "cloud_region_b": 0.0001,
+      "cloud_region_c": 0.0100,
+
+    },
+    "bandwidth_mbps": {
+      "cloud_region_a": 10000.0,
+      "cloud_region_b": 10000.0,
+      "cloud_region_c": 10000.0,
+      "edge_zone_1": 80.0
+    },
+    "neighbors": [],
+    "zones": []
+  },
+  {
+    "name": "cloud_region_c",
+    "co2_traces_file": "co2_traces/IT-CNO_2023_hourly.csv",
+    "latency_sec": {
+      "cloud_region_a": 0.0200,
+      "cloud_region_b": 0.0200,
+      "cloud_region_c": 0.0001
+    },
+    "bandwidth_mbps": {
+      "cloud_region_a": 10000.0,
+      "cloud_region_b": 10000.0,
+      "cloud_region_c": 10000.0,
+      "edge_zone_1": 80.0
+    },
+    "neighbors": [],
+    "zones": []
+  }
 ]
 
 if __name__ == "__main__":

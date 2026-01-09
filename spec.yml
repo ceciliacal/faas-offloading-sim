@@ -12,58 +12,56 @@ nodes:
   - name: edge_node_a
     region: edge_zone_1
     memory: 3072
-    processing_power_consumption: 100.0   #Watt!!!!!! WATT
-    idle_power_consumption: 0.0
-    tx_energy_consumption: 51200.0     #nJ/KB     #nanoJoule/byte (0.1 nJ/byte = 10^-9 Joule/byte)
-    rx_energy_consumption: 30720.0
+    processing_power_consumption: 75.0   #Watt!!!!!! WATT
+    idle_power_consumption: 15.0
+    tx_power_consumption: 300.0     #mWatt
+    rx_power_consumption: 300.0
 
   - name: edge_node_b
     region: edge_zone_1
     memory: 3072
-    processing_power_consumption: 100.0
-    idle_power_consumption: 0.0
-    tx_energy_consumption: 51200.0
-    rx_energy_consumption: 30720.0
+    processing_power_consumption: 75.0
+    idle_power_consumption: 15.0
+    tx_power_consumption: 300.0 #300 mW
+    rx_power_consumption: 300.0 #300 mW
 
   - name: edge_node_c
     region: edge_zone_1
     memory: 3072
-    processing_power_consumption: 100.0
-    idle_power_consumption: 0.0
-    tx_energy_consumption: 51200.0
-    rx_energy_consumption: 30720.0
+    processing_power_consumption: 75.0
+    idle_power_consumption: 15.0
+    tx_power_consumption: 300.0
+    rx_power_consumption: 300.0
 
   - name: cloud_node_a
     region: cloud_region_a
     cost: 0.00001
     speedup: 1.0
     memory: 128000
-    processing_power_consumption: 800.0  #Watt #CONVERSIONI in faas.py in (kW e) J/byte
-    idle_power_consumption: 0.0
-    tx_energy_consumption: 5120.0
-    rx_energy_consumption: 3072.0          #nanoJoule/byte (1 nJ/byte = 10^-9 Joule/byte)
+    processing_power_consumption: 327.0  #Watt #CONVERSIONI in faas.py in (kW e) J/byte
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0   #mW
+    rx_power_consumption: 5000.0          #nanoJoule/byte (1 nJ/byte = 10^-9 Joule/byte)
 
   - name: cloud_node_b
     region: cloud_region_b
     cost: 0.00003
     speedup: 1.0
     memory: 128000
-    processing_power_consumption: 800.0
-    idle_power_consumption: 0.0
-    tx_energy_consumption: 5120.0
-    rx_energy_consumption: 3072.0
+    processing_power_consumption: 327.0
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0
+    rx_power_consumption: 5000.0
 
   - name: cloud_node_c
     region: cloud_region_c
     cost: 0.00002
     speedup: 1.0
     memory: 128000
-    processing_power_consumption: 800.0
-    idle_power_consumption: 0.0
-    tx_energy_consumption: 5120.0
-    rx_energy_consumption: 3072.0
-
-
+    processing_power_consumption: 327.0
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0
+    rx_power_consumption: 5000.0
 
   - name: dispatcher_a
     region: cloud_region_a
