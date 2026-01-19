@@ -81,20 +81,20 @@ def compute_transmission_energy_cloud(function, dispatcher, initial_node, cloud_
     bandwidth_edge_cloud = 80.0
     bandwidth_cloud_cloud = 10000.0
     
-    local_node_tx_energy = (local_node_tx_power / 1000) * (8/bandwidth_edge_cloud)
-    local_node_rx_energy = (local_node_rx_power / 1000) * (8/bandwidth_edge_cloud)
+    local_node_tx_energy = (local_node_tx_power / 1000) / bandwidth_edge_cloud
+    local_node_rx_energy = (local_node_rx_power / 1000) / bandwidth_edge_cloud
     
-    cloud_node_tx_energy = (cloud_node_tx_power / 1000) * (8/bandwidth_cloud_cloud)
-    cloud_node_rx_energy = (cloud_node_rx_power / 1000) * (8/bandwidth_cloud_cloud)
+    cloud_node_tx_energy = (cloud_node_tx_power / 1000) / bandwidth_cloud_cloud
+    cloud_node_rx_energy = (cloud_node_rx_power / 1000) / bandwidth_cloud_cloud
     
-    dispatcher_tx_energy = (dispatcher_tx_power / 1000) * (8/bandwidth_edge_cloud)
-    dispatcher_rx_energy = (dispatcher_rx_power / 1000) * (8/bandwidth_edge_cloud)
+    dispatcher_tx_energy = (dispatcher_tx_power / 1000) / bandwidth_edge_cloud
+    dispatcher_rx_energy = (dispatcher_rx_power / 1000) / bandwidth_edge_cloud
 
 
-    return (f_input_size * (local_node_tx_energy + dispatcher_rx_energy) +
-    f_output_size * (dispatcher_tx_energy + cloud_node_rx_energy) +
-    f_output_size * (cloud_node_tx_energy + dispatcher_rx_energy) +
-    f_output_size * (dispatcher_tx_energy + local_node_rx_energy))
+    return (f_input_size * (8/1000/1000) * (local_node_tx_energy + dispatcher_rx_energy) +
+    f_input_size * (8/1000/1000) * (dispatcher_tx_energy + cloud_node_rx_energy) +
+    f_output_size * (8/1000/1000) * (cloud_node_tx_energy + dispatcher_rx_energy) +
+    f_output_size * (8/1000/1000) * (dispatcher_tx_energy + local_node_rx_energy))
 
 def compute_transmission_energy_edge(function,
                                      local_tx_power, local_rx_power,
@@ -104,10 +104,10 @@ def compute_transmission_energy_edge(function,
 
     bandwidth = 100.0
 
-    local_tx_energy = (local_tx_power / 1000) * (8/bandwidth)
-    local_rx_energy = (local_rx_power / 1000) * (8/bandwidth)
-    edge_tx_energy = (edge_tx_power / 1000) * (8/bandwidth)
-    edge_rx_energy = (edge_rx_power / 1000) * (8/bandwidth)
+    local_tx_energy = (local_tx_power / 1000)  / bandwidth
+    local_rx_energy = (local_rx_power / 1000) / bandwidth
+    edge_tx_energy = (edge_tx_power / 1000) / bandwidth
+    edge_rx_energy = (edge_rx_power / 1000) / bandwidth
 
-    return (f_input_size * (local_tx_energy + edge_rx_energy) +
-    f_output_size * (edge_tx_energy + local_rx_energy))
+    return (f_input_size * (8/1000/1000) * (local_tx_energy + edge_rx_energy) +
+    f_output_size * (8/1000/1000) * (edge_tx_energy + local_rx_energy))
