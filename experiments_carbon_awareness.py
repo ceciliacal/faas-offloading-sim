@@ -12,7 +12,7 @@ from main import read_spec_file
 from numpy.random import SeedSequence, default_rng
 
 DEFAULT_CONFIG_FILE = "config.ini"
-DEFAULT_OUT_DIR = "090126"
+DEFAULT_OUT_DIR = "220126"
 DEFAULT_DURATION = 259200
 #SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
@@ -150,6 +150,8 @@ def relevant_stats_dict (stats):
 
     result["TotalProcTime"] = stats.total_processing_time
     result["CO2EmissTotal"] = stats.co2_emission_total
+    result["CO2EmissComputation"] = stats.co2_emission_computation
+    result["CO2EmissTransmission"] = stats.co2_emission_transmission
     result["CO2EmissTotalOld"] = stats.co2_emission_totalOld
     result["ExtArrivals"] = sum(stats.ext_arrivals.values())
 

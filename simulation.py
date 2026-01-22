@@ -533,7 +533,7 @@ class Simulation:
         elif isinstance(event, NodeUtilizationUpdate):
             for n in self.node2policy:
                 if not isinstance(n, Dispatcher):
-                    total_occupied_memory = n.total_memory - n.curr_memory
+                    total_occupied_memory = n.total_memory - n.curr_memory  #TODO: QUI!
                     warm_containers_memory = sum([entry[0].memory for entry in n.warm_pool.pool])
                     instant_utilization = (total_occupied_memory - warm_containers_memory) / n.total_memory
                     instant_utilization = max(0.0, min(1.0, instant_utilization))
@@ -545,14 +545,15 @@ class Simulation:
                     P = n.processing_power_consumption - n.idle_power_consumption
                     I = n.co2_footprint.co2_intensity
 
-                    emitted_gCO2_interval_by_node = P * instant_utilization * self.utilization_update_interval * (1/KWH) * I
+                    emitted_gCO2_interval_by_node = P * instant_utilization * self.utilization_update_interval * (1/KWH) * I # Pidle * I + P_running * u * I
                     self.stats.co2_emission_per_node[n] += emitted_gCO2_interval_by_node
                     self.stats.co2_emission_total += emitted_gCO2_interval_by_node
+                    self.stats.co2_emission_computation += emitted_gCO2_interval_by_node
 
             self.schedule(t + self.utilization_update_interval, event)
         elif isinstance(event, LatencyUpdate):
             self.update_latencies_abs_gaussian(self.latency_dev_st, self.latency_cap)
-            print("latencies: ",self.infra.latency.items())
+            #print("latencies: ",self.infra.latency.items())
             self.schedule(t + self.latency_update_interval, event)
         else:
             raise RuntimeError("")
@@ -618,6 +619,7 @@ class Simulation:
 
         self.stats.co2_emission_total += function_transmission_co2_emission
         self.stats.co2_emission_per_node[n] += function_transmission_co2_emission
+        self.stats.co2_emission_transmission += function_transmission_co2_emission
 
         #u_f = n.utilization_during_function_execution(duration)
         #self.instant_utilization_tmp_dict[n].append(u_f)

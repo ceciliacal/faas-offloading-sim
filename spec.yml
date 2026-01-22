@@ -37,17 +37,137 @@ nodes:
     region: cloud_region_a
     cost: 0.00001
     speedup: 1.0
-    memory: 128000
-    processing_power_consumption: 327.0  #Watt #CONVERSIONI in faas.py in (kW e) J/byte
+    memory: 8192
+    processing_power_consumption: 327.0  #Watt
     idle_power_consumption: 120.0
     tx_power_consumption: 5000.0   #mW
-    rx_power_consumption: 5000.0          #nanoJoule/byte (1 nJ/byte = 10^-9 Joule/byte)
+    rx_power_consumption: 5000.0
+
+  - name: cloud_node_a1
+    region: cloud_region_a
+    cost: 0.00001
+    speedup: 1.0
+    memory: 8192
+    processing_power_consumption: 327.0  #Watt
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0   #mW
+    rx_power_consumption: 5000.0
+
+  - name: cloud_node_a2
+    region: cloud_region_a
+    cost: 0.00001
+    speedup: 1.0
+    memory: 8192
+    processing_power_consumption: 327.0  #Watt
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0   #mW
+    rx_power_consumption: 5000.0
+
+  - name: cloud_node_a3
+    region: cloud_region_a
+    cost: 0.00001
+    speedup: 1.0
+    memory: 8192
+    processing_power_consumption: 327.0  #Watt
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0   #mW
+    rx_power_consumption: 5000.0
+
+  - name: cloud_node_a4
+    region: cloud_region_a
+    cost: 0.00001
+    speedup: 1.0
+    memory: 8192
+    processing_power_consumption: 327.0  #Watt
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0   #mW
+    rx_power_consumption: 5000.0
+
+  - name: cloud_node_a5
+    region: cloud_region_a
+    cost: 0.00001
+    speedup: 1.0
+    memory: 8192
+    processing_power_consumption: 327.0  #Watt
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0   #mW
+    rx_power_consumption: 5000.0
+
+  - name: cloud_node_a6
+    region: cloud_region_a
+    cost: 0.00001
+    speedup: 1.0
+    memory: 8192
+    processing_power_consumption: 327.0  #Watt
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0   #mW
+    rx_power_consumption: 5000.0
 
   - name: cloud_node_b
     region: cloud_region_b
     cost: 0.00003
     speedup: 1.0
-    memory: 128000
+    memory: 8192
+    processing_power_consumption: 327.0
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0
+    rx_power_consumption: 5000.0
+
+  - name: cloud_node_b1
+    region: cloud_region_b
+    cost: 0.00003
+    speedup: 1.0
+    memory: 8192
+    processing_power_consumption: 327.0
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0
+    rx_power_consumption: 5000.0
+
+  - name: cloud_node_b2
+    region: cloud_region_b
+    cost: 0.00003
+    speedup: 1.0
+    memory: 8192
+    processing_power_consumption: 327.0
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0
+    rx_power_consumption: 5000.0
+
+  - name: cloud_node_b3
+    region: cloud_region_b
+    cost: 0.00003
+    speedup: 1.0
+    memory: 8192
+    processing_power_consumption: 327.0
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0
+    rx_power_consumption: 5000.0
+
+  - name: cloud_node_b4
+    region: cloud_region_b
+    cost: 0.00003
+    speedup: 1.0
+    memory: 8192
+    processing_power_consumption: 327.0
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0
+    rx_power_consumption: 5000.0
+
+  - name: cloud_node_b5
+    region: cloud_region_b
+    cost: 0.00003
+    speedup: 1.0
+    memory: 8192
+    processing_power_consumption: 327.0
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0
+    rx_power_consumption: 5000.0
+
+  - name: cloud_node_b6
+    region: cloud_region_b
+    cost: 0.00003
+    speedup: 1.0
+    memory: 8192
     processing_power_consumption: 327.0
     idle_power_consumption: 120.0
     tx_power_consumption: 5000.0
@@ -57,7 +177,62 @@ nodes:
     region: cloud_region_c
     cost: 0.00002
     speedup: 1.0
-    memory: 128000
+    memory: 8192
+    processing_power_consumption: 327.0
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0
+    rx_power_consumption: 5000.0
+  - name: cloud_node_c1
+    region: cloud_region_c
+    cost: 0.00002
+    speedup: 1.0
+    memory: 8192
+    processing_power_consumption: 327.0
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0
+    rx_power_consumption: 5000.0
+  - name: cloud_node_c2
+    region: cloud_region_c
+    cost: 0.00002
+    speedup: 1.0
+    memory: 8192
+    processing_power_consumption: 327.0
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0
+    rx_power_consumption: 5000.0
+  - name: cloud_node_c3
+    region: cloud_region_c
+    cost: 0.00002
+    speedup: 1.0
+    memory: 8192
+    processing_power_consumption: 327.0
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0
+    rx_power_consumption: 5000.0
+  - name: cloud_node_c4
+    region: cloud_region_c
+    cost: 0.00002
+    speedup: 1.0
+    memory: 8192
+    processing_power_consumption: 327.0
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0
+    rx_power_consumption: 5000.0
+  - name: cloud_node_c5
+    region: cloud_region_c
+    cost: 0.00002
+    speedup: 1.0
+    memory: 8192
+    processing_power_consumption: 327.0
+    idle_power_consumption: 120.0
+    tx_power_consumption: 5000.0
+    rx_power_consumption: 5000.0
+
+  - name: cloud_node_c6
+    region: cloud_region_c
+    cost: 0.00002
+    speedup: 1.0
+    memory: 8192
     processing_power_consumption: 327.0
     idle_power_consumption: 120.0
     tx_power_consumption: 5000.0

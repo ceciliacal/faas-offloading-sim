@@ -57,6 +57,8 @@ class Stats:
 
         self.co2_emission_totalOld = 0.0 #co2 grams
         self.co2_emission_total = 0.0 #co2 grams
+        self.co2_emission_computation = 0.0 #co2 grams
+        self.co2_emission_transmission = 0.0 #co2 grams
 
         self.co2_emission_per_node = {n: 0.0 for n in self.nodes}
 
