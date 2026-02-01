@@ -171,6 +171,15 @@ def generate_random_temp_spec_variants(rng, n_functions=10, variants_mode=0, n_v
         {'name': 'cloud_node_a6', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 8192,
          'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
         
+        {'name': 'cloud_node_a7', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 8192,
+         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
+
+        {'name': 'cloud_node_a8', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 8192,
+         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
+
+        {'name': 'cloud_node_a9', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 8192,
+         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
+
         {'name': 'cloud_node_b', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 8192,
          'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
         
@@ -192,6 +201,15 @@ def generate_random_temp_spec_variants(rng, n_functions=10, variants_mode=0, n_v
         {'name': 'cloud_node_b6', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 8192,
          'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
 
+        {'name': 'cloud_node_b7', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 8192,
+         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
+
+        {'name': 'cloud_node_b8', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 8192,
+         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
+
+        {'name': 'cloud_node_b9', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 8192,
+         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
+
         {'name': 'cloud_node_c', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 8192,
          'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
 
@@ -211,6 +229,15 @@ def generate_random_temp_spec_variants(rng, n_functions=10, variants_mode=0, n_v
          'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
 
         {'name': 'cloud_node_c6', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 8192,
+         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
+
+        {'name': 'cloud_node_c7', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 8192,
+         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
+
+        {'name': 'cloud_node_c8', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 8192,
+         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
+
+        {'name': 'cloud_node_c9', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 8192,
          'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0, 'rx_power_consumption': 5000.0},
 
         {'name': 'dispatcher_a', 'region': 'cloud_region_a', 'memory': 0, 'policy': 'dispatcher-policy'},

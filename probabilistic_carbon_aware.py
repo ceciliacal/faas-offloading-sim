@@ -636,6 +636,9 @@ class RandomPolicy(Policy):
         self.decisions_no_var = list(SchedulerDecision)
         self.decisions_no_var.remove(SchedulerDecision.EXEC_VAR)
 
+        self.allow_multi_offloading = simulation.config.getboolean(conf.SEC_POLICY, conf.MULTIPLE_OFFLOADING_ALLOWED,
+                                                                   fallback=False)
+
     def schedule(self, f, c, offloaded_from):
         decisions = self.decisions
         decisions_no_var = self.decisions_no_var
@@ -694,6 +697,9 @@ class RandomPolicyNoDrop(Policy):
         self.decisions_no_var = list(SchedulerDecision)
         self.decisions_no_var.remove(SchedulerDecision.EXEC_VAR)
         self.decisions_no_var.remove(SchedulerDecision.DROP)
+
+        self.allow_multi_offloading = simulation.config.getboolean(conf.SEC_POLICY, conf.MULTIPLE_OFFLOADING_ALLOWED,
+                                                                   fallback=False)
 
     def schedule(self, f, c, offloaded_from):
         decisions = self.decisions
