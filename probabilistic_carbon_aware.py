@@ -633,15 +633,34 @@ class RandomPolicy(Policy):
         self.rng_variant = self.simulation.rng_variant
         self.decisions = list(SchedulerDecision)
         #self.decisions.remove(SchedulerDecision.OFFLOAD_EDGE)
+        self.decisions_no_var = list(SchedulerDecision)
+        self.decisions_no_var.remove(SchedulerDecision.EXEC_VAR)
 
     def schedule(self, f, c, offloaded_from):
         decisions = self.decisions
+        decisions_no_var = self.decisions_no_var
+
+        if len(offloaded_from) > 0:
+            if not self.allow_multi_offloading:
+                if f.has_variants:
+                    var = self.rng_variant.choice(f.variants)
+                    func = var.self_function
+                    if self.can_execute_locally(func):
+                        f.active_variant = func
+                        return SchedulerDecision.EXEC_VAR, None
+                    else:
+                        return SchedulerDecision.DROP, None
+                else:
+                    if self.can_execute_locally(f):
+                        return SchedulerDecision.EXEC, None
+                    else:
+                        return SchedulerDecision.DROP, None
+
         if not f.has_variants:
-            decisions = decisions[:1]+decisions[2:]
-            decision = self.rng.choice(decisions)
+            decision = self.rng.choice(decisions_no_var)
 
             if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
-                decision = self.rng.choice(decisions[2:])
+                decision = self.rng.choice(decisions_no_var[2:])
             return (decision, None)
         else:
             decision = self.rng.choice(decisions)
@@ -651,7 +670,6 @@ class RandomPolicy(Policy):
             if decision == SchedulerDecision.EXEC_VAR:
                 var = self.rng_variant.choice(f.variants)
                 func = var.self_function
-
                 if self.can_execute_locally(func):
                     f.active_variant = func
                 else:
@@ -671,17 +689,36 @@ class RandomPolicyNoDrop(Policy):
         self.rng = self.simulation.policy_rng1
         self.rng_variant = self.simulation.rng_variant
         self.decisions = list(SchedulerDecision)
-        self.decisions.remove(SchedulerDecision.OFFLOAD_EDGE)
+        #self.decisions.remove(SchedulerDecision.OFFLOAD_EDGE)
         self.decisions.remove(SchedulerDecision.DROP)
+        self.decisions_no_var = list(SchedulerDecision)
+        self.decisions_no_var.remove(SchedulerDecision.EXEC_VAR)
+        self.decisions_no_var.remove(SchedulerDecision.DROP)
 
     def schedule(self, f, c, offloaded_from):
         decisions = self.decisions
-        if not f.has_variants:
-            decisions = decisions[:1]+decisions[2:]
-            decision = self.rng.choice(decisions)
+        decisions_no_var = self.decisions_no_var
 
+        if len(offloaded_from) > 0:
+            if not self.allow_multi_offloading:
+                if f.has_variants:
+                    var = self.rng_variant.choice(f.variants)
+                    func = var.self_function
+                    if self.can_execute_locally(func):
+                        f.active_variant = func
+                        return SchedulerDecision.EXEC_VAR, None
+                    else:
+                        return SchedulerDecision.DROP, None
+                else:
+                    if self.can_execute_locally(f):
+                        return SchedulerDecision.EXEC, None
+                    else:
+                        return SchedulerDecision.DROP, None
+
+        if not f.has_variants:
+            decision = self.rng.choice(decisions_no_var)
             if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
-                decision = self.rng.choice(decisions[2:])
+                decision = self.rng.choice(decisions_no_var[2:])
             return (decision, None)
         else:
             decision = self.rng.choice(decisions)
@@ -691,7 +728,6 @@ class RandomPolicyNoDrop(Policy):
             if decision == SchedulerDecision.EXEC_VAR:
                 var = self.rng_variant.choice(f.variants)
                 func = var.self_function
-
                 if self.can_execute_locally(func):
                     f.active_variant = func
                 else:
@@ -699,7 +735,6 @@ class RandomPolicyNoDrop(Policy):
                     decision = self.rng.choice(decisions)
 
             return (decision, None)
-
 
     def update(self):
         pass
