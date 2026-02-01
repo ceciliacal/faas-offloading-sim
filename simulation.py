@@ -13,8 +13,8 @@ import probabilistic
 import probabilistic_carbon_aware
 import stateful
 from arrivals import ArrivalProcess
-from co2_footprint import compute_local_energy, compute_cloud_energy, compute_edge_energy, \
-    compute_transmission_energy_edge, compute_transmission_energy_cloud
+from co2_footprint import compute_local_emission, compute_cloud_emission, compute_virtual_edge_emission, \
+    compute_edge_transmission_energy, compute_cloud_transmission_energy
 from faas import *
 from infrastructure import *
 from policy import SchedulerDecision, add_enum_members
@@ -44,7 +44,6 @@ class Arrival(Event):
     arrival_proc: ArrivalProcess = None
     offloaded_from: [Node] = field(default_factory=list)
     original_arrival_time: float = None
-
 
 @dataclass
 class Completion(Event):
@@ -232,6 +231,8 @@ class Simulation:
             return probabilistic_carbon_aware.ProbabilisticCarbonAwarePolicy(self, node,True)
         elif configured_policy == "dispatcher-policy":
             return policy.CloudRegionDispatcherPolicy(self, node)
+        elif configured_policy == "energyless":
+            return policy.EnergylessPolicy(self, node)
         elif configured_policy == "random":
             return probabilistic.RandomPolicy(self, node)
         else:
@@ -457,30 +458,6 @@ class Simulation:
                 #print("node co2: "+n.co2_footprint)
                 p.update()
                 self.stats.update_policy_upd_time(n, time.time() - upd_t0)
-
-                '''
-                if not isinstance(n, Dispatcher):
-                    
-                                       #todo: poi TOGLIERE
-                    # --- window-average instant utilization (same window as policy update) ---
-                    k = max(1, int(round(self.policy_update_interval / self.utilization_update_interval)))
-
-                    if len(n.utilization_list) > 0:
-                        tail = list(n.utilization_list)[-k:]
-                        inst_u = sum(tail) / len(tail)
-                    else:
-                        inst_u = 0.0
-
-                    # LP memory utilization (after your optimizer fix above)
-                    if len(self.lp_utilization_tmp_dict[n]) > 0:
-                        lp_u = self.lp_utilization_tmp_dict[n][-1]
-                    else:
-                        lp_u = None
-
-                    print(f"[t={self.t:8.2f}] node={n}  inst_u={inst_u:.4f}  lp_u={lp_u if lp_u is not None else 'NA'}")
-                '''
-
-
             # Migrate keys
             if self.key_migration_policy is not None:
                 upd_t0 = time.time()
@@ -491,21 +468,16 @@ class Simulation:
                         p.latency_estimation_cache = {}
                 self.stats.update_mig_policy_upd_time(time.time() - upd_t0)
 
-
             self.schedule(t + self.policy_update_interval, event)
             self.count_policy_update = self.count_policy_update+1
-            #print("count_policy_update: ", self.count_policy_update,
-            #      "t = ",t,
-            #      " scheduled t = ",t + self.policy_update_interval)
+
         elif isinstance(event, CarbonIntensityUpdate):
             for n in self.node2policy:
                 if not self.is_co2_trace_over[n]:
                     self.read_co2_intensity(n, self.is_co2_trace_over)
             self.schedule(t + self.carbon_intensity_update_interval, event)
             self.count_carbon_intensity_update = self.count_carbon_intensity_update+1
-            #print("count_carbon_intensity_update: ", self.count_carbon_intensity_update,
-            #      "t = ", t,
-            #      " scheduled t = ", t + self.carbon_intensity_update_interval)
+
         elif isinstance(event, DispatcherUpdate):
             for n, p in self.node2policy.items():
                 if isinstance(n, Dispatcher):
@@ -533,12 +505,10 @@ class Simulation:
         elif isinstance(event, NodeUtilizationUpdate):
             for n in self.node2policy:
                 if not isinstance(n, Dispatcher):
-                    total_occupied_memory = n.total_memory - n.curr_memory  #TODO: QUI!
+                    total_occupied_memory = n.total_memory - n.curr_memory
                     warm_containers_memory = sum([entry[0].memory for entry in n.warm_pool.pool])
                     instant_utilization = (total_occupied_memory - warm_containers_memory) / n.total_memory
                     instant_utilization = max(0.0, min(1.0, instant_utilization))
-                    #n.add_utilization(instant_utilization)
-                    #self.stats.node2utilization[n].append(instant_utilization)
 
                     #E = P * T [ J = W * sec ]
                     #gCO2(t) = (Pmax - Pidle)*instant_utilization*utilization_update_interval*(1/KWH)*node_co2_intensity
@@ -586,8 +556,10 @@ class Simulation:
                 initial_node = event.offloaded_from[0]
                 dispatcher = event.offloaded_from[1]
                 #energy for function processing on cloud node + offloading from local node to dispatcher
-                function_co2_emission = compute_cloud_energy(f, dispatcher, duration, n, initial_node)
-                function_transmission_energy = compute_transmission_energy_cloud(f,dispatcher, initial_node, n)
+                function_co2_emission = compute_cloud_emission(f, dispatcher, duration, n, initial_node,
+                                                               self.infra.get_bandwidth(n, initial_node))
+                function_transmission_energy = compute_cloud_transmission_energy(f, dispatcher, initial_node, n,
+                                                                                 self.infra.get_bandwidth(initial_node, n))
 
                 I = dispatcher.co2_footprint.co2_intensity
 
@@ -595,23 +567,19 @@ class Simulation:
                 #edge node
                 assert len(event.offloaded_from) == 1
                 initial_node = event.offloaded_from[0]
-                function_co2_emission = compute_edge_energy(f, n.curr_memory, n.processing_power_consumption,
-                                                            n.idle_power_consumption,
-                                                            duration, initial_node.tx_power_consumption,
-                                                            n.rx_power_consumption,
-                                                            initial_node.rx_power_consumption,
-                                                            n.tx_power_consumption,
-                                                            n.co2_footprint.co2_intensity)
+                function_co2_emission = compute_virtual_edge_emission(f, n.curr_memory, n.processing_power_consumption,
+                                                                      n.idle_power_consumption, duration,
+                                                                      initial_node.tx_power_consumption,
+                                                                      n.rx_power_consumption,
+                                                                      initial_node.rx_power_consumption,
+                                                                      n.tx_power_consumption,
+                                                                      n.co2_footprint.co2_intensity, 100.0)
 
-                function_transmission_energy = compute_transmission_energy_edge(f,
-                                                                                initial_node.tx_power_consumption,
-                                                                                initial_node.rx_power_consumption,
-                                                                                n.tx_power_consumption,
-                                                                                n.rx_power_consumption)
+                function_transmission_energy = compute_edge_transmission_energy(f, initial_node, n,  edge_bandwidth=self.infra.get_bandwidth(initial_node,n))
                 I = n.co2_footprint.co2_intensity
 
         else:
-            function_co2_emission = compute_local_energy(f, n, duration)
+            function_co2_emission = compute_local_emission(f, n, duration)
 
         function_transmission_co2_emission = function_transmission_energy * (1 / KWH) * I
 
@@ -620,12 +588,8 @@ class Simulation:
         self.stats.co2_emission_total += function_transmission_co2_emission
         self.stats.co2_emission_per_node[n] += function_transmission_co2_emission
         self.stats.co2_emission_transmission += function_transmission_co2_emission
-
-        #u_f = n.utilization_during_function_execution(duration)
-        #self.instant_utilization_tmp_dict[n].append(u_f)
-        #self.instant_energy_tmp_dict[n].append(function_co2_emission)
-
         self.stats.resp_time_sum[(f, c, n)] += rt
+
         if (f, c, n) in self.resp_time_samples:
             self.resp_time_samples[(f, c, n)].append(rt)
         self.stats.completions[(f, c, n)] += 1
@@ -751,9 +715,7 @@ class Simulation:
                     self.stats.cold_starts_cloud_nodes[(region, f, n)] += 1
 
                 init_time = self.init_time[(f, n)]
-            #if f.name == "f3" and c.name == "critical" and n.region.name == "edge_zone_1":
-            #and len(event.offloaded_from)>0:
-                #print("ciao")
+
             arrival_time = self.t if event.original_arrival_time is None else event.original_arrival_time
             self.schedule(float(self.t + init_time + duration),
                           Completion(arrival_time, f, c, n, init_time > 0, duration, event.offloaded_from,

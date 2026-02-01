@@ -79,6 +79,11 @@ def read_spec_file(spec_file_name, infra, config):
             infra.add_node(node, reg)
             infra.add_node_by_region_type(node)
 
+        for cloud_node in infra.get_cloud_nodes():
+            if not isinstance(cloud_node, faas.Dispatcher):
+                cloud_node.has_dispatcher = infra.get_dispatcher_by_region_name(cloud_node.region.name)
+
+
         functions = []
         lightest_variants = []
 
@@ -308,34 +313,6 @@ def main():
     final_stats = simulation.run()
     print("co2_emission_totalOld: ",final_stats.co2_emission_totalOld)
     print("co2_emission_total: ",final_stats.co2_emission_total)
-
-    '''
-    instant_u = simulation.instant_utilization_tmp_dict
-    lp_u = simulation.lp_utilization_tmp_dict
-    print("instant u: ",instant_u)
-    print("lp u: ",lp_u)
-
-    print("lp u AVG per node:")
-    for node, dq in lp_u.items():
-        print(f"  {node}: {avg_deque(dq):.6f}  (n={len(dq)})")
-
-    print("instant u AVG per node:")
-    for node, dq in instant_u.items():
-        print(f"  {node}: {avg_deque(dq):.6f}  (n={len(dq)})")
-
-    instant_e = simulation.instant_energy_tmp_dict
-    lp_e = simulation.lp_energy_tmp_dict
-    print("instant e: ",instant_e)
-    print("lp e: ",lp_e)
-
-    print("lp e AVG per node:")
-    for node, dq in lp_e.items():
-        print(f"  {node}: {avg_deque(dq):.6f}  (n={len(dq)})")
-
-    print("instant e AVG per node:")
-    for node, dq in instant_e.items():
-        print(f"  {node}: {avg_deque(dq):.6f}  (n={len(dq)})")
-    '''
 
 
 def avg_deque(dq):

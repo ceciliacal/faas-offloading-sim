@@ -6,26 +6,29 @@ import json
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator, AutoMinorLocator, MultipleLocator
+
 import conf_plots as cp
 from matplotlib.patches import Patch
 
 node_colors_brown_scenario = {
-    "cloud_node_a": "saddlebrown",
-    "cloud_node_b": "seagreen",
-    "edge_node_a": "burlywood",
-    "edge_node_b": "navajowhite",
-    "edge_node_c": "linen"
+    "cloud_region_a": "saddlebrown",
+    "cloud_region_b": "seagreen",
+    "cloud_region_c": "red",
+    "edge_zone": "burlywood",
+    "variant": "navajowhite",
 }
 
 node_colors_green_scenario = {
-    "cloud_node_a": "seagreen",
-    "cloud_node_b": "saddlebrown",
-    "edge_node_a": "darkseagreen",
-    "edge_node_b": "palegoldenrod",
-    "edge_node_c": "lightgreen"
+    "cloud_region_a": "seagreen",
+    "cloud_region_b": "saddlebrown",
+    "cloud_region_c": "red",
+    "edge_zone": "darkseagreen",
+    "variant": "palegoldenrod",
+
 }
 
-
+regions = ["cloud_region_a", "cloud_region_b", "cloud_region_c"]
 
 def plot_bar(input_file_name, output_folder_rel):
     csv_file = os.path.join(os.path.dirname(__file__), input_file_name)
@@ -39,9 +42,30 @@ def plot_bar(input_file_name, output_folder_rel):
     groups = data.groupby([cp.BUDGET, cp.VAR_MODE])
 
     if "brown" in output_folder_rel:
-        node_colors = node_colors_brown_scenario
+        region_colors = node_colors_brown_scenario
     else:
-        node_colors = node_colors_green_scenario
+        region_colors = node_colors_green_scenario
+
+    cloud_nodes = {}
+    cloud_nodes_a = ["cloud_node_a"]
+    cloud_nodes_b = ["cloud_node_b"]
+    cloud_nodes_c = ["cloud_node_c"]
+
+    for region in regions:
+        for i in range(1, 7):
+            node = cloud_nodes_a[0] + (str(i))
+            cloud_nodes_a.append(node)
+        cloud_nodes[region] = cloud_nodes_a
+
+        for i in range(1, 7):
+            node = cloud_nodes_b[0] + (str(i))
+            cloud_nodes_b.append(node)
+        cloud_nodes[region] = cloud_nodes_b
+
+        for i in range(1, 7):
+            node = cloud_nodes_c[0] + (str(i))
+            cloud_nodes_c.append(node)
+        cloud_nodes[region] = cloud_nodes_c
 
     for (budget, variant_mode), group_data in groups:
         plot_data = {}
@@ -71,14 +95,18 @@ def plot_bar(input_file_name, output_folder_rel):
             for _, row in sub_group.iterrows():
                 try:
                     completion_json = json.loads(row[cp.COMPLETIONS_DISTRIBUTION])
+                    all_nodes = [k for k in completion_json.keys() if "dispatcher" not in k]
+
                 except (json.JSONDecodeError, KeyError):
                     continue  # Skip invalid JSON entries
 
-                completion_values = {key: {"(f,s)": 0, "(f,c)": 0, "(v,s)": 0, "(v,c)": 0}
-                                     for key in node_colors.keys()}
+                completion_values = {
+                    node_name: {"(f,s)": 0, "(f,c)": 0, "(v,s)": 0, "(v,c)": 0}
+                    for node_name in all_nodes
+                }
 
                 for node, node_data in completion_json.items():
-                    if node in node_colors:
+                    if node in all_nodes:#mettere ttti nodi qui!
                         completion_values[node]["(f,s)"] = node_data["total"]["standard"]
                         completion_values[node]["(f,c)"] = node_data["total"]["critical"]
                         if variant_mode == 1:
@@ -91,11 +119,11 @@ def plot_bar(input_file_name, output_folder_rel):
                 continue
 
             # Aggregate values for the policy
-            aggregated_values = {
-                "(f,s)": {node: sum(c[node]["(f,s)"] for c in completions) for node in node_colors},
-                "(f,c)": {node: sum(c[node]["(f,c)"] for c in completions) for node in node_colors},
-                "(v,s)": {node: sum(c[node]["(v,s)"] for c in completions) for node in node_colors},
-                "(v,c)": {node: sum(c[node]["(v,c)"] for c in completions) for node in node_colors}
+            aggregated_values = {   #todo capisci qui
+                "(f,s)": {node: sum(c[node]["(f,s)"] for c in completions) for node in all_nodes},
+                "(f,c)": {node: sum(c[node]["(f,c)"] for c in completions) for node in all_nodes},
+                "(v,s)": {node: sum(c[node]["(v,s)"] for c in completions) for node in all_nodes},
+                "(v,c)": {node: sum(c[node]["(v,c)"] for c in completions) for node in all_nodes}
             }
 
             # X-tick positions for this policy
@@ -110,15 +138,18 @@ def plot_bar(input_file_name, output_folder_rel):
 
             # ————————————————————————————————————————
             # 1) Define which keys are clouds vs edges
-            edge_nodes = ["edge_node_a", "edge_node_b", "edge_node_c"]
+            edge_nodes = [n for n in all_nodes if "edge" in n]
 
-            # 2) Sum up f,s and f,c for each group
-            fs_cloud_a = aggregated_values["(f,s)"]["cloud_node_a"]
-            fs_cloud_b = aggregated_values["(f,s)"]["cloud_node_b"]
+            # 2) Sum up f,s and f,c for each group  #todo: metti tutti i nodi cloud
+            for i in range(0,7):
+                fs_cloud_a = aggregated_values["(f,s)"][cloud_nodes_a[i]]
+                fs_cloud_b = aggregated_values["(f,s)"][cloud_nodes_b[i]]
+                fs_cloud_c = aggregated_values["(f,s)"][cloud_nodes_c[i]]
+
+                fc_cloud_a = aggregated_values["(f,c)"][cloud_nodes_a[i]]
+                fc_cloud_b = aggregated_values["(f,c)"][cloud_nodes_b[i]]
+                fc_cloud_c = aggregated_values["(f,c)"][cloud_nodes_c[i]]
             fs_edge = sum(aggregated_values["(f,s)"][n] for n in edge_nodes)
-
-            fc_cloud_a = aggregated_values["(f,c)"]["cloud_node_a"]
-            fc_cloud_b = aggregated_values["(f,c)"]["cloud_node_b"]
             fc_edge = sum(aggregated_values["(f,c)"][n] for n in edge_nodes)
 
             # 3) Sum up v,s and v,c for edges only (cloud variants assumed zero)
@@ -129,16 +160,17 @@ def plot_bar(input_file_name, output_folder_rel):
                 vs_edge = vc_edge = 0
 
             # pick one of the edge colors to use for the whole zone
-            edge_color = node_colors[edge_nodes[0]]
-            variant_color = node_colors[edge_nodes[1]]
+            edge_color = next((v for k, v in region_colors.items() if "edge" in k), None)
+            variant_color = next((v for k, v in region_colors.items() if "variant" in k), None)
 
             # — plot the STANDARD bar (bar_positions[0]) —
             bottom = 0
+
             # Cloud A
             ax.bar(bar_positions[0],
                    fs_cloud_a,
                    width,
-                   color=node_colors["cloud_node_a"],
+                   color=region_colors["cloud_region_a"],
                    edgecolor="black")
             bottom += fs_cloud_a
 
@@ -146,10 +178,18 @@ def plot_bar(input_file_name, output_folder_rel):
             ax.bar(bar_positions[0],
                    fs_cloud_b,
                    width,
-                   color=node_colors["cloud_node_b"],
+                   color=region_colors["cloud_region_b"],
                    edgecolor="black",
                    bottom=bottom)
             bottom += fs_cloud_b
+
+            ax.bar(bar_positions[0],
+                   fs_cloud_c,
+                   width,
+                   color=region_colors["cloud_region_c"],
+                   edgecolor="black",
+                   bottom=bottom)
+            bottom += fs_cloud_c
 
             # Edge Zone (no variants)
             ax.bar(bar_positions[0],
@@ -175,17 +215,25 @@ def plot_bar(input_file_name, output_folder_rel):
             ax.bar(bar_positions[1],
                    fc_cloud_a,
                    width,
-                   color=node_colors["cloud_node_a"],
+                   color=region_colors["cloud_region_a"],
                    edgecolor="black")
             bottom += fc_cloud_a
 
             ax.bar(bar_positions[1],
                    fc_cloud_b,
                    width,
-                   color=node_colors["cloud_node_b"],
+                   color=region_colors["cloud_region_b"],
                    edgecolor="black",
                    bottom=bottom)
             bottom += fc_cloud_b
+
+            ax.bar(bar_positions[1],
+                   fc_cloud_c,
+                   width,
+                   color=region_colors["cloud_region_c"],
+                   edgecolor="black",
+                   bottom=bottom)
+            bottom += fc_cloud_c
 
             ax.bar(bar_positions[1],
                    fc_edge,
@@ -206,8 +254,9 @@ def plot_bar(input_file_name, output_folder_rel):
 
             # — rebuild a 4-entry legend —
             legend_handles = [
-                Patch(facecolor=node_colors["cloud_node_a"], edgecolor="black", label="Cloud region A"),
-                Patch(facecolor=node_colors["cloud_node_b"], edgecolor="black", label="Cloud region B"),
+                Patch(facecolor=region_colors["cloud_region_a"], edgecolor="black", label="Cloud region A"),
+                Patch(facecolor=region_colors["cloud_region_b"], edgecolor="black", label="Cloud region B"),
+                Patch(facecolor=region_colors["cloud_region_c"], edgecolor="black", label="Cloud region C"),
                 Patch(facecolor=edge_color, edgecolor="black", label="Edge Zone - no Variant execution"),
             ]
             if variant_mode == 1:
@@ -282,11 +331,11 @@ def add_QoS_no_var(data, budget, utility_data, cost_budget_data, co2_data, label
     utility_data.append(ref_utility_values)
     cost_budget_data.append(ref_cost_budget_percent)
     co2_data.append(ref_co2_values)
-    labels.append("FGCS")
+    labels.append("QoS-no-var")
 
 def reorder_QoS_no_var(utility_data, cost_budget_data, co2_data, labels):
     # find where QoS-no-var and QoS live
-    i0 = labels.index("FGCS")
+    i0 = labels.index("QoS-no-var")
     iq = labels.index("QoS")
 
     # pull QoS-no-var out of each list
@@ -304,7 +353,7 @@ def reorder_QoS_no_var(utility_data, cost_budget_data, co2_data, labels):
     utility_data.insert(insert_at, u0)
     cost_budget_data.insert(insert_at, c0)
     co2_data.insert(insert_at, co20)
-    labels.insert(insert_at, "FGCS")
+    labels.insert(insert_at, "QoS-no-var")
 
 
 def plot_boxplots_cost(input_file_name, output_folder_rel, shape):
@@ -313,7 +362,7 @@ def plot_boxplots_cost(input_file_name, output_folder_rel, shape):
     data = pd.read_csv(csv_file)
 
     # Convert CO₂ emissions to 10^3
-    data[cp.CO2_EMISS_TOTAL] /= 1000
+    #data[cp.CO2_EMISS_TOTAL] /= 1000
 
     # Compute global max values for each type across all scenarios
     global_max_utility = data[cp.UTILITY].max()
@@ -398,7 +447,7 @@ def plot_boxplots_cost(input_file_name, output_folder_rel, shape):
         for patch, label in zip(bp_co2["boxes"], labels):
             patch.set_facecolor(policy_colors.get(label, "black"))
 
-        axes[2].set_ylabel('gCO2 (10³)', size=12)
+        axes[2].set_ylabel('gCO2', size=12)
         axes[2].set_ylim(0, global_max_co2)#+ (global_max_co2 * 0.03))
         axes[2].tick_params(axis='x', rotation=15)
         axes[2].grid(axis='y', linestyle='--', alpha=0.7)
@@ -427,7 +476,7 @@ policy_colors = {
     "CO2": "seagreen",
     "CO2&QoS": "olive",
     "QoS": "saddlebrown",
-    "FGCS": "saddlebrown",
+    "QoS-no-var": "saddlebrown",
     "Rand": "red",
     "Base": "orange",
     "minR": "tan",
@@ -663,38 +712,38 @@ def check_if_nan(value):
 # process_csv_json("data.csv", "json_files_folder")
 
 def createMainComparisonBrown():
-    input_file_name1 = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown_1half.csv"
-    input_file_name2 = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown_2half.csv"
-    output_file = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown.csv"
+    input_file_name1 = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown_1half.csv"
+    input_file_name2 = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown_2half.csv"
+    output_file = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown.csv"
     merge_2_csv_files(input_file_name1, input_file_name2, output_file)
 
 
-    input_file_name1 = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown.csv"
-    input_file_name2 = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown_normalized_1half.csv"
-    output_file = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown.csv"
+    input_file_name1 = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown.csv"
+    input_file_name2 = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown_normalized_1half.csv"
+    output_file = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown.csv"
     merge_2_csv_files(input_file_name1, input_file_name2, output_file)
 
-    input_file_name1 = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown.csv"
-    input_file_name2 = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown_normalized_2half.csv"
-    output_file = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown.csv"
+    input_file_name1 = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown.csv"
+    input_file_name2 = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown_normalized_2half.csv"
+    output_file = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown.csv"
 
     merge_2_csv_files(input_file_name1, input_file_name2, output_file)
 
 def createMainComparisonGreen():
-    input_file_name1 = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonGreen_1half.csv"
-    input_file_name2 = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonGreen_2half.csv"
-    output_file = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonGreen.csv"
+    input_file_name1 = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonGreen_1half.csv"
+    input_file_name2 = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonGreen_2half.csv"
+    output_file = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonGreen.csv"
     merge_2_csv_files(input_file_name1, input_file_name2, output_file)
 
 
-    input_file_name1 = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonGreen.csv"
-    input_file_name2 = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonGreen_normalized_1half.csv"
-    output_file = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonGreen.csv"
+    input_file_name1 = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonGreen.csv"
+    input_file_name2 = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonGreen_normalized_1half.csv"
+    output_file = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonGreen.csv"
     merge_2_csv_files(input_file_name1, input_file_name2, output_file)
 
-    input_file_name1 = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonGreen.csv"
-    input_file_name2 = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonGreen_normalized_2half.csv"
-    output_file = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonGreen.csv"
+    input_file_name1 = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonGreen.csv"
+    input_file_name2 = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonGreen_normalized_2half.csv"
+    output_file = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonGreen.csv"
 
     merge_2_csv_files(input_file_name1, input_file_name2, output_file)
 
@@ -788,82 +837,82 @@ def merge_csv_align_columns(csv_paths, output_path):
 
 def createAllPoliciesBrown():
     brown_csvs = [
-        "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown_1half.csv",
-        "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown_2half.csv",
-        "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown_normalized_1half.csv",
-        "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown_normalized_2half.csv",
+        "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown_1half.csv",
+        "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown_2half.csv",
+        "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown_normalized_1half.csv",
+        "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown_normalized_2half.csv",
 
         # add your greedy / baseline csvs here too
-        "/home/cecilia/workspace/faas-offloading/190126_results_baseline/mainComparisonBrown_Baseline_1half.csv",
-        "/home/cecilia/workspace/faas-offloading/190126_results_baseline/mainComparisonBrown_Baseline_2half.csv",
-        "/home/cecilia/workspace/faas-offloading/190126_results_greedy/mainComparisonBrown_Greedy_1half.csv",
-        "/home/cecilia/workspace/faas-offloading/190126_results_greedy/mainComparisonBrown_Greedy_2half.csv",
+        "/home/cecilia/workspace/faas-offloading/270126_results_baseline/mainComparisonBrown_Baseline_1half.csv",
+        "/home/cecilia/workspace/faas-offloading/270126_results_baseline/mainComparisonBrown_Baseline_2half.csv",
+        "/home/cecilia/workspace/faas-offloading/270126_results_greedy/mainComparisonBrown_Greedy_1half.csv",
+        "/home/cecilia/workspace/faas-offloading/270126_results_greedy/mainComparisonBrown_Greedy_2half.csv",
 
     ]
 
-    out_csv = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown_allPolicies.csv"
+    out_csv = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown_allPolicies.csv"
     merge_csv_align_columns(brown_csvs, out_csv)
     
 
 
 def createAllPoliciesGreen():
     green_csvs = [
-        "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonGreen_1half.csv",
-        "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonGreen_2half.csv",
-        "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonGreen_normalized_1half.csv",
-        "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonGreen_normalized_2half.csv",
+        "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonGreen_1half.csv",
+        "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonGreen_2half.csv",
+        "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonGreen_normalized_1half.csv",
+        "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonGreen_normalized_2half.csv",
 
         # add your greedy / baseline csvs here too
-        "/home/cecilia/workspace/faas-offloading/190126_results_baseline/mainComparisonGreen_Baseline_1half.csv",
-        "/home/cecilia/workspace/faas-offloading/190126_results_baseline/mainComparisonGreen_Baseline_2half.csv",
-        "/home/cecilia/workspace/faas-offloading/190126_results_greedy/mainComparisonGreen_Greedy_1half.csv",
-        "/home/cecilia/workspace/faas-offloading/190126_results_greedy/mainComparisonGreen_Greedy_2half.csv",
+        "/home/cecilia/workspace/faas-offloading/270126_results_baseline/mainComparisonGreen_Baseline_1half.csv",
+        "/home/cecilia/workspace/faas-offloading/270126_results_baseline/mainComparisonGreen_Baseline_2half.csv",
+        "/home/cecilia/workspace/faas-offloading/270126_results_greedy/mainComparisonGreen_Greedy_1half.csv",
+        "/home/cecilia/workspace/faas-offloading/270126_results_greedy/mainComparisonGreen_Greedy_2half.csv",
 
     ]
 
-    out_csv = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonGreen_allPolicies.csv"
+    out_csv = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonGreen_allPolicies.csv"
     merge_csv_align_columns(green_csvs, out_csv)
 
 
 # Usage example
 if __name__ == "__main__":
-    brown = "brown_plots_190126"
-    green = "green_plots_190126"
+    brown = "brown_plots_270126"
+    green = "green_plots_270126"
     brown_norm = "brown_norm_plots"
 
     # =====================
     createAllPoliciesBrown()
 
-    csv_path ="/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown_allPolicies.csv"
-    json_folder = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/"
+    csv_path ="/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown_allPolicies.csv"
+    json_folder = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/"
     process_csv_json_completionsDistributions(csv_path, json_folder, "brown")
 
-    input_file_name = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown_allPolicies.csv"
+    input_file_name = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown_allPolicies.csv"
     plot_boxplots_cost(input_file_name, brown, "v")
 
     # =====================
     createMainComparisonBrown()
 
-    csv_path ="/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown.csv"
-    json_folder = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/"
+    csv_path ="/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown.csv"
+    json_folder = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/"
     process_csv_json_completionsDistributions(csv_path, json_folder, "brown")
 
-    input_file_name = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonBrown.csv"
+    input_file_name = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonBrown.csv"
     plot_bar(input_file_name, brown)
     # =====================
 
     createMainComparisonGreen()
-    csv_path ="/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonGreen.csv"
-    json_folder = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/"
+    csv_path ="/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonGreen.csv"
+    json_folder = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/"
     process_csv_json_completionsDistributions(csv_path, json_folder, "green")
 
     createAllPoliciesGreen()
 
-    input_file_name = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonGreen_allPolicies.csv"
+    input_file_name = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonGreen_allPolicies.csv"
     plot_boxplots_cost(input_file_name, green, "v")
 
-    input_file_name = "/home/cecilia/workspace/faas-offloading/190126_results_probabilistic/mainComparisonGreen.csv"
-    plot_bar(input_file_name, green)
+    input_file_name = "/home/cecilia/workspace/faas-offloading/270126_results_probabilistic/mainComparisonGreen.csv"
+    #plot_bar(input_file_name, green)
 
     '''
     plot_carbon_intensity_utc(

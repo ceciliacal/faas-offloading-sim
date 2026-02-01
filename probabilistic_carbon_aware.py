@@ -5,7 +5,7 @@ import conf
 import lp_optimizer_carbon_aware
 import lp_optimizer_carbon_aware_normalized
 import optimizer_nonlinear
-from co2_footprint import compute_local_energy, compute_cloud_energy
+from co2_footprint import compute_local_emission, compute_cloud_emission
 from optimization_carbon_aware import OptCarbonAwareProblemParams
 from policy import Policy, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS, SchedulerDecision
 
@@ -165,14 +165,15 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         return float(1 / base)
 
     def handle_exec_decision(self, f, node, decision):
-        local_eP = compute_local_energy(f, node, 0.1)
+        local_eP = compute_local_emission(f, node, 0.1)
         node.g_co2_emissions[f][decision] = local_eP
 
     def handle_offload_cloud_decision(self, f, node, decision):
         region_name = decision.name[len(conf.OFFLOAD_CLOUD_DECISION):].lower()
         dispatcher_node = self.simulation.infra.get_dispatcher_by_region_name(region_name)
         random_cloud_node = dispatcher_node.cloud_nodes_list[0]
-        cloud_eP = compute_cloud_energy(f, dispatcher_node, 0.1, random_cloud_node, node)
+        cloud_eP = compute_cloud_emission(f, dispatcher_node, 0.1, random_cloud_node, node,
+                                          self.simulation.infra.get_bandwidth(node, random_cloud_node))
         node.g_co2_emissions[f][decision] = cloud_eP
 
     def pick_greener_cloud_region(self):
@@ -631,7 +632,7 @@ class RandomPolicy(Policy):
         self.rng = self.simulation.policy_rng1
         self.rng_variant = self.simulation.rng_variant
         self.decisions = list(SchedulerDecision)
-        self.decisions.remove(SchedulerDecision.OFFLOAD_EDGE)
+        #self.decisions.remove(SchedulerDecision.OFFLOAD_EDGE)
 
     def schedule(self, f, c, offloaded_from):
         decisions = self.decisions

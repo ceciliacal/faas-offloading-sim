@@ -1,7 +1,10 @@
+from dataclasses import dataclass
 from enum import Enum, auto
 from pacsltk import perfmodel
 
+import co2_footprint
 import conf
+from co2_footprint import compute_cloud_transmission_energy, compute_edge_transmission_energy
 from faas import Dispatcher
 from collections import defaultdict
 
@@ -261,31 +264,31 @@ class CloudRegionDispatcherPolicy(Policy):
     def schedule(self, f, c, offloaded_from):
         n = len(self.cloud_region_nodes)
         if n == 0:
-            return (SchedulerDecision.DROP, None)  # or raise
+            return (SchedulerDecision.DROP, None)
 
         start = self.current_index
 
-        # 1) Prefer warm nodes, but iterate in RR order (avoid always picking the first)
+        #check for warm nodes and RR
         for i in range(n):
             idx = (start + i) % n
             node = self.cloud_region_nodes[idx]
-            if f in node.warm_pool and node.curr_memory >= f.memory:
-                selected_node = node
-                self.current_index = (idx + 1) % n  # advance RR from chosen node
-                decision = conf.OFFLOAD_CLOUD_DECISION + self.region.name.upper()
-                return (decision, selected_node)
-
-        # 2) No warm node available -> cold start RR, but skip full nodes
-        for i in range(n):
-            idx = (start + i) % n
-            node = self.cloud_region_nodes[idx]
-            if node.curr_memory >= f.memory:
+            if f in node.warm_pool and node.can_execute_function(f):
                 selected_node = node
                 self.current_index = (idx + 1) % n
                 decision = conf.OFFLOAD_CLOUD_DECISION + self.region.name.upper()
                 return (decision, selected_node)
 
-        # 3) All nodes full -> decide what you want (DROP / queue / force-evict / etc.)
+        #if there are no warm nodes then RR
+        for i in range(n):
+            idx = (start + i) % n
+            node = self.cloud_region_nodes[idx]
+            if node.can_execute_function(f):
+                selected_node = node
+                self.current_index = (idx + 1) % n
+                decision = conf.OFFLOAD_CLOUD_DECISION + self.region.name.upper()
+                return (decision, selected_node)
+
+        # no nodes available
         return (SchedulerDecision.DROP, None)
 
 class GreedyPolicy(Policy):
@@ -456,39 +459,25 @@ class GreedyPolicyMultiRegion(Policy):
         return (latency_local, latency_cloud)
 
     def schedule(self, f, c, offloaded_from):
+        if f.has_variants:
+            # returns the variant with the minimum speedup
+            var = self.rng_variant.choice(f.variants)
+            func = var.self_function
+            latency_local_var, latency_cloud = self._estimate_latency(func, c)
 
-        remote_node = None
-        if not self.simulation.is_approximate_computing_enabled:
+            if self.can_execute_locally(func) and latency_local_var < latency_cloud:
+                f.active_variant = func
+                scheduler_decision, remote_node = SchedulerDecision.EXEC_VAR, None
+            else:
+                scheduler_decision, remote_node = self.offload_cloud_decision, self.dispatcher
+
+        else:
             latency_local, latency_cloud = self._estimate_latency(f, c)
             if self.can_execute_locally(f) and latency_local < latency_cloud:
-                scheduler_decision = SchedulerDecision.EXEC
-
+                scheduler_decision, remote_node = SchedulerDecision.EXEC, None
             else:
-                scheduler_decision = self.offload_cloud_decision
-                remote_node = self.dispatcher
-        else:
-            if f.has_variants:
-                # returns the variant with the minimum speedup
-                lightest_variant = min(f.variants, key=lambda variant: variant.speedup)
-                lightest_variant_func = lightest_variant.self_function
-                latency_local_var, latency_cloud = self._estimate_latency(lightest_variant_func, c)
-                #latency_local_var, latency_cloud = self._estimate_latency(f, c)
-                if self.can_execute_locally(lightest_variant_func) and latency_local_var < latency_cloud:
-                    f.active_variant = lightest_variant_func
-                    scheduler_decision, remote_node = SchedulerDecision.EXEC_VAR, None
-                else:
-                    scheduler_decision, remote_node = self.offload_cloud_decision, self.dispatcher
+                scheduler_decision, remote_node = self.offload_cloud_decision, self.dispatcher
 
-
-            else:
-                latency_local, latency_cloud = self._estimate_latency(f, c)
-                if self.can_execute_locally(f) and latency_local < latency_cloud:
-                    scheduler_decision, remote_node = SchedulerDecision.EXEC, None
-                else:
-                    scheduler_decision, remote_node = self.offload_cloud_decision, self.dispatcher
-
-
-        #self.compute_g_co2_decision(self.node, f, c, scheduler_decision)
         return scheduler_decision, remote_node
 
     def update_cold_start (self, stats):
@@ -595,29 +584,21 @@ class GreedyCarbonAware(GreedyPolicy):
         lowest_co2, decisions = min(self.decision_co2.items(), key=lambda item: item[0])
         decision = decisions[0]
 
-        if not self.simulation.is_approximate_computing_enabled:
-            if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
-                #offloading verso cloud a region con tasso co2 minore
-                first_co2_intensity, first_decisions = next(iter(self.cloud_co2_ranking.items()))
-                decision = first_decisions[0]
-
-        else:
-
-            if decision == SchedulerDecision.EXEC:
-                if f.has_variants:
-                    lightest_variant = min(f.variants, key=lambda variant: variant.speedup)
-                    lightest_variant_func = lightest_variant.self_function
-                    if self.can_execute_locally(lightest_variant_func):
-                        f.active_variant = lightest_variant_func
-                        decision = SchedulerDecision.EXEC_VAR
-                    else: #offload to cloud
-                        first_co2_intensity, first_decisions = next(iter(self.cloud_co2_ranking.items()))
-                        decision = first_decisions[0]
-                else:
-                    if not self.can_execute_locally(f):
-                        # offloading verso cloud a region con tasso co2 minore
-                        first_co2_intensity, first_decisions = next(iter(self.cloud_co2_ranking.items()))
-                        decision = first_decisions[0]
+        if decision == SchedulerDecision.EXEC:
+            if f.has_variants:
+                var = self.rng_variant.choice(f.variants)
+                func = var.self_function
+                if self.can_execute_locally(func):
+                    f.active_variant = func
+                    return SchedulerDecision.EXEC_VAR, None
+                else: #offload to cloud
+                    first_co2_intensity, first_decisions = next(iter(self.cloud_co2_ranking.items()))
+                    decision = first_decisions[0]
+            else:
+                if not self.can_execute_locally(f):
+                    # offloading verso cloud a region con tasso co2 minore
+                    first_co2_intensity, first_decisions = next(iter(self.cloud_co2_ranking.items()))
+                    decision = first_decisions[0]
 
         if conf.OFFLOAD_CLOUD_DECISION in decision.name:
             remote_node = self.decision_dispatcher[decision]
@@ -635,24 +616,18 @@ class GreedyCarbonAwareStrict(GreedyCarbonAware):
         lowest_co2, decisions = min(self.decision_co2.items(), key=lambda item: item[0])
         decision = decisions[0]
 
-        if not self.simulation.is_approximate_computing_enabled:
-            if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
-                decision = SchedulerDecision.DROP
-
-        else:
-
-            if decision == SchedulerDecision.EXEC:
-                if f.has_variants:
-                    lightest_variant = min(f.variants, key=lambda variant: variant.speedup)
-                    lightest_variant_func = lightest_variant.self_function
-                    if self.can_execute_locally(lightest_variant_func):
-                        f.active_variant = lightest_variant_func
-                        decision = SchedulerDecision.EXEC_VAR
-                    else: #offload to cloud
-                        decision = SchedulerDecision.DROP
-                else:
-                    if not self.can_execute_locally(f):
-                        decision = SchedulerDecision.DROP
+        if decision == SchedulerDecision.EXEC:
+            if f.has_variants:
+                var = self.rng_variant.choice(f.variants)
+                func = var.self_function
+                if self.can_execute_locally(func):
+                    f.active_variant = func
+                    decision = SchedulerDecision.EXEC_VAR
+                else: #offload to cloud
+                    decision = SchedulerDecision.DROP
+            else:
+                if not self.can_execute_locally(f):
+                    decision = SchedulerDecision.DROP
 
         if conf.OFFLOAD_CLOUD_DECISION in decision.name:
             remote_node = self.decision_dispatcher[decision]
@@ -720,4 +695,326 @@ class GreedyPolicyWithCostMinimization(GreedyPolicy):
             sched_decision = SchedulerDecision.OFFLOAD_CLOUD, self.cloud
 
         return sched_decision
+
+
+class EnergylessPolicy(Policy):
+
+    def __init__(self, simulation, node):
+
+        super().__init__(simulation, node)
+        self.instances = []
+        self.obj_f = {f: float("inf") for f in self.simulation.functions}
+        self.ins_f = {f: 0.0 for f in self.simulation.functions}
+        self.edge_nodes = []
+        self.cloud_nodes = []
+        self.arrival_rates = {}
+
+        for edge_node in simulation.infra.get_edge_nodes():
+            #self.instances.append(self.Instance(name=edge_node.name, kind="edge", node_ref=edge_node))
+            if edge_node.name != self.node.name:
+                self.edge_nodes.append(edge_node)
+            self.instances.append(edge_node)
+
+        for cloud_node in simulation.infra.get_cloud_nodes():
+            if not isinstance(cloud_node, Dispatcher):
+                self.cloud_nodes.append(cloud_node)
+                self.instances.append(cloud_node)
+
+
+        self.cold_start_prob_instance = {(f,i): 0.0 for f in self.simulation.functions for i in self.instances}
+        self.estimated_service_time_instance = {(f,i): 0.0 for f in self.simulation.functions for i in self.instances}
+
+        self.local_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, fallback=""))
+        self.cloud_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, fallback=""))
+        self.edge_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, fallback=""))
+
+        self.gamma1 = self.simulation.config.get(conf.SEC_POLICY, conf.GAMMA_TT, fallback=0.25) #TODO metterle in conf.py e config.ini e spec.py x esp
+        self.gamma2 = self.simulation.config.get(conf.SEC_POLICY, conf.GAMMA_E, fallback=0.25)
+        self.gamma3 = self.simulation.config.get(conf.SEC_POLICY, conf.GAMMA_CO, fallback=0.25)
+        self.gamma4 = self.simulation.config.get(conf.SEC_POLICY, conf.GAMMA_Z, fallback=0.25)
+
+        self.allow_multi_offloading = simulation.config.getboolean(conf.SEC_POLICY, conf.MULTIPLE_OFFLOADING_ALLOWED,
+                                                                   fallback=False)
+
+        self.norm_factor = {
+            (f, c): (1.0, 1.0, 1.0, 1.0)
+            for f in self.simulation.functions
+            for c in self.simulation.classes
+        }
+
+    def estimate_latency_TT(self, f, instance):
+        if instance.name == self.node.name:
+            latency = self.estimated_service_time_instance.get((f,instance),0.0) + \
+                      self.cold_start_prob_instance.get((f, instance), 1) * \
+                            self.simulation.init_time[(f, instance)]
+        else:
+            latency = self.estimated_service_time_instance.get((f,instance),0.0) +\
+                2 * self.simulation.infra.get_latency(self.node, instance) + \
+                        self.cold_start_prob_instance.get((f, instance), 1) * self.simulation.init_time[(f,instance)] +\
+                        f.inputSizeMean*8/1000/1000/self.simulation.infra.get_bandwidth(self.node, instance)
+        return latency
+
+    def estimate_CO2(self, f, instance):
+        if instance.name == self.node.name:
+            co = co2_footprint.compute_local_emission(f, instance, self.estimated_service_time_instance.get((f,instance),0.0))
+        else:
+            if instance.has_dispatcher: #is a cloud node
+                co = co2_footprint.compute_cloud_emission(f, instance.has_dispatcher, self.estimated_service_time_instance.get((f, instance), 0.0),
+                                                          instance, self.node, self.simulation.infra.get_bandwidth(self.node, instance))
+            else: #edge node
+                co = co2_footprint.compute_single_edge_emission(f, instance, self.node, self.estimated_service_time_instance.get((f, instance), 0.0),
+                                                                self.simulation.infra.get_bandwidth(self.node, instance))
+        return co
+
+    def estimate_energy(self, f, instance):
+        if instance.name == self.node.name:
+            energy = co2_footprint.function_processing_energy_consumption(instance, f, self.estimated_service_time_instance.get((f,instance),0.0))
+        else:
+            energy = co2_footprint.function_processing_energy_consumption(instance, f, self.estimated_service_time_instance.get((f, instance), 0.0))
+            if instance.has_dispatcher: #is a cloud node
+                energy_tx_rx = compute_cloud_transmission_energy(f, instance.has_dispatcher, self.node, instance,
+                                                                 self.simulation.infra.get_bandwidth(self.node,
+                                                                                                     instance))
+            else: #edge node
+                energy_tx_rx = compute_edge_transmission_energy(f, self.node, instance,  edge_bandwidth=self.simulation.infra.get_bandwidth(self.node, instance))
+            energy = energy + energy_tx_rx
+        return energy
+
+    def estimate_cost_Z(self, f, instance):
+        #cost = $/GB-s -> cost = c * m_f * T_f + c * (input_size + output_size) * bandwidth
+        cost_node = instance.cost * f.memory / 1000 * self.estimated_service_time_instance.get((f,instance),0.1)
+        #cost_transmission = instance.cost * (f.inputSizeMean + f.outputSizeMean) / (1000*1000*1000) * self.simulation.infra.get_bandwidth(self.node,instance)/8000
+        cost = cost_node
+        return cost
+
+    def compute_normalized_factors(self):
+        min = 1e-9
+        self.norm_factor.clear()
+
+        for f in self.simulation.functions:
+            for c in self.simulation.classes:
+                T_star = E_star = CO_star = Z_star = 0.0
+
+                for instance in self.instances:
+                    if instance.can_execute_function(f): #todo cambia qua & dispatcher
+                        continue
+
+                    TT = self.estimate_latency_TT(f, instance)
+
+                    if TT > c.max_rt:
+                        continue
+
+                    E = self.estimate_energy(f, instance)
+                    CO = self.estimate_CO2(f, instance)
+                    Z = self.estimate_cost_Z(f, instance)
+
+                    T_star = max(T_star, TT)
+                    E_star = max(E_star, E)
+                    CO_star = max(CO_star, CO)
+                    Z_star = max(Z_star, Z)
+
+                self.norm_factor[(f, c)] = (max(T_star, min), max(E_star, min),max(CO_star, min), max(Z_star, min))
+                print("(",f,",",c,"): ",self.norm_factor[(f, c)])
+
+
+    def schedule(self, f, c, offloaded_from):
+
+        if len(offloaded_from) > 0:
+            if not self.allow_multi_offloading:
+                if f.has_variants:
+                    var = self.rng_variant.choice(f.variants)
+                    func = var.self_function
+                    if self.can_execute_locally(func):
+                        f.active_variant = func
+                        return SchedulerDecision.EXEC_VAR, None
+                    else:
+                        return SchedulerDecision.DROP, None
+                else:
+                    if self.can_execute_locally(f):
+                        return SchedulerDecision.EXEC, None
+
+
+        T_norm, E_norm, CO_norm, Z_norm = self.norm_factor[(f, c)]
+
+        for instance in self.instances:
+            if instance.can_execute_function(f):
+                #estimate latency(f,instance), energy consumption f(instance), cost (f,instance)
+                TT = self.estimate_latency_TT(f,instance)
+                CO = self.estimate_CO2(f, instance)
+                Z = self.estimate_cost_Z(f,instance)
+                E = self.estimate_energy(f, instance)
+
+                if TT < c.max_rt:
+                    x = (self.gamma1 * TT / (T_norm if not None else 1.0) +
+                         self.gamma2 * E / (E_norm if not None else 1.0) +
+                         self.gamma3 * CO / (CO_norm if not None else 1.0) +
+                         self.gamma4 * Z / (Z_norm if not None else 1.0))
+
+                    if x <= self.obj_f.get(f,0.0):
+                        self.obj_f[f] = x
+                        self.ins_f[f] = instance
+
+        target_node = self.ins_f[f]
+        if target_node.name == self.node.name:
+            if f.has_variants:
+                var = self.simulation.rng_variant.choice(f.variants)
+                func = var.self_function
+                if self.can_execute_locally(func):
+                    f.active_variant = func
+                    return SchedulerDecision.EXEC_VAR, None
+                else:
+                    return SchedulerDecision.DROP, None
+            else:
+                if self.can_execute_locally(f):
+                    return SchedulerDecision.EXEC, None
+        elif target_node.name in self.edge_nodes:
+            return SchedulerDecision.OFFLOAD_EDGE, target_node
+        elif target_node.name in self.cloud_nodes:
+            return conf.OFFLOAD_CLOUD_DECISION+target_node.region.name.upper(), target_node
+        else:
+            return SchedulerDecision.DROP, None
+
+    def update(self):
+        stats = self.simulation.stats
+
+        for f, c, n in stats.arrivals:
+            if n != self.node:
+                continue
+            self.arrival_rates[(f, c)] = stats.arrivals[(f, c, self.node)] / self.simulation.t
+
+        for f in self.simulation.functions:
+            for i in self.instances:
+                if stats.node2completions[(f, i)] > 0:
+                    self.estimated_service_time_instance[(f, i)] = stats.execution_time_sum[(f, i)] / \
+                                                                   stats.node2completions[(f, i)]
+                else:
+                    self.estimated_service_time_instance[(f, i)] = 0.1
+
+        self.update_cold_start(stats)
+        self.compute_normalized_factors()
+
+    def update_cold_start (self, stats):
+        #
+        # LOCAL NODE
+        #
+        if self.local_cold_start_estimation == ColdStartEstimation.PACS:
+            for f in self.simulation.functions:
+                total_arrival_rate = max(0.001, sum([stats.arrivals.get((f,x,self.node), 0.0) for x in self.simulation.classes])/self.simulation.t)
+                props1, _ = perfmodel.get_sls_warm_count_dist(total_arrival_rate,
+                                                            self.estimated_service_time_instance[(f, self.node)],
+                                                            self.estimated_service_time_instance[(f, self.node)] + self.simulation.init_time[(f,self.node)],
+                                                            self.simulation.expiration_timeout)
+                self.cold_start_prob_instance[(f, self.node)] = props1["cold_prob"]
+        elif self.local_cold_start_estimation == ColdStartEstimation.NAIVE:
+            # Same prob for every function
+            node_compl = sum([stats.node2completions[(_f,self.node)] for _f in self.simulation.functions])
+            node_cs = sum([stats.cold_starts[(_f,self.node)] for _f in self.simulation.functions])
+            for f in self.simulation.functions:
+                if node_compl > 0:
+                    self.cold_start_prob_instance[(f, self.node)] = node_cs / node_compl
+                else:
+                    self.cold_start_prob_instance[(f, self.node)] = COLD_START_PROB_INITIAL_GUESS
+        elif self.local_cold_start_estimation == ColdStartEstimation.NAIVE_PER_FUNCTION:
+            for f in self.simulation.functions:
+                if stats.node2completions.get((f,self.node), 0) > 0:
+                    self.cold_start_prob_instance[(f, self.node)] = stats.cold_starts.get((f,self.node),0) / stats.node2completions.get((f,self.node),0)
+                else:
+                    self.cold_start_prob_instance[(f, self.node)] = COLD_START_PROB_INITIAL_GUESS
+        elif self.local_cold_start_estimation == ColdStartEstimation.NO:
+            for f in self.simulation.functions:
+                self.cold_start_prob_instance[(f, self.node)] = 0
+
+        # CLOUD
+        #
+        for cloud_instance in self.cloud_nodes:
+            if self.cloud_cold_start_estimation == ColdStartEstimation.PACS:
+                for f in self.simulation.functions:
+                    total_arrival_rate = max(0.001, sum([stats.arrivals.get((f,x,cloud_instance), 0.0) for x in self.simulation.classes])/self.simulation.t)
+                    props1, _ = perfmodel.get_sls_warm_count_dist(total_arrival_rate,
+                                                                self.estimated_service_time_instance[(f, cloud_instance)],
+                                                                self.estimated_service_time_instance[(f,cloud_instance)] + self.simulation.init_time[(f,cloud_instance)],
+                                                                self.simulation.expiration_timeout)
+                    self.cold_start_prob_instance[(f, cloud_instance)] = props1["cold_prob"]
+            elif self.cloud_cold_start_estimation == ColdStartEstimation.NAIVE:
+                # Same prob for every function
+                node_compl = sum([stats.node2completions[(_f,cloud_instance)] for _f in self.simulation.functions])
+                node_cs = sum([stats.cold_starts[(_f,cloud_instance)] for _f in self.simulation.functions])
+                for f in self.simulation.functions:
+                    if node_compl > 0:
+                        self.cold_start_prob_instance[(f, cloud_instance)] = node_cs / node_compl
+                    else:
+                        self.cold_start_prob_instance[(f, cloud_instance)] = COLD_START_PROB_INITIAL_GUESS
+            elif self.cloud_cold_start_estimation == ColdStartEstimation.NAIVE_PER_FUNCTION:
+                for f in self.simulation.functions:
+                    if stats.node2completions.get((f,cloud_instance), 0) > 0:
+                        self.cold_start_prob_instance[(f, cloud_instance)] = stats.cold_starts.get((f,cloud_instance),0) / stats.node2completions.get((f,cloud_instance),0)
+                    else:
+                        self.cold_start_prob_instance[(f, cloud_instance)] = COLD_START_PROB_INITIAL_GUESS
+            elif self.cloud_cold_start_estimation == ColdStartEstimation.NO:
+                for f in self.simulation.functions:
+                    self.cold_start_prob_instance[(f, cloud_instance)] = 0
+
+        # EDGE
+        #
+        for edge_instance in self.edge_nodes:
+            if self.edge_cold_start_estimation == ColdStartEstimation.PACS:
+                for f in self.simulation.functions:
+                    total_arrival_rate = max(0.001, sum([stats.arrivals.get((f,x,edge_instance), 0.0) for x in self.simulation.classes])/self.simulation.t)
+                    props1, _ = perfmodel.get_sls_warm_count_dist(total_arrival_rate,
+                                                                self.estimated_service_time_instance[(f, edge_instance)],
+                                                                self.estimated_service_time_instance[(f,edge_instance)] + self.simulation.init_time[(f,edge_instance)],
+                                                                self.simulation.expiration_timeout)
+                    self.cold_start_prob_instance[(f, edge_instance)] = props1["cold_prob"]
+            elif self.edge_cold_start_estimation == ColdStartEstimation.NAIVE:
+                # Same prob for every function
+                node_compl = sum([stats.node2completions[(_f,edge_instance)] for _f in self.simulation.functions])
+                node_cs = sum([stats.cold_starts[(_f,edge_instance)] for _f in self.simulation.functions])
+                for f in self.simulation.functions:
+                    if node_compl > 0:
+                        self.cold_start_prob_instance[(f, edge_instance)] = node_cs / node_compl
+                    else:
+                        self.cold_start_prob_instance[(f, edge_instance)] = COLD_START_PROB_INITIAL_GUESS
+            elif self.edge_cold_start_estimation == ColdStartEstimation.NAIVE_PER_FUNCTION:
+                for f in self.simulation.functions:
+                    if stats.node2completions.get((f,edge_instance), 0) > 0:
+                        self.cold_start_prob_instance[(f, edge_instance)] = stats.cold_starts.get((f,edge_instance),0) / stats.node2completions.get((f,edge_instance),0)
+                    else:
+                        self.cold_start_prob_instance[(f, edge_instance)] = COLD_START_PROB_INITIAL_GUESS
+            elif self.edge_cold_start_estimation == ColdStartEstimation.NO:
+                for f in self.simulation.functions:
+                    self.cold_start_prob_instance[(f, edge_instance)] = 0
+
+
+    def compute_normalization_factors_global(self):
+
+        dispatchers = list(self.simulation.infra.dispatchers)
+        green_dispatcher = min(dispatchers, key=lambda d: d.co2_footprint.co2_intensity)
+        brown_dispatcher = max(dispatchers, key=lambda d: d.co2_footprint.co2_intensity)
+        co2_max = brown_dispatcher.co2_footprint.co2_intensity
+        brown_cloud_node = brown_dispatcher.cloud_nodes_list[0]
+
+        T_norm = 0.0
+        E_norm = 0.0
+        CO_norm = 0.0
+        Z_norm = 0.0
+
+        for f in self.simulation.functions:
+            max_co2_grams = co2_footprint.compute_cloud_emission(f, brown_dispatcher, f.serviceMean,
+                                                                 brown_cloud_node, self.node,
+                                               self.simulation.infra.get_bandwidth(self.node,brown_cloud_node))
+            max_energy_consumed = co2_footprint.function_processing_energy_consumption(brown_cloud_node, f, f.serviceMean)
+            if self.node.co2_footprint.co2_intensity == co2_max:  # edge zone in brown area
+                max_completion_time = self.estimate_latency_TT(f, green_dispatcher)
+                max_cost = self.estimate_cost_Z(f, green_dispatcher)
+            else:   #edge zone in green area
+                max_completion_time = self.estimate_latency_TT(f, brown_dispatcher)
+                max_cost = self.estimate_cost_Z(f, brown_dispatcher)
+
+            for c in self.simulation.classes:
+                T_norm = T_norm + max_completion_time * self.arrival_rates.get((f, c), 0.0)
+                E_norm = E_norm + max_energy_consumed * self.arrival_rates.get((f, c), 0.0)
+                CO_norm = CO_norm + max_co2_grams * self.arrival_rates.get((f, c), 0.0)
+                Z_norm = Z_norm + max_cost * self.arrival_rates.get((f, c), 0.0)
+
+        return T_norm, E_norm, CO_norm, Z_norm
 

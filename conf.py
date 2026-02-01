@@ -69,6 +69,12 @@ UTILIZATION_UPDATE_INTERVAL = "utilization-update-interval"
 LATENCY_UPDATE_INTERVAL = "latency-update-interval"
 LATENCY_DEV_ST = "latency-dev-st"
 LATENCY_CAP = "latency-cap"
+
+GAMMA_TT = "energyless-weight-time"
+GAMMA_E = "energyless-weight-energy"
+GAMMA_CO = "energyless-weight-co2"
+GAMMA_Z = "energyless-weight-cost"
+
 import configparser
 
 def parse_config_file(config_file):

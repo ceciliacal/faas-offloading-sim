@@ -129,7 +129,7 @@ def generate_random_temp_spec (rng, n_functions=5, load_coeff=1.0, dynamic_rate_
     return ntemp
 
 #variants mode: 0 inactive, 1 active with speedup=utility for each variants
-def generate_random_temp_spec_variants(rng, n_functions=5, variants_mode=0, n_variants=2, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=False,
+def generate_random_temp_spec_variants(rng, n_functions=10, variants_mode=0, n_variants=2, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=False,
                               n_classes=2, cloud_cost_reg_a=0.00001, cloud_cost_reg_b=0.00001, cloud_speedup=1.0):
     classes = [
         {'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 3.0},
