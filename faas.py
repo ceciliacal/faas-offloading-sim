@@ -77,14 +77,17 @@ class Node:
 
         self.utilization_list = deque(maxlen=1000)
         self.utilization_samples_interval = utilization_update_interval
+        self.has_dispatcher = None
 
-    def add_utilization(self, value: float):
-        self.utilization_list.append(value)
+    def can_allocate_memory (self, required_mem):
+        if self.curr_memory >= required_mem:
+            return True
+        else:
+            self.curr_memory += self.warm_pool.reclaim_memory(required_mem)
+            return self.curr_memory >= required_mem
 
-    def utilization_during_function_execution(self, duration_sec: float) -> float:
-        n = max(1, int(round(duration_sec / self.utilization_samples_interval)))  # samples in that duration
-        if not self.utilization_list:
-            return 0.0
+    def can_execute_function (self, f):
+        return f in self.warm_pool or self.can_allocate_memory(f.memory)
 
         # take last n samples (or fewer if not enough yet)
         tail = list(self.utilization_list)[-n:]

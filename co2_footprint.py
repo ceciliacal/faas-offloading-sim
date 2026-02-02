@@ -11,7 +11,7 @@ class CO2footprint:
 
 m_u = 2048.0
 
-def compute_local_energy(function, node, serv_time_local):
+def compute_local_emissions(function, node, serv_time_local):
     #Compute the emitted co2 grams for a function processed locally.
 
     if node.curr_memory <= 0.0:
@@ -22,14 +22,15 @@ def compute_local_energy(function, node, serv_time_local):
     co2_local = node.co2_footprint.co2_intensity
 
     return (
-        (P * float(m_f / m_u) * serv_time_local) *
+        (node.idle_power_consumption * serv_time_local +
+         P * float(m_f / m_u) * serv_time_local) *
         (1 / (3600 * 1000)) *
         float(co2_local)
     )
 
-def compute_edge_energy(function, aggregated_edge_memory, aggregated_edge_power_consumption,
-                        aggregated_edge_idle_power_consumption, serv_time_edge, local_tx_energy,
-                        edge_rx_energy, local_rx_energy, edge_tx_energy, co2_edge):
+def compute_edge_emissions(function, aggregated_edge_memory, aggregated_edge_power_consumption,
+                           aggregated_edge_idle_power_consumption, serv_time_edge, local_tx_energy,
+                           edge_rx_energy, local_rx_energy, edge_tx_energy, co2_edge):
     #Compute the emitted co2 grams for a function offloaded to the edge.
 
     if aggregated_edge_memory <= 0.0:
@@ -39,7 +40,8 @@ def compute_edge_energy(function, aggregated_edge_memory, aggregated_edge_power_
     m_f = function.memory
 
     return (
-        ((P * float(m_f / m_u) * serv_time_edge ) +
+        (aggregated_edge_idle_power_consumption * serv_time_edge +
+                (P * float(m_f / m_u) * serv_time_edge ) +
          compute_transmission_energy_edge(function,
                                           local_tx_energy, local_rx_energy,
                                           edge_tx_energy, edge_rx_energy)) *
@@ -48,7 +50,7 @@ def compute_edge_energy(function, aggregated_edge_memory, aggregated_edge_power_
     )
 
 
-def compute_cloud_energy(function, dispatcher, serv_time_cloud, cloud_node, initial_node):
+def compute_cloud_emissions(function, dispatcher, serv_time_cloud, cloud_node, initial_node):
     #Compute the emitted co2 grams for a function offloaded to a specific cloud region.
 
     if dispatcher.aggregated_region_memory <= 0.0:
@@ -60,7 +62,8 @@ def compute_cloud_energy(function, dispatcher, serv_time_cloud, cloud_node, init
     co2_cloud = dispatcher.co2_footprint.co2_intensity
 
     return (
-            ((P * float(m_f / m_u) * serv_time_cloud ) +
+            (dispatcher.avg_idle_power_consumption * serv_time_cloud +
+                    (P * float(m_f / m_u) * serv_time_cloud ) +
             compute_transmission_energy_cloud(function, dispatcher, initial_node, cloud_node)) *
             (1 / (3600 * 1000)) *
             float(co2_cloud)
@@ -111,3 +114,8 @@ def compute_transmission_energy_edge(function,
 
     return (f_input_size * (8/1000/1000) * (local_tx_energy + edge_rx_energy) +
     f_output_size * (8/1000/1000) * (edge_tx_energy + local_rx_energy))
+
+
+def function_processing_energy_consumption(node, f, serv_time):
+    return (node.idle_power_consumption * serv_time +
+         node.processing_power_consumption - node.idle_power_consumption * float(f.memory / m_u) * serv_time)

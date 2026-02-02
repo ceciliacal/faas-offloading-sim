@@ -79,6 +79,11 @@ def read_spec_file(spec_file_name, infra, config):
             infra.add_node(node, reg)
             infra.add_node_by_region_type(node)
 
+        for cloud_node in infra.get_cloud_nodes():
+            if not isinstance(cloud_node, faas.Dispatcher):
+                cloud_node.has_dispatcher = infra.get_dispatcher_by_region_name(cloud_node.region.name)
+
+
         functions = []
         lightest_variants = []
 

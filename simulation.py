@@ -13,7 +13,7 @@ import probabilistic
 import probabilistic_carbon_aware
 import stateful
 from arrivals import ArrivalProcess
-from co2_footprint import compute_local_energy, compute_cloud_energy, compute_edge_energy, \
+from co2_footprint import compute_local_emissions, compute_cloud_emissions, compute_edge_emissions, \
     compute_transmission_energy_edge, compute_transmission_energy_cloud
 from faas import *
 from infrastructure import *
@@ -586,7 +586,7 @@ class Simulation:
                 initial_node = event.offloaded_from[0]
                 dispatcher = event.offloaded_from[1]
                 #energy for function processing on cloud node + offloading from local node to dispatcher
-                function_co2_emission = compute_cloud_energy(f, dispatcher, duration, n, initial_node)
+                function_co2_emission = compute_cloud_emissions(f, dispatcher, duration, n, initial_node)
                 function_transmission_energy = compute_transmission_energy_cloud(f,dispatcher, initial_node, n)
 
                 I = dispatcher.co2_footprint.co2_intensity
@@ -595,13 +595,13 @@ class Simulation:
                 #edge node
                 assert len(event.offloaded_from) == 1
                 initial_node = event.offloaded_from[0]
-                function_co2_emission = compute_edge_energy(f, n.curr_memory, n.processing_power_consumption,
-                                                            n.idle_power_consumption,
-                                                            duration, initial_node.tx_power_consumption,
-                                                            n.rx_power_consumption,
-                                                            initial_node.rx_power_consumption,
-                                                            n.tx_power_consumption,
-                                                            n.co2_footprint.co2_intensity)
+                function_co2_emission = compute_edge_emissions(f, n.curr_memory, n.processing_power_consumption,
+                                                               n.idle_power_consumption,
+                                                               duration, initial_node.tx_power_consumption,
+                                                               n.rx_power_consumption,
+                                                               initial_node.rx_power_consumption,
+                                                               n.tx_power_consumption,
+                                                               n.co2_footprint.co2_intensity)
 
                 function_transmission_energy = compute_transmission_energy_edge(f,
                                                                                 initial_node.tx_power_consumption,
@@ -611,7 +611,7 @@ class Simulation:
                 I = n.co2_footprint.co2_intensity
 
         else:
-            function_co2_emission = compute_local_energy(f, n, duration)
+            function_co2_emission = compute_local_emissions(f, n, duration)
 
         function_transmission_co2_emission = function_transmission_energy * (1 / KWH) * I
 

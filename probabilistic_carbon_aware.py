@@ -5,7 +5,7 @@ import conf
 import lp_optimizer_carbon_aware
 import lp_optimizer_carbon_aware_normalized
 import optimizer_nonlinear
-from co2_footprint import compute_local_energy, compute_cloud_energy
+from co2_footprint import compute_local_emissions, compute_cloud_emissions
 from optimization_carbon_aware import OptCarbonAwareProblemParams
 from policy import Policy, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS, SchedulerDecision
 
@@ -165,14 +165,14 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         return float(1 / base)
 
     def handle_exec_decision(self, f, node, decision):
-        local_eP = compute_local_energy(f, node, 0.1)
+        local_eP = compute_local_emissions(f, node, 0.1)
         node.g_co2_emissions[f][decision] = local_eP
 
     def handle_offload_cloud_decision(self, f, node, decision):
         region_name = decision.name[len(conf.OFFLOAD_CLOUD_DECISION):].lower()
         dispatcher_node = self.simulation.infra.get_dispatcher_by_region_name(region_name)
         random_cloud_node = dispatcher_node.cloud_nodes_list[0]
-        cloud_eP = compute_cloud_energy(f, dispatcher_node, 0.1, random_cloud_node, node)
+        cloud_eP = compute_cloud_emissions(f, dispatcher_node, 0.1, random_cloud_node, node)
         node.g_co2_emissions[f][decision] = cloud_eP
 
     def pick_greener_cloud_region(self):
@@ -631,16 +631,37 @@ class RandomPolicy(Policy):
         self.rng = self.simulation.policy_rng1
         self.rng_variant = self.simulation.rng_variant
         self.decisions = list(SchedulerDecision)
-        self.decisions.remove(SchedulerDecision.OFFLOAD_EDGE)
+        #self.decisions.remove(SchedulerDecision.OFFLOAD_EDGE)
+        self.decisions_no_var = list(SchedulerDecision)
+        self.decisions_no_var.remove(SchedulerDecision.EXEC_VAR)
+        self.allow_multi_offloading = simulation.config.getboolean(conf.SEC_POLICY, conf.MULTIPLE_OFFLOADING_ALLOWED,
+                                                                   fallback=False)
 
     def schedule(self, f, c, offloaded_from):
         decisions = self.decisions
+        decisions_no_var = self.decisions_no_var
+
+        if len(offloaded_from) > 0:
+            if not self.allow_multi_offloading:
+                if f.has_variants:
+                    var = self.rng_variant.choice(f.variants)
+                    func = var.self_function
+                    if self.can_execute_locally(func):
+                        f.active_variant = func
+                        return SchedulerDecision.EXEC_VAR, None
+                    else:
+                        return SchedulerDecision.DROP, None
+                else:
+                    if self.can_execute_locally(f):
+                        return SchedulerDecision.EXEC, None
+                    else:
+                        return SchedulerDecision.DROP, None
+
         if not f.has_variants:
-            decisions = decisions[:1]+decisions[2:]
-            decision = self.rng.choice(decisions)
+            decision = self.rng.choice(decisions_no_var)
 
             if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
-                decision = self.rng.choice(decisions[2:])
+                decision = self.rng.choice(decisions_no_var[2:])
             return (decision, None)
         else:
             decision = self.rng.choice(decisions)
@@ -650,7 +671,6 @@ class RandomPolicy(Policy):
             if decision == SchedulerDecision.EXEC_VAR:
                 var = self.rng_variant.choice(f.variants)
                 func = var.self_function
-
                 if self.can_execute_locally(func):
                     f.active_variant = func
                 else:
@@ -670,17 +690,36 @@ class RandomPolicyNoDrop(Policy):
         self.rng = self.simulation.policy_rng1
         self.rng_variant = self.simulation.rng_variant
         self.decisions = list(SchedulerDecision)
-        self.decisions.remove(SchedulerDecision.OFFLOAD_EDGE)
+        #self.decisions.remove(SchedulerDecision.OFFLOAD_EDGE)
         self.decisions.remove(SchedulerDecision.DROP)
+        self.decisions_no_var = list(SchedulerDecision)
+        self.decisions_no_var.remove(SchedulerDecision.EXEC_VAR)
+        self.decisions_no_var.remove(SchedulerDecision.DROP)
 
     def schedule(self, f, c, offloaded_from):
         decisions = self.decisions
-        if not f.has_variants:
-            decisions = decisions[:1]+decisions[2:]
-            decision = self.rng.choice(decisions)
+        decisions_no_var = self.decisions_no_var
 
+        if len(offloaded_from) > 0:
+            if not self.allow_multi_offloading:
+                if f.has_variants:
+                    var = self.rng_variant.choice(f.variants)
+                    func = var.self_function
+                    if self.can_execute_locally(func):
+                        f.active_variant = func
+                        return SchedulerDecision.EXEC_VAR, None
+                    else:
+                        return SchedulerDecision.DROP, None
+                else:
+                    if self.can_execute_locally(f):
+                        return SchedulerDecision.EXEC, None
+                    else:
+                        return SchedulerDecision.DROP, None
+
+        if not f.has_variants:
+            decision = self.rng.choice(decisions_no_var)
             if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
-                decision = self.rng.choice(decisions[2:])
+                decision = self.rng.choice(decisions_no_var[2:])
             return (decision, None)
         else:
             decision = self.rng.choice(decisions)
@@ -690,7 +729,6 @@ class RandomPolicyNoDrop(Policy):
             if decision == SchedulerDecision.EXEC_VAR:
                 var = self.rng_variant.choice(f.variants)
                 func = var.self_function
-
                 if self.can_execute_locally(func):
                     f.active_variant = func
                 else:
@@ -698,7 +736,6 @@ class RandomPolicyNoDrop(Policy):
                     decision = self.rng.choice(decisions)
 
             return (decision, None)
-
 
     def update(self):
         pass

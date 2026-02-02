@@ -4,7 +4,7 @@ import os
 import pulp as pl
 
 import conf
-from co2_footprint import compute_cloud_energy, compute_edge_energy, compute_local_energy
+from co2_footprint import compute_cloud_emissions, compute_edge_emissions, compute_local_emissions
 from optimization_carbon_aware import OptCarbonAwareProblemParams
 
 warm_start = False
@@ -40,17 +40,16 @@ def compute_deadline_satisfaction_probs(params: OptCarbonAwareProblemParams):
                 deadline_satisfaction_prob_local_variants[(f,v,c)] = p
 
         for region, dispatcher in dispatchers.items():
-            if dispatcher.aggregated_region_memory > 0.0:
-                p = 0.0
-                tx_time = f.inputSizeMean * 8 / 1000 / 1000 / params.bandwidth_cloud[region]
+            p = 0.0
+            tx_time = f.inputSizeMean * 8 / 1000 / 1000 / params.bandwidth_cloud[region]
 
-                if c.max_rt - params.init_time_cloud[region][f] - params.offload_time_cloud[region] - tx_time > 0.0:
-                    p += params.cold_start_p_cloud[(region,f)] * (1.0 - math.exp(-1.0 / params.serv_time_cloud[region][f] * (
-                                c.max_rt - params.init_time_cloud[region][f] - params.offload_time_cloud[region] - tx_time)))
-                if c.max_rt - params.offload_time_cloud[region] - tx_time > 0.0:
-                    p += (1.0 - params.cold_start_p_cloud[(region,f)]) * (1.0 - math.exp(
-                        -1.0 / params.serv_time_cloud[region][f] * (c.max_rt - params.offload_time_cloud[region] - tx_time)))
-                deadline_satisfaction_prob_cloud[(region.name, f, c)] = p
+            if c.max_rt - params.init_time_cloud[region][f] - params.offload_time_cloud[region] - tx_time > 0.0:
+                p += params.cold_start_p_cloud[(region,f)] * (1.0 - math.exp(-1.0 / params.serv_time_cloud[region][f] * (
+                            c.max_rt - params.init_time_cloud[region][f] - params.offload_time_cloud[region] - tx_time)))
+            if c.max_rt - params.offload_time_cloud[region] - tx_time > 0.0:
+                p += (1.0 - params.cold_start_p_cloud[(region,f)]) * (1.0 - math.exp(
+                    -1.0 / params.serv_time_cloud[region][f] * (c.max_rt - params.offload_time_cloud[region] - tx_time)))
+            deadline_satisfaction_prob_cloud[(region.name, f, c)] = p
 
         if params.aggregated_edge_memory > 0.0:
             p = 0.0
@@ -91,7 +90,7 @@ def compute_energy_consumption(params):
 
     for f in params.functions:
         # Local energy
-        local_consumption = compute_local_energy(
+        local_consumption = compute_local_emissions(
             function=f,
             node=params.local_node,
             serv_time_local=params.serv_time_local[f]
@@ -103,7 +102,7 @@ def compute_energy_consumption(params):
         # Local variant energy
         if f.has_variants:
             for v in params.variants[f]:
-                local_variant_consumption = compute_local_energy(
+                local_variant_consumption = compute_local_emissions(
                     v,
                     params.local_node,
                     params.serv_time_local[v]
@@ -113,7 +112,7 @@ def compute_energy_consumption(params):
                 eP_local_variants[(f, v)] = local_variant_consumption
 
         # Edge energy
-        edge_consumption = compute_edge_energy(
+        edge_consumption = compute_edge_emissions(
             function=f,
             aggregated_edge_memory=params.aggregated_edge_memory,
             aggregated_edge_power_consumption=params.aggregated_edge_power_consumption,
@@ -135,7 +134,7 @@ def compute_energy_consumption(params):
                 eP_offloading_cloud[region.name] = {}
 
             random_cloud_node = dispatcher.cloud_nodes_list[0]
-            cloud_consumption = compute_cloud_energy(
+            cloud_consumption = compute_cloud_emissions(
                 function=f,
                 dispatcher=dispatcher,
                 serv_time_cloud=params.serv_time_cloud[region][f],
