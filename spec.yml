@@ -16,6 +16,7 @@ nodes:
     idle_power_consumption: 15.0
     tx_power_consumption: 300.0     #mWatt
     rx_power_consumption: 300.0
+    cost: 0.00005
 
   - name: edge_node_b
     region: edge_zone_1
@@ -24,6 +25,7 @@ nodes:
     idle_power_consumption: 15.0
     tx_power_consumption: 300.0 #300 mW
     rx_power_consumption: 300.0 #300 mW
+    cost: 0.00005
 
   - name: edge_node_c
     region: edge_zone_1
@@ -32,6 +34,7 @@ nodes:
     idle_power_consumption: 15.0
     tx_power_consumption: 300.0
     rx_power_consumption: 300.0
+    cost: 0.00005
 
   - name: cloud_node_a
     region: cloud_region_a

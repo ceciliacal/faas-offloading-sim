@@ -93,6 +93,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
         self.aggregated_edge_power_tx = 0.0
         self.aggregated_edge_power_rx = 0.0
         self.co2_green_threshold = 150.0
+        self.aggregated_edge_cost = 0.0
 
         self.possible_decisions = list(SchedulerDecision)
 
@@ -217,6 +218,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                     for cloud_decision, prob in probabilities.items():
                         if conf.OFFLOAD_CLOUD_DECISION in cloud_decision.name:
                             probabilities[decision] = 0.0
+                    probabilities[SchedulerDecision.OFFLOAD_EDGE] = 0.0
 
                 s = sum(probabilities.values())
                 if s > 0.0:
@@ -263,6 +265,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                     for cloud_decision, prob in probabilities.items():
                         if conf.OFFLOAD_CLOUD_DECISION in cloud_decision.name:
                             probabilities[decision] = 0.0
+                    probabilities[SchedulerDecision.OFFLOAD_EDGE] = 0.0
 
                 s = sum(probabilities.values())
                 if s > 0.0:
@@ -278,6 +281,10 @@ class ProbabilisticCarbonAwarePolicy(Policy):
 
 
         if conf.OFFLOAD_CLOUD_DECISION in decision.name and self.strict_budget_enforce:
+            if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
+                return (SchedulerDecision.DROP, None)
+
+        if SchedulerDecision.OFFLOAD_EDGE == decision.name and self.strict_budget_enforce:
             if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
                 return (SchedulerDecision.DROP, None)
 
@@ -468,6 +475,7 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                 self.aggregated_edge_power_rx = 0
                 self.edge_rtt = 0  # Default to 0 as no latency can be calculated
                 self.edge_bw = 0  # Default to 0 as no bandwidth can be calculated
+                self.aggregated_edge_cost = 0
             else:
 
                 self.aggregated_edge_memory = max(1, sum([x.curr_memory * x.peer_exposed_memory_fraction for x in
@@ -477,12 +485,14 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                 p_idle = sum(neighbor.idle_power_consumption for neighbor in neighbors)
                 tx = sum(neighbor.tx_power_consumption for neighbor in neighbors)
                 rx = sum(neighbor.rx_power_consumption for neighbor in neighbors)
+                cost = sum(neighbor.cost for neighbor in neighbors)
 
                 num = len(neighbors)
                 self.aggregated_edge_power_consumption = p / num
                 self.aggregated_edge_idle_power_consumption = p_idle / num
                 self.aggregated_edge_power_tx = tx / num
                 self.aggregated_edge_power_rx = rx / num
+                self.aggregated_edge_cost = cost / num
 
                 self.edge_rtt = sum(
                     self.simulation.infra.get_latency(self.node, x) * prob
@@ -599,7 +609,8 @@ class ProbabilisticCarbonAwarePolicy(Policy):
                                              self.simulation.t,
                                              self.simulation.lp_utilization_tmp_dict,
                                              self.simulation.lp_energy_tmp_dict,
-                                             self.aggregated_edge_idle_power_consumption
+                                             self.aggregated_edge_idle_power_consumption,
+                                             self.aggregated_edge_cost
                                              )
 
         opt = self.get_optimizer()

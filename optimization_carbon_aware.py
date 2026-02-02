@@ -36,6 +36,7 @@ class OptCarbonAwareProblemParams:
     utilization_LP_dict: dict = None,
     energy_LP_dict: dict = None,
     aggregated_edge_idle_power_consumption: float = float("inf")
+    aggregated_edge_cost: float = float("0.0")
 
 
     def fun_classes(self):

@@ -361,6 +361,11 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
                            for region, dispatcher in dispatchers.items()
                            for f, c in params.fun_classes()]) <= params.budget / 3600)
 
+        if EDGE_ENABLED and params.aggregated_edge_cost > 0.0:
+            prob += (pl.lpSum([params.aggregated_edge_cost * params.arrival_rates[(f, c)] *
+                           pE[f][c] * params.serv_time_edge[f] * f.memory / 1024
+                           for f, c in params.fun_classes()]) <= params.budget / 3600)
+
 
     prob.writeLP("problem.lp")
     status = solve(prob)

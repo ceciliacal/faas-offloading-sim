@@ -53,9 +53,6 @@ def compute_edge_emissions(function, aggregated_edge_memory, aggregated_edge_pow
 def compute_cloud_emissions(function, dispatcher, serv_time_cloud, cloud_node, initial_node):
     #Compute the emitted co2 grams for a function offloaded to a specific cloud region.
 
-    if dispatcher.aggregated_region_memory <= 0.0:
-        return 0.0
-
     power_cons_cloud = dispatcher.avg_processing_power_consumption
     P = dispatcher.avg_processing_power_consumption - dispatcher.avg_idle_power_consumption
     m_f = function.memory
