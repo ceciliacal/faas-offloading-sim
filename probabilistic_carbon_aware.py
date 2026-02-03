@@ -644,8 +644,8 @@ class RandomPolicy(Policy):
         self.decisions = [SchedulerDecision.EXEC, SchedulerDecision.DROP]
         self.decisions_with_var = [SchedulerDecision.EXEC, SchedulerDecision.EXEC_VAR, SchedulerDecision.DROP]
         for reg in self.simulation.infra.cloud_regions:
-            self.decisions.append(conf.OFFLOAD_CLOUD_DECISION+reg.name)
-            self.decisions_with_var.append(conf.OFFLOAD_CLOUD_DECISION+reg.name)
+            self.decisions.append(conf.OFFLOAD_CLOUD_DECISION+reg.name.upper())
+            self.decisions_with_var.append(conf.OFFLOAD_CLOUD_DECISION+reg.name.upper())
 
     def schedule(self, f, c, offloaded_from):
         decisions = self.decisions
@@ -685,8 +685,8 @@ class RandomPolicyNoDrop(Policy):
         self.decisions = [SchedulerDecision.EXEC]
         self.decisions_with_var = [SchedulerDecision.EXEC, SchedulerDecision.EXEC_VAR]
         for reg in self.simulation.infra.cloud_regions:
-            self.decisions.append(conf.OFFLOAD_CLOUD_DECISION + reg.name)
-            self.decisions_with_var.append(conf.OFFLOAD_CLOUD_DECISION + reg.name)
+            self.decisions.append(conf.OFFLOAD_CLOUD_DECISION + reg.name.upper())
+            self.decisions_with_var.append(conf.OFFLOAD_CLOUD_DECISION + reg.name.upper())
 
     def schedule(self, f, c, offloaded_from):
         decisions = self.decisions

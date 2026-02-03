@@ -737,10 +737,10 @@ class EnergylessPolicy(Policy):
         self.cloud_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, fallback=""))
         self.edge_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, fallback=""))
 
-        self.gamma1 = self.simulation.config.get(conf.SEC_POLICY, conf.GAMMA_TT, fallback=0.25) #TODO metterle in conf.py e config.ini e spec.py x esp
-        self.gamma2 = self.simulation.config.get(conf.SEC_POLICY, conf.GAMMA_E, fallback=0.25)
-        self.gamma3 = self.simulation.config.get(conf.SEC_POLICY, conf.GAMMA_CO, fallback=0.25)
-        self.gamma4 = self.simulation.config.get(conf.SEC_POLICY, conf.GAMMA_Z, fallback=0.25)
+        self.gamma1 = float(self.simulation.config.get(conf.SEC_POLICY, conf.GAMMA_TT, fallback=0.25))
+        self.gamma2 = float(self.simulation.config.get(conf.SEC_POLICY, conf.GAMMA_E, fallback=0.25))
+        self.gamma3 = float(self.simulation.config.get(conf.SEC_POLICY, conf.GAMMA_CO, fallback=0.25))
+        self.gamma4 = float(self.simulation.config.get(conf.SEC_POLICY, conf.GAMMA_Z, fallback=0.25))
 
         self.allow_multi_offloading = simulation.config.getboolean(conf.SEC_POLICY, conf.MULTIPLE_OFFLOADING_ALLOWED,
                                                                    fallback=False)
@@ -830,7 +830,7 @@ class EnergylessPolicy(Policy):
                     Z_star = max(Z_star, Z)
 
                 self.norm_factor[(f, c)] = (max(T_star, min), max(E_star, min),max(CO_star, min), max(Z_star, min))
-                print("(",f,",",c,"): ",self.norm_factor[(f, c)])
+                #print("(",f,",",c,"): ",self.norm_factor[(f, c)])
 
 
     def schedule(self, f, c, offloaded_from):

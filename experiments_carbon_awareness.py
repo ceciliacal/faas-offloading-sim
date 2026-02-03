@@ -12,7 +12,7 @@ from main import read_spec_file
 from numpy.random import SeedSequence, default_rng
 
 DEFAULT_CONFIG_FILE = "config.ini"
-DEFAULT_OUT_DIR = "030226_10fun"
+DEFAULT_OUT_DIR = "030226_5fun"
 DEFAULT_DURATION = 259200
 #SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
@@ -20,7 +20,7 @@ COST_REG_CLOUD_HIGH = 0.00003
 COST_REG_CLOUD_LOW = 0.00001
 #COST_EDGE = 0.00005
 COST_EDGE = 0.0
-N_FUNC=10
+N_FUNC=5
 BUDGETS=[0.5, 5, 20, 50]
 
 
@@ -870,6 +870,209 @@ def experiment_main_comparison_green_normalized(args, config, seeds, flag_seeds)
     with open(os.path.join(results_directory, f"{exp_tag}_conf.ini"), "w") as of:
         config.write(of)
 
+def experiment_energyless_brown(args, config, seeds, flag_seeds):
+    results = []
+    exp_tag = "energylessBrown" + "_" + flag_seeds
+    config.set(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, "false")
+    results_directory = DEFAULT_OUT_DIR + "_results_energyless"
+    os.makedirs(results_directory, exist_ok=True)
+    outfile = os.path.join(results_directory, f"{exp_tag}.csv")
+
+    config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "600")
+    config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
+
+    POLICIES = ["energyless"]
+    variants_mode = [0,1] #variants mode: 0 inactive, 1 active with speedup=utility for each variants
+
+    # Check existing results
+    old_results = None
+    if not args.force:
+        try:
+            old_results = pd.read_csv(outfile)
+        except:
+            pass
+
+    for seed in seeds:
+        config.set(conf.SEC_SIM, conf.SEED, str(seed))
+        for budget in BUDGETS:
+            config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
+            for variant_mode in variants_mode:
+                for pol in POLICIES:
+
+                    config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+
+                    weights = [
+                        #(1.0,0.0,0.0,0.0),  # time=1
+                        #(0.0,0.0,1.0,0.0),  # co2=1
+                        (0.5,0.0,0.5,0.0)   # time=0.5, co2=0.5
+                    ]
+
+                    for gamma_tt, gamma_e, gamma_co, gamma_z in weights:
+                        config.set(conf.SEC_POLICY, conf.GAMMA_TT, str(gamma_tt))
+                        config.set(conf.SEC_POLICY, conf.GAMMA_E, str(gamma_e))
+                        config.set(conf.SEC_POLICY, conf.GAMMA_CO, str(gamma_co))
+                        config.set(conf.SEC_POLICY, conf.GAMMA_Z, str(gamma_z))
+
+                        keys = {
+                            "Policy": pol,
+                            "Budget": budget,
+                            "Seed": seed,
+                            "Variant_mode": variant_mode,
+                            "GAMMA_TT": gamma_tt,
+                            "GAMMA_E": gamma_e,
+                            "GAMMA_CO": gamma_co,
+                            "GAMMA_Z": gamma_z
+                        }
+
+                        run_string = "_".join([f"{k}{v}" for k, v in keys.items()])
+
+                        # Check if we can skip this run
+                        if old_results is not None and not old_results[
+
+                            (old_results.Policy == pol) &
+                            (old_results.Budget == budget) &
+                            (old_results.Seed == seed) &
+                            (old_results.Variant_mode == variant_mode) &
+                            (old_results["GAMMA_TT"] == gamma_tt) &
+                            (old_results["GAMMA_E"] == gamma_e) &
+                            (old_results["GAMMA_CO"] == gamma_co) &
+                            (old_results["GAMMA_Z"] == gamma_z)
+                        ].empty:
+                            print("Skipping conf")
+                            continue
+
+                        seed_sequence = SeedSequence(seed)
+                        rng = default_rng(seed_sequence.spawn(1)[0])
+                        temp_spec_file = generate_random_temp_spec_variants(rng, n_functions=N_FUNC, variants_mode=variant_mode,
+                                                                            arrivals_to_single_node=False,
+                                                                            cloud_cost_reg_a=COST_REG_CLOUD_LOW,
+                                                                            cloud_cost_reg_b=COST_REG_CLOUD_HIGH,edge_cost=COST_EDGE)
+                        infra = default_infra(is_edge_green=False)
+                        stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+                        temp_spec_file.close()
+
+                        with open(os.path.join(results_directory, f"{exp_tag}_{run_string}.json"), "w") as of:
+                            stats.print(of)
+
+                        result = dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+                        results.append(result)
+                        print(result)
+
+                        resultsDf = pd.DataFrame(results)
+                        if old_results is not None:
+                            resultsDf = pd.concat([old_results, resultsDf])
+                        resultsDf.to_csv(outfile, index=False)
+
+    resultsDf = pd.DataFrame(results)
+    if old_results is not None:
+        resultsDf = pd.concat([old_results, resultsDf])
+    resultsDf.to_csv(outfile, index=False)
+
+    with open(os.path.join(results_directory, f"{exp_tag}_conf.ini"), "w") as of:
+        config.write(of)
+
+
+def experiment_energyless_green(args, config, seeds, flag_seeds):
+    results = []
+    exp_tag = "energylessGreen"+ "_" + flag_seeds
+    config.set(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, "false")
+    results_directory = DEFAULT_OUT_DIR + "_results_energyless"
+    os.makedirs(results_directory, exist_ok=True)
+    outfile = os.path.join(results_directory, f"{exp_tag}.csv")
+
+    config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "600")
+    config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
+
+    POLICIES = ["energyless"]
+
+    # Check existing results
+    old_results = None
+    if not args.force:
+        try:
+            old_results = pd.read_csv(outfile)
+        except:
+            pass
+
+    variants_mode = [0,1] #variants mode: 0 inactive, 1 active with speedup=utility for each variants
+
+    for seed in seeds:
+        config.set(conf.SEC_SIM, conf.SEED, str(seed))
+        for budget in BUDGETS:
+            config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
+            for variant_mode in variants_mode:
+                for pol in POLICIES:
+                    config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+
+                    weights = [
+                        # (1.0,0.0,0.0,0.0),  # time=1
+                        # (0.0,0.0,1.0,0.0),  # co2=1
+                        (0.5, 0.0, 0.5, 0.0)  # time=0.5, co2=0.5
+                    ]
+
+                    for gamma_tt, gamma_e, gamma_co, gamma_z in weights:
+                        config.set(conf.SEC_POLICY, conf.GAMMA_TT, str(gamma_tt))
+                        config.set(conf.SEC_POLICY, conf.GAMMA_E, str(gamma_e))
+                        config.set(conf.SEC_POLICY, conf.GAMMA_CO, str(gamma_co))
+                        config.set(conf.SEC_POLICY, conf.GAMMA_Z, str(gamma_z))
+
+                        keys = {
+                            "Policy": pol,
+                            "Budget": budget,
+                            "Seed": seed,
+                            "Variant_mode": variant_mode,
+                            "GAMMA_TT": gamma_tt,
+                            "GAMMA_E": gamma_e,
+                            "GAMMA_CO": gamma_co,
+                            "GAMMA_Z": gamma_z
+                        }
+
+                        run_string = "_".join([f"{k}{v}" for k, v in keys.items()])
+
+                        # Check if we can skip this run
+                        if old_results is not None and not old_results[
+                           (old_results.Policy == pol) &
+                           (old_results.Budget == budget) &
+                            (old_results.Seed == seed) &
+                            (old_results.Variant_mode == variant_mode),
+                           (old_results["GAMMA_TT"] == gamma_tt) &
+                           (old_results["GAMMA_E"] == gamma_e)
+                           (old_results["GAMMA_CO"] == gamma_co) &
+                           (old_results["GAMMA_Z"] == gamma_z)
+                        ].empty:
+                            print("Skipping conf")
+                            continue
+
+                        seed_sequence = SeedSequence(seed)
+                        rng = default_rng(seed_sequence.spawn(1)[0])
+                        temp_spec_file = generate_random_temp_spec_variants(rng, n_functions=N_FUNC, variants_mode=variant_mode,
+                                                                            arrivals_to_single_node=False,
+                                                                            cloud_cost_reg_a=COST_REG_CLOUD_HIGH,
+                                                                            cloud_cost_reg_b=COST_REG_CLOUD_LOW,edge_cost=COST_EDGE)
+                        infra = default_infra(is_edge_green=True)
+                        stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+                        temp_spec_file.close()
+
+                        with open(os.path.join(results_directory, f"{exp_tag}_{run_string}.json"), "w") as of:
+                            stats.print(of)
+
+                        result = dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+                        results.append(result)
+                        print(result)
+
+                        resultsDf = pd.DataFrame(results)
+                        if old_results is not None:
+                            resultsDf = pd.concat([old_results, resultsDf])
+                        resultsDf.to_csv(outfile, index=False)
+
+
+    resultsDf = pd.DataFrame(results)
+    if old_results is not None:
+        resultsDf = pd.concat([old_results, resultsDf])
+    resultsDf.to_csv(outfile, index=False)
+
+    with open(os.path.join(results_directory, f"{exp_tag}_conf.ini"), "w") as of:
+        config.write(of)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -914,6 +1117,14 @@ if __name__ == "__main__":
     elif args.experiment.lower() == "brown_probabilistic_norm_2half":   #sess8 python3 experiments_carbon_awareness.py --experiment brown_probabilistic_norm_2half
         SEEDS = [9573, 102903, 193, 456, 71]
         experiment_main_comparison_brown_normalized(args, config, SEEDS, flag_2half)    #stopped
+    elif args.experiment.lower() == "brown_energyless_1half":  # sess7   python3 experiments_carbon_awareness.py --experiment brown_energyless_1half
+        SEEDS = [1, 293, 287844, 2902, 944]
+        experiment_energyless_brown(args, config, SEEDS, flag_1half)
+
+    elif args.experiment.lower() == "brown_energyless_2half":  # sess8 python3 experiments_carbon_awareness.py --experiment brown_energyless_2half
+        SEEDS = [9573, 102903, 193, 456, 71]
+        experiment_energyless_brown(args, config, SEEDS, flag_2half)
+
 
     #GREEN SCENARIO
     elif args.experiment.lower() == "green_probabilistic_1half":    #sess11 source green_env/bin/activate
@@ -940,7 +1151,12 @@ if __name__ == "__main__":
     elif args.experiment.lower() == "green_probabilistic_norm_2half":   #sess18
         SEEDS = [9573, 102903, 193, 456, 71]
         experiment_main_comparison_green_normalized(args, config, SEEDS, flag_2half)    #stopped
-
+    elif args.experiment.lower() == "green_energyless_1half":  #    python3 experiments_carbon_awareness.py --experiment green_energyless_1half
+        SEEDS = [1, 293, 287844, 2902, 944]
+        experiment_energyless_green(args, config, SEEDS, flag_1half)
+    elif args.experiment.lower() == "green_energyless_2half":  # sess8 python3 experiments_carbon_awareness.py --experiment green_energyless_2half
+        SEEDS = [9573, 102903, 193, 456, 71]
+        experiment_energyless_green(args, config, SEEDS, flag_2half)
     else:
         print("Unknown experiment!")
         exit(1)

@@ -234,6 +234,8 @@ class Simulation:
             return policy.CloudRegionDispatcherPolicy(self, node)
         elif configured_policy == "random":
             return probabilistic.RandomPolicy(self, node)
+        elif configured_policy == "energyless":
+            return policy.EnergylessPolicy(self, node)
         else:
             raise RuntimeError(f"Unknown policy: {configured_policy}")
 
@@ -804,7 +806,7 @@ class Simulation:
             self.__schedule_next_arrival(n, arv_proc)
 
     def get_region_name_by_scheduler_decision(self, sched_decision):
-        return sched_decision.name[len(conf.OFFLOAD_CLOUD_DECISION):].lower()
+        return sched_decision[len(conf.OFFLOAD_CLOUD_DECISION):].lower()
 
     def pick_cloud_remote_node_by_region(self, region_name):
         #region_name = sched_decision.name[len(conf.OFFLOAD_CLOUD_DECISION):].lower()
