@@ -641,53 +641,35 @@ class RandomPolicy(Policy):
         super().__init__(simulation, node)
         self.rng = self.simulation.policy_rng1
         self.rng_variant = self.simulation.rng_variant
-        self.decisions = list(SchedulerDecision)
-        #self.decisions.remove(SchedulerDecision.OFFLOAD_EDGE)
-        self.decisions_no_var = list(SchedulerDecision)
-        self.decisions_no_var.remove(SchedulerDecision.EXEC_VAR)
-        self.allow_multi_offloading = simulation.config.getboolean(conf.SEC_POLICY, conf.MULTIPLE_OFFLOADING_ALLOWED,
-                                                                   fallback=False)
+        self.decisions = [SchedulerDecision.EXEC, SchedulerDecision.DROP]
+        self.decisions_with_var = [SchedulerDecision.EXEC, SchedulerDecision.EXEC_VAR, SchedulerDecision.DROP]
+        for reg in self.simulation.infra.cloud_regions:
+            self.decisions.append(conf.OFFLOAD_CLOUD_DECISION+reg.name)
+            self.decisions_with_var.append(conf.OFFLOAD_CLOUD_DECISION+reg.name)
 
     def schedule(self, f, c, offloaded_from):
         decisions = self.decisions
-        decisions_no_var = self.decisions_no_var
-
-        if len(offloaded_from) > 0:
-            if not self.allow_multi_offloading:
-                if f.has_variants:
-                    var = self.rng_variant.choice(f.variants)
-                    func = var.self_function
-                    if self.can_execute_locally(func):
-                        f.active_variant = func
-                        return SchedulerDecision.EXEC_VAR, None
-                    else:
-                        return SchedulerDecision.DROP, None
-                else:
-                    if self.can_execute_locally(f):
-                        return SchedulerDecision.EXEC, None
-                    else:
-                        return SchedulerDecision.DROP, None
+        decisions_with_var = self.decisions_with_var
 
         if not f.has_variants:
-            decision = self.rng.choice(decisions_no_var)
-
-            if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
-                decision = self.rng.choice(decisions_no_var[2:])
-            return (decision, None)
-        else:
             decision = self.rng.choice(decisions)
 
             if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
                 decision = self.rng.choice(decisions[1:])
+            return (decision, None)
+        else:
+            decision = self.rng.choice(decisions_with_var)
+
+            if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
+                decision = self.rng.choice(decisions_with_var[1:])
+
             if decision == SchedulerDecision.EXEC_VAR:
                 var = self.rng_variant.choice(f.variants)
                 func = var.self_function
                 if self.can_execute_locally(func):
                     f.active_variant = func
                 else:
-                    decisions = decisions[2:]
-                    decision = self.rng.choice(decisions)
-
+                    decision = self.rng.choice(decisions_with_var[2:])
             return (decision, None)
 
 
@@ -700,51 +682,33 @@ class RandomPolicyNoDrop(Policy):
         super().__init__(simulation, node)
         self.rng = self.simulation.policy_rng1
         self.rng_variant = self.simulation.rng_variant
-        self.decisions = list(SchedulerDecision)
-        #self.decisions.remove(SchedulerDecision.OFFLOAD_EDGE)
-        self.decisions.remove(SchedulerDecision.DROP)
-        self.decisions_no_var = list(SchedulerDecision)
-        self.decisions_no_var.remove(SchedulerDecision.EXEC_VAR)
-        self.decisions_no_var.remove(SchedulerDecision.DROP)
+        self.decisions = [SchedulerDecision.EXEC]
+        self.decisions_with_var = [SchedulerDecision.EXEC, SchedulerDecision.EXEC_VAR]
+        for reg in self.simulation.infra.cloud_regions:
+            self.decisions.append(conf.OFFLOAD_CLOUD_DECISION + reg.name)
+            self.decisions_with_var.append(conf.OFFLOAD_CLOUD_DECISION + reg.name)
 
     def schedule(self, f, c, offloaded_from):
         decisions = self.decisions
-        decisions_no_var = self.decisions_no_var
-
-        if len(offloaded_from) > 0:
-            if not self.allow_multi_offloading:
-                if f.has_variants:
-                    var = self.rng_variant.choice(f.variants)
-                    func = var.self_function
-                    if self.can_execute_locally(func):
-                        f.active_variant = func
-                        return SchedulerDecision.EXEC_VAR, None
-                    else:
-                        return SchedulerDecision.DROP, None
-                else:
-                    if self.can_execute_locally(f):
-                        return SchedulerDecision.EXEC, None
-                    else:
-                        return SchedulerDecision.DROP, None
+        decisions_with_var = self.decisions_with_var
 
         if not f.has_variants:
-            decision = self.rng.choice(decisions_no_var)
-            if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
-                decision = self.rng.choice(decisions_no_var[2:])
-            return (decision, None)
-        else:
             decision = self.rng.choice(decisions)
-
             if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
                 decision = self.rng.choice(decisions[1:])
+            return (decision, None)
+        else:
+            decision = self.rng.choice(decisions_with_var)
+
+            if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
+                decision = self.rng.choice(decisions_with_var[1:])
             if decision == SchedulerDecision.EXEC_VAR:
                 var = self.rng_variant.choice(f.variants)
                 func = var.self_function
                 if self.can_execute_locally(func):
                     f.active_variant = func
                 else:
-                    decisions = decisions[2:]
-                    decision = self.rng.choice(decisions)
+                    decision = self.rng.choice(decisions_with_var[2:])
 
             return (decision, None)
 

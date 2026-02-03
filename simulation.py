@@ -533,7 +533,7 @@ class Simulation:
         elif isinstance(event, NodeUtilizationUpdate):
             for n in self.node2policy:
                 if not isinstance(n, Dispatcher):
-                    total_occupied_memory = n.total_memory - n.curr_memory  #TODO: QUI!
+                    total_occupied_memory = n.total_memory - n.curr_memory
                     warm_containers_memory = sum([entry[0].memory for entry in n.warm_pool.pool])
                     instant_utilization = (total_occupied_memory - warm_containers_memory) / n.total_memory
                     instant_utilization = max(0.0, min(1.0, instant_utilization))
@@ -542,10 +542,12 @@ class Simulation:
 
                     #E = P * T [ J = W * sec ]
                     #gCO2(t) = (Pmax - Pidle)*instant_utilization*utilization_update_interval*(1/KWH)*node_co2_intensity
-                    P = n.processing_power_consumption - n.idle_power_consumption
+                    P_idle = n.idle_power_consumption
+                    P = n.processing_power_consumption - P_idle
                     I = n.co2_footprint.co2_intensity
 
-                    emitted_gCO2_interval_by_node = P * instant_utilization * self.utilization_update_interval * (1/KWH) * I # Pidle * I + P_running * u * I
+                    emitted_gCO2_interval_by_node = ((P_idle * self.utilization_update_interval * (1/KWH) * I) +
+                                                     (P * instant_utilization * self.utilization_update_interval * (1/KWH) * I)) # Pidle * I + P_running * u * I
                     self.stats.co2_emission_per_node[n] += emitted_gCO2_interval_by_node
                     self.stats.co2_emission_total += emitted_gCO2_interval_by_node
                     self.stats.co2_emission_computation += emitted_gCO2_interval_by_node
