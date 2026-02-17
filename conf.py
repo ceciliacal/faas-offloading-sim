@@ -75,6 +75,8 @@ GAMMA_E = "energyless-weight-energy"
 GAMMA_CO = "energyless-weight-co2"
 GAMMA_Z = "energyless-weight-cost"
 
+CLOUD_DISABLED = "cloud-disabled"
+
 import configparser
 
 def parse_config_file(config_file):

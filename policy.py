@@ -30,10 +30,9 @@ def add_enum_members(enum_class, regions:list):
 
     # Add dynamic cloud offloading options
     for region in regions:
-        if region.is_cloud():
-            start_index = start_index + 1
-            decision_key = conf.OFFLOAD_CLOUD_DECISION + region.name.upper()
-            new_members[decision_key] = start_index
+        start_index = start_index + 1
+        decision_key = conf.OFFLOAD_CLOUD_DECISION + region.name.upper()
+        new_members[decision_key] = start_index
 
     for name, value in new_members.items():
         # Ensure the member name doesn't already exist
@@ -850,6 +849,9 @@ class EnergylessPolicy(Policy):
                 else:
                     if self.can_execute_locally(f):
                         return SchedulerDecision.EXEC, None
+                    else:
+                        return SchedulerDecision.DROP, None
+
 
 
         T_norm, E_norm, CO_norm, Z_norm = self.norm_factor[(f, c)]
@@ -871,8 +873,8 @@ class EnergylessPolicy(Policy):
                     if x <= self.obj_f.get(f,0.0):
                         self.obj_f[f] = x
                         self.ins_f[f] = instance
-            else:
-                print("instance "+instance.name+" cannot execute function")
+            #else:
+                #print("instance "+instance.name+" cannot execute function")
 
         target_node = self.ins_f[f]
         if target_node is None:

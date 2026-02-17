@@ -1,5 +1,6 @@
 import math
 import os
+from asyncore import dispatcher
 
 import pulp as pl
 
@@ -74,46 +75,61 @@ def compute_normalized_utility(params):
     E_min = 0.0
     E_max = 0.0
 
-
     dispatchers = list(params.cloud_regions_dispatchers.values())
-    random_cloud_node = dispatchers[0].cloud_nodes_list[0]
-    green_dispatcher = min(dispatchers, key=lambda d: d.co2_footprint.co2_intensity)
-    brown_dispatcher = max(dispatchers, key=lambda d: d.co2_footprint.co2_intensity)
 
-    co2_min = green_dispatcher.co2_footprint.co2_intensity
-    co2_max = brown_dispatcher.co2_footprint.co2_intensity
+    if len(dispatchers)>0:
+        green_dispatcher = min(dispatchers, key=lambda d: d.co2_footprint.co2_intensity)
+        brown_dispatcher = max(dispatchers, key=lambda d: d.co2_footprint.co2_intensity)
 
-    brown_cloud_node = brown_dispatcher.cloud_nodes_list[0]
-    green_cloud_node = green_dispatcher.cloud_nodes_list[0]
+        co2_max = brown_dispatcher.co2_footprint.co2_intensity
 
-    for f in params.functions:
+        brown_cloud_node = brown_dispatcher.cloud_nodes_list[0]
+        green_cloud_node = green_dispatcher.cloud_nodes_list[0]
 
-        max_co2_grams = compute_cloud_emissions(f, brown_dispatcher, f.serviceMean, brown_cloud_node, params.local_node)
-        if params.local_node.co2_footprint.co2_intensity == co2_max:  # brown scenario
-            min_co2_grams = compute_cloud_emissions(f, green_dispatcher, f.serviceMean, green_cloud_node, params.local_node)
-        else:
-            min_co2_grams = compute_local_emissions(f, params.local_node, f.serviceMean)
-        for c in params.classes:
-            #print("c.name: ",c.name)
-            U_max = U_max + c.utility * params.arrival_rates.get((f, c), 0.0) #* 600
+        for f in params.functions:
 
-            E_max = E_max + max_co2_grams * params.arrival_rates.get((f, c), 0.0) #* 600
-            E_min = E_min + min_co2_grams * params.arrival_rates.get((f, c), 0.0) #* 600
-            U_min = U_min + c.utility * (params.arrival_rates.get((f, c), 0.0) if "critical" not in c.name else 0.0) #* 600
+            max_co2_grams = compute_cloud_emissions(f, brown_dispatcher, f.serviceMean, brown_cloud_node, params.local_node)
+            if params.local_node.co2_footprint.co2_intensity == co2_max:  # brown scenario
+                min_co2_grams = compute_cloud_emissions(f, green_dispatcher, f.serviceMean, green_cloud_node, params.local_node)
+            else:
+                min_co2_grams = compute_local_emissions(f, params.local_node, f.serviceMean)
+            for c in params.classes:
+                #print("c.name: ",c.name)
+                U_max = U_max + c.utility * params.arrival_rates.get((f, c), 0.0) #* 600
 
-    #U_min = 0.0
-    #E_min = 0.0
-    return U_max, U_min, E_max, E_min
+                E_max = E_max + max_co2_grams * params.arrival_rates.get((f, c), 0.0) #* 600
+                E_min = E_min + min_co2_grams * params.arrival_rates.get((f, c), 0.0) #* 600
+                U_min = U_min + c.utility * (params.arrival_rates.get((f, c), 0.0) if "critical" not in c.name else 0.0) #* 600
+
+        #U_min = 0.0
+        #E_min = 0.0
+        return U_max, U_min, E_max, E_min
+    else:
+        #edge only
+        for f in params.functions:
+            max_co2_grams = compute_local_emissions(f, params.local_node, f.serviceMean)
+            for c in params.classes:
+                #print("c.name: ",c.name)
+                U_max = U_max + c.utility * params.arrival_rates.get((f, c), 0.0) #* 600
+
+                E_max = E_max + max_co2_grams * params.arrival_rates.get((f, c), 0.0) #* 600
+                #U_min = U_min + c.utility * (params.arrival_rates.get((f, c), 0.0) if "critical" not in c.name else 0.0) #* 600
+        return U_max, U_min, E_max, E_min
+
 
 def compute_energy_consumption(params):
     dispatchers = params.cloud_regions_dispatchers
-
+    co2_drop = 0.0
     # CO2 drop value
-    min_co2_intensity = min(dispatcher.co2_footprint.co2_intensity for dispatcher in dispatchers.values())
-    co2_drop = min_co2_intensity / max(
-        float(params.local_node.co2_footprint.co2_intensity),
-        *(float(dispatcher.co2_footprint.co2_intensity) for dispatcher in dispatchers.values())
-    )
+    if len(dispatchers) > 0:
+        min_co2_intensity = min(dispatcher.co2_footprint.co2_intensity for dispatcher in dispatchers.values())
+        co2_drop = min_co2_intensity / max(
+            float(params.local_node.co2_footprint.co2_intensity),
+            *(float(dispatcher.co2_footprint.co2_intensity) for dispatcher in dispatchers.values())
+        )
+    else:
+        co2_drop = 0.05
+
     large_penalty = 1e6
 
     eP_local = {}

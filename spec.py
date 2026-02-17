@@ -173,132 +173,7 @@ def generate_random_temp_spec_variants(rng, n_functions=5, variants_mode=0, n_va
 
         {'name': 'edge_node_c', 'region': 'edge_zone_1', 'memory': 3072,
          'processing_power_consumption': 75.0, 'idle_power_consumption': 15.0,
-         'tx_power_consumption': 300.0, 'rx_power_consumption': 300.0, 'cost': edge_cost},
-
-        {'name': 'cloud_node_a', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_a1', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_a2', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_a3', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_a4', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_a5', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_a6', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_a7', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_a8', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_a9', 'region': 'cloud_region_a', 'cost': cloud_cost_reg_a, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_b', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_b1', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_b2', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_b3', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_b4', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_b5', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_b6', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_b7', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_b8', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_b9', 'region': 'cloud_region_b', 'cost': cloud_cost_reg_b, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_c', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_c1', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_c2', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_c3', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_c4', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_c5', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_c6', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_c7', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_c8', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'cloud_node_c9', 'region': 'cloud_region_c', 'cost': 0.00002, 'speedup': 1.0, 'memory': 8192,
-         'processing_power_consumption': 327.0, 'idle_power_consumption': 120.0, 'tx_power_consumption': 5000.0,
-         'rx_power_consumption': 5000.0},
-
-        {'name': 'dispatcher_a', 'region': 'cloud_region_a', 'memory': 0, 'policy': 'dispatcher-policy'},
-        {'name': 'dispatcher_b', 'region': 'cloud_region_b', 'memory': 0, 'policy': 'dispatcher-policy'},
-        {'name': 'dispatcher_c', 'region': 'cloud_region_c', 'memory': 0, 'policy': 'dispatcher-policy'}
-    ]
+         'tx_power_consumption': 300.0, 'rx_power_consumption': 300.0, 'cost': edge_cost}]
 
     # Extend functions list if needed
     if n_functions > len(functions):
@@ -516,7 +391,8 @@ def generate_regions_yaml(is_edge_green=True):
         regions_data = regions_data_green_edge
         file_name = "regions_green_edge.yml"
     else:
-        regions_data = regions_data_brown_edge
+        #regions_data = regions_data_brown_edge
+        regions_data = regions_data_only_brown_edge #TODO poi cambiare!
         file_name = "regions_brown_edge.yml"
 
     file_path = os.path.join(current_directory, file_name)
@@ -602,6 +478,26 @@ regions_data_brown_edge = [{
         "zones": []
     }
 ]
+regions_data_only_brown_edge = [
+        {
+            "name": "edge_zone_1",
+            "co2_traces_file": "co2_traces/PL_2023_hourly.csv",
+            "latency_sec": {
+                #"cloud_region_a": 0.015,
+                #"cloud_region_b": 0.05,
+                #"cloud_region_c": 0.03,
+                "edge_zone_1": 0.0050
+            },
+            "bandwidth_mbps": {
+                #"cloud_region_a": 80.0,
+                #"cloud_region_b": 80.0,
+                #"cloud_region_c": 80.0,
+                "edge_zone_1": 100.0
+            },
+            "neighbors": []
+        }
+    ]
+
 regions_data_green_edge = [{
     "name": "cloud_region_a",
     "co2_traces_file": "co2_traces/FR_2023_hourly.csv",

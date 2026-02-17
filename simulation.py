@@ -267,7 +267,7 @@ class Simulation:
 
         self.expiration_timeout = self.config.getfloat(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, fallback=600)
 
-        add_enum_members(SchedulerDecision, self.infra.regions)
+        add_enum_members(SchedulerDecision, self.infra.cloud_regions)
         self.of_alpha = self.config.getfloat(conf.SEC_POLICY, conf.ALPHA, fallback=0.0)
         self.of_beta = self.config.getfloat(conf.SEC_POLICY, conf.BETA, fallback=0.0)
         self.is_co2_trace_over = {node: False for node in self.infra.get_nodes(ignore_non_processing=False)}
@@ -586,6 +586,7 @@ class Simulation:
                 curr_node = remote_node
             if n.region.is_cloud():
                 #cloud node
+                #print("node: ",n.name," event.offloaded_from: ",event.offloaded_from)
                 assert len(event.offloaded_from) <= 2
                 if len(event.offloaded_from) == 2:
                     initial_node = event.offloaded_from[0]
@@ -716,7 +717,6 @@ class Simulation:
         if sched_decision == SchedulerDecision.EXEC_VAR:
 
             assert n.region.is_cloud() == False
-            #assert len(event.offloaded_from) == 0
 
             f = f.active_variant
 

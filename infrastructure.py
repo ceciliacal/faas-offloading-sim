@@ -45,9 +45,6 @@ class Infrastructure:
         self.cloud_regions = self.get_cloud_regions()
         self.edge_zones = self.get_edge_regions()
         self.num_regions_cloud = len(self.cloud_regions)
-        self.num_edge_zones = len(self.edge_zones)
-        self.region2neighbors = self.get_regions_neighbors(regions)
-        self.set_region_neighbors(regions)
 
         self.cloud_nodes = []
         self.edge_nodes = []

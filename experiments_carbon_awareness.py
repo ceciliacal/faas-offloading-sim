@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import yaml
 
+import infrastructure
 from faas import Dispatcher
 from spec import generate_regions_yaml, generate_random_temp_spec_variants
 from simulation import Simulation
@@ -13,16 +14,16 @@ from main import read_spec_file
 from numpy.random import SeedSequence, default_rng
 
 DEFAULT_CONFIG_FILE = "config.ini"
-DEFAULT_OUT_DIR = "120226_10fun_edgeCost"
+DEFAULT_OUT_DIR = "170226_10fun_edgeOnly"
 DEFAULT_DURATION = 259200
 #SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
 COST_REG_CLOUD_HIGH = 0.00003
 COST_REG_CLOUD_LOW = 0.00001
-COST_EDGE = 0.00005
-#COST_EDGE = 0.0
+#COST_EDGE = 0.00005
+COST_EDGE = 0.0
 N_FUNC=10
-BUDGETS=[0.5, 20] #, 5, 50]
+BUDGETS=[0.5]#, 5, 20, 50]
 
 
 
@@ -45,6 +46,7 @@ def read_traces_file(filename, col_datetime, col_co2intensity, start_date, end_d
     return df
 
 def regions_setup(config, is_edge_green=True):
+    is_edge_only = config.get(conf.SEC_CARBON, conf.CLOUD_DISABLED, fallback=False)
 
     col_datetime = conf.CO2_TRACES_COL_TIMESTAMP
     col_co2intensity = conf.CO2_TRACES_COL_INTENSITY_DIRECT
@@ -52,44 +54,82 @@ def regions_setup(config, is_edge_green=True):
     end_date = config.get(conf.SEC_CARBON, conf.END_DATE, fallback=None)
 
     regions_file_path = generate_regions_yaml(is_edge_green)
-    with open(regions_file_path, 'r') as file:
-        regions_data = yaml.safe_load(file)
+    if is_edge_only:
 
-    regions = []
+        with open(regions_file_path, 'r') as file:
+            regions_data = yaml.safe_load(file)
 
-    for region in regions_data['regions']:
-        co2_traces_filename = region['co2_traces_file']
-        co2_dataframe = read_traces_file(region['co2_traces_file'], col_datetime, col_co2intensity, start_date, end_date)
+        regions = []
 
-        cloud_region = Region(
-            name=region['name'],
-            co2_traces_filename=co2_traces_filename,
-            datetime_co2intensity=co2_dataframe,
-            neighbors=region['neighbors'],
-            latency_sec=region['latency_sec'],
-            bandwidth_mbps=region['bandwidth_mbps']
-        )
-        regions.append(cloud_region)
-
-        # Check for zones, if present, to add edge regions
-        for zone in region.get('zones', []):
-            co2_traces_filename = zone['co2_traces_file']
-            co2_dataframe = read_traces_file(zone['co2_traces_file'], col_datetime, col_co2intensity, start_date,
+        for region in regions_data['regions']:
+            co2_traces_filename = region['co2_traces_file']
+            co2_dataframe = read_traces_file(region['co2_traces_file'], col_datetime, col_co2intensity, start_date,
                                              end_date)
 
+            dummy_default_region = Region(
+                name="dummy",
+                co2_traces_filename=co2_traces_filename,
+                datetime_co2intensity=co2_dataframe,
+                neighbors=[],
+                latency_sec=[],
+                bandwidth_mbps=[]
+            )
+
             edge_region = Region(
-                name=zone['name'],
+                name=region['name'],
                 co2_traces_filename=co2_traces_filename,
                 datetime_co2intensity=co2_dataframe,
                 neighbors=region['neighbors'],
-                latency_sec=zone['latency_sec'],
-                bandwidth_mbps=zone['bandwidth_mbps'],
-                default_cloud=region['name']
+                latency_sec=region['latency_sec'],
+                bandwidth_mbps=region['bandwidth_mbps'],
+                default_cloud= dummy_default_region
             )
 
             regions.append(edge_region)
 
-    return regions
+        return regions
+    else:
+
+        with open(regions_file_path, 'r') as file:
+            regions_data = yaml.safe_load(file)
+
+        regions = []
+
+        for region in regions_data['regions']:
+            co2_traces_filename = region['co2_traces_file']
+            co2_dataframe = read_traces_file(region['co2_traces_file'], col_datetime, col_co2intensity, start_date,
+                                             end_date)
+
+            cloud_region = Region(
+                name=region['name'],
+                co2_traces_filename=co2_traces_filename,
+                datetime_co2intensity=co2_dataframe,
+                neighbors=region['neighbors'],
+                latency_sec=region['latency_sec'],
+                bandwidth_mbps=region['bandwidth_mbps']
+            )
+            regions.append(cloud_region)
+
+            # Check for zones, if present, to add edge regions
+            for zone in region.get('zones', []):
+                co2_traces_filename = zone['co2_traces_file']
+                co2_dataframe = read_traces_file(zone['co2_traces_file'], col_datetime, col_co2intensity, start_date,
+                                                 end_date)
+
+                edge_region = Region(
+                    name=zone['name'],
+                    co2_traces_filename=co2_traces_filename,
+                    datetime_co2intensity=co2_dataframe,
+                    neighbors=region['neighbors'],
+                    latency_sec=zone['latency_sec'],
+                    bandwidth_mbps=zone['bandwidth_mbps'],
+                    default_cloud=region['name']
+                )
+
+                regions.append(edge_region)
+
+        return regions
+
 
 def default_infra(is_edge_green):
     # Regions
@@ -447,6 +487,99 @@ def experiment_main_comparison_brown_normalized(args, config, seeds, flag_seeds)
     for seed in seeds:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         for budget in BUDGETS:
+            config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
+            for variant_mode in variants_mode:
+                for pol in POLICIES:
+
+                    config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+
+                    of_values = [
+                        (0.5, 0.5)  # of-alpha=0, of-beta=1
+                    ]
+
+                    for of_alpha, of_beta in of_values:
+                        config.set(conf.SEC_POLICY, conf.ALPHA, str(of_alpha))
+                        config.set(conf.SEC_POLICY, conf.BETA, str(of_beta))
+
+                        keys = {
+                            "Policy": pol,
+                            "Budget": budget,
+                            "Seed": seed,
+                            "Variant_mode": variant_mode,
+                            "OF-Alpha": of_alpha,
+                            "OF-Beta": of_beta,
+                        }
+
+                        run_string = "_".join([f"{k}{v}" for k, v in keys.items()])
+
+                        # Check if we can skip this run
+                        if old_results is not None and not old_results[
+
+                            (old_results.Policy == pol) &
+                            (old_results.Budget == budget) &
+                            (old_results.Seed == seed) &
+                            (old_results.Variant_mode == variant_mode) &
+                            (old_results["OF-Alpha"] == of_alpha) &
+                            (old_results["OF-Beta"] == of_beta)
+                        ].empty:
+                            print("Skipping conf")
+                            continue
+
+                        seed_sequence = SeedSequence(seed)
+                        rng = default_rng(seed_sequence.spawn(1)[0])
+                        temp_spec_file = generate_random_temp_spec_variants(rng, n_functions=N_FUNC, variants_mode=variant_mode,
+                                                                            arrivals_to_single_node=False,
+                                                                            cloud_cost_reg_a=COST_REG_CLOUD_LOW,
+                                                                            cloud_cost_reg_b=COST_REG_CLOUD_HIGH,edge_cost=COST_EDGE)
+                        infra = default_infra(is_edge_green=False)
+                        stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+                        temp_spec_file.close()
+
+                        with open(os.path.join(results_directory, f"{exp_tag}_{run_string}.json"), "w") as of:
+                            stats.print(of)
+
+                        result = dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+                        results.append(result)
+                        print(result)
+
+                        resultsDf = pd.DataFrame(results)
+                        if old_results is not None:
+                            resultsDf = pd.concat([old_results, resultsDf])
+                        resultsDf.to_csv(outfile, index=False)
+
+    resultsDf = pd.DataFrame(results)
+    if old_results is not None:
+        resultsDf = pd.concat([old_results, resultsDf])
+    resultsDf.to_csv(outfile, index=False)
+
+    with open(os.path.join(results_directory, f"{exp_tag}_conf.ini"), "w") as of:
+        config.write(of)
+
+def experiment_main_comparison_brown_normalized_edgeOnly(args, config, seeds, flag_seeds):
+    results = []
+    exp_tag = "mainComparisonBrown_normalized" + "_" + flag_seeds
+    config.set(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, "false")
+    results_directory = DEFAULT_OUT_DIR + "_results_probabilistic"
+    os.makedirs(results_directory, exist_ok=True)
+    outfile = os.path.join(results_directory, f"{exp_tag}.csv")
+
+    config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "600")
+    config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
+
+    POLICIES = ["probabilistic-carbon-aware"]
+    variants_mode = [1] #variants mode: 0 inactive, 1 active with speedup=utility for each variants
+
+    # Check existing results
+    old_results = None
+    if not args.force:
+        try:
+            old_results = pd.read_csv(outfile)
+        except:
+            pass
+
+    for seed in seeds:
+        config.set(conf.SEC_SIM, conf.SEED, str(seed))
+        for budget in [0.5]:
             config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
             for variant_mode in variants_mode:
                 for pol in POLICIES:
@@ -1254,6 +1387,22 @@ if __name__ == "__main__":
     elif args.experiment.lower() == "brown_probabilistic_norm_4half":   #sess8 python3 experiments_carbon_awareness.py --experiment brown_probabilistic_norm_4half
         SEEDS = SEEDS4
         experiment_main_comparison_brown_normalized(args, config, SEEDS, flag_4half)    #stopped
+
+    #====== EDGE ONLY
+    elif args.experiment.lower() == "brown_probabilistic_norm_edgeOnly_1half":   #sess7   python3 experiments_carbon_awareness.py --experiment brown_probabilistic_norm_edgeOnly_1half
+        SEEDS = SEEDS1
+        experiment_main_comparison_brown_normalized_edgeOnly(args, config, SEEDS, flag_1half)
+    elif args.experiment.lower() == "brown_probabilistic_norm_edgeOnly_2half":   #sess8 python3 experiments_carbon_awareness.py --experiment brown_probabilistic_norm_2half
+        SEEDS = SEEDS2
+        experiment_main_comparison_brown_normalized_edgeOnly(args, config, SEEDS, flag_2half)    #stopped
+    elif args.experiment.lower() == "brown_probabilistic_norm_edgeOnly_3half":   #sess7   python3 experiments_carbon_awareness.py --experiment brown_probabilistic_norm_3half
+        SEEDS = SEEDS3
+        experiment_main_comparison_brown_normalized_edgeOnly(args, config, SEEDS, flag_3half)
+    elif args.experiment.lower() == "brown_probabilistic_norm_edgeOnly_4half":   #sess8 python3 experiments_carbon_awareness.py --experiment brown_probabilistic_norm_4half
+        SEEDS = SEEDS4
+        experiment_main_comparison_brown_normalized_edgeOnly(args, config, SEEDS, flag_4half)    #stopped
+
+
     elif args.experiment.lower() == "brown_energyless_1half":  # sess7   python3 experiments_carbon_awareness.py --experiment brown_energyless_1half
         SEEDS = SEEDS1
         experiment_energyless_brown(args, config, SEEDS, flag_1half)
