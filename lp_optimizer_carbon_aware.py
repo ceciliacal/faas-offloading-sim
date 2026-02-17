@@ -312,7 +312,7 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
     # Probability
     for f, c in F_C:
         prob += (pL[f][c] +
-                (pl.lpSum(pL_variants[f][v][c] for v in V[f]) if f.has_variants else 0.0) +
+                (pl.lpSum([pL_variants[f][v][c] for v in V[f]]) if f.has_variants else 0.0) +
                 (pE[f][c] if EDGE_ENABLED else 0.0) +
                 pl.lpSum(pC[region.name][f][c] for region in regions) +
                 pD[f][c] == 1.0)
@@ -356,15 +356,32 @@ def update_probabilities(params: OptCarbonAwareProblemParams, VERBOSE=False):
 
     # Max hourly budget
     if params.budget is not None and params.budget > 0.0:
-        prob += (pl.lpSum([dispatcher.aggregated_region_cost * params.arrival_rates[(f, c)] *
-                           pC[region.name][f][c] * params.serv_time_cloud[region][f] * f.memory / 1024
-                           for region, dispatcher in dispatchers.items()
-                           for f, c in params.fun_classes()]) <= params.budget / 3600)
 
-        if EDGE_ENABLED and params.aggregated_edge_cost > 0.0:
-            prob += (pl.lpSum([params.aggregated_edge_cost * params.arrival_rates[(f, c)] *
-                           pE[f][c] * params.serv_time_edge[f] * f.memory / 1024
-                           for f, c in params.fun_classes()]) <= params.budget / 3600)
+        if EDGE_ENABLED:
+            prob += (pl.lpSum([dispatcher.aggregated_region_cost * params.arrival_rates[(f, c)] *
+                               pC[region.name][f][c] * params.serv_time_cloud[region][f] * f.memory / 1024
+                               for region, dispatcher in dispatchers.items()
+                               for f, c in params.fun_classes()]) +
+
+                     pl.lpSum([params.aggregated_edge_cost * params.arrival_rates[(f, c)] *
+                               (pE[f][c] * params.serv_time_edge[f] +
+                                pL[f][c] * params.serv_time_local[f] +
+                                (pl.lpSum([pL_variants[f][v][c] * params.serv_time_local[v] for v in V[f]]) if f.has_variants else 0.0))
+                               * f.memory / 1024
+                         for f, c in params.fun_classes()]) <= params.budget / 3600)
+        else:
+            prob += (pl.lpSum([dispatcher.aggregated_region_cost * params.arrival_rates[(f, c)] *
+                               pC[region.name][f][c] * params.serv_time_cloud[region][f] * f.memory / 1024
+                               for region, dispatcher in dispatchers.items()
+                               for f, c in params.fun_classes()]) <= params.budget / 3600)
+
+
+    '''
+             prob += (pl.lpSum([params.aggregated_edge_cost * params.arrival_rates[(f, c)] *
+                   pE[f][c] * params.serv_time_edge[f] * f.memory / 1024
+                   for f, c in params.fun_classes()]) <= params.budget / 3600)   
+    '''
+
 
 
     prob.writeLP("problem.lp")

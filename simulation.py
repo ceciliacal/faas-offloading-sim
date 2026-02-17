@@ -586,12 +586,18 @@ class Simulation:
                 curr_node = remote_node
             if n.region.is_cloud():
                 #cloud node
-                assert len(event.offloaded_from) == 2
-                initial_node = event.offloaded_from[0]
-                dispatcher = event.offloaded_from[1]
-                #energy for function processing on cloud node + offloading from local node to dispatcher
+                assert len(event.offloaded_from) <= 2
+                if len(event.offloaded_from) == 2:
+                    initial_node = event.offloaded_from[0]
+                    dispatcher = event.offloaded_from[1]
+
+                else:
+                    assert len(event.offloaded_from) == 1
+                    initial_node = event.offloaded_from[0]
+                    dispatcher = n.has_dispatcher
+                # energy for function processing on cloud node + offloading from local node to dispatcher
                 function_co2_emission = compute_cloud_emissions(f, dispatcher, duration, n, initial_node)
-                function_transmission_energy = compute_transmission_energy_cloud(f,dispatcher, initial_node, n)
+                function_transmission_energy = compute_transmission_energy_cloud(f, dispatcher, initial_node, n)
 
                 I = dispatcher.co2_footprint.co2_intensity
 
@@ -806,7 +812,7 @@ class Simulation:
             self.__schedule_next_arrival(n, arv_proc)
 
     def get_region_name_by_scheduler_decision(self, sched_decision):
-        return sched_decision[len(conf.OFFLOAD_CLOUD_DECISION):].lower()
+        return sched_decision.name[len(conf.OFFLOAD_CLOUD_DECISION):].lower()
 
     def pick_cloud_remote_node_by_region(self, region_name):
         #region_name = sched_decision.name[len(conf.OFFLOAD_CLOUD_DECISION):].lower()

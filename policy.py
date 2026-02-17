@@ -712,7 +712,7 @@ class EnergylessPolicy(Policy):
         self.aggregated_edge_power_rx = 0.0
         self.instances = []
         self.obj_f = {f: float("inf") for f in self.simulation.functions}
-        self.ins_f = {f: 0.0 for f in self.simulation.functions}
+        self.ins_f = {f: None for f in self.simulation.functions}
         self.edge_nodes = []
         self.cloud_nodes = []
         self.aggregated_edge_memory = 0.0
@@ -730,8 +730,8 @@ class EnergylessPolicy(Policy):
                 self.instances.append(cloud_node)
 
 
-        self.cold_start_prob_instance = {(f,i): 0.0 for f in self.simulation.functions for i in self.instances}
-        self.estimated_service_time_instance = {(f,i): 0.0 for f in self.simulation.functions for i in self.instances}
+        self.cold_start_prob_instance = {(f,i): 1.0 for f in self.simulation.functions for i in self.instances}
+        self.estimated_service_time_instance = {(f,i): 0.1 for f in self.simulation.functions for i in self.instances}
 
         self.local_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, fallback=""))
         self.cloud_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, fallback=""))
@@ -812,7 +812,7 @@ class EnergylessPolicy(Policy):
                 T_star = E_star = CO_star = Z_star = 0.0
 
                 for instance in self.instances:
-                    if instance.can_execute_function(f):
+                    if not instance.can_execute_function(f):
                         continue
 
                     TT = self.estimate_latency_TT(f, instance)
@@ -834,6 +834,8 @@ class EnergylessPolicy(Policy):
 
 
     def schedule(self, f, c, offloaded_from):
+        self.obj_f[f] = float("inf")
+        self.ins_f[f] = None
 
         if len(offloaded_from) > 0:
             if not self.allow_multi_offloading:
@@ -853,8 +855,8 @@ class EnergylessPolicy(Policy):
         T_norm, E_norm, CO_norm, Z_norm = self.norm_factor[(f, c)]
 
         for instance in self.instances:
-            if instance.can_execute_function(f):
-                #estimate latency(f,instance), energy consumption f(instance), cost (f,instance)
+            if instance.can_execute_function(f):    #todo: è qui problema
+                #estimate latency , energy consumption, co2, cost
                 TT = self.estimate_latency_TT(f,instance)
                 CO = self.estimate_CO2(f, instance)
                 Z = self.estimate_cost_Z(f,instance)
@@ -869,8 +871,12 @@ class EnergylessPolicy(Policy):
                     if x <= self.obj_f.get(f,0.0):
                         self.obj_f[f] = x
                         self.ins_f[f] = instance
+            else:
+                print("instance "+instance.name+" cannot execute function")
 
         target_node = self.ins_f[f]
+        if target_node is None:
+            return SchedulerDecision.DROP, None
         if target_node.name == self.node.name:
             if f.has_variants:
                 var = self.simulation.rng_variant.choice(f.variants)
@@ -882,9 +888,9 @@ class EnergylessPolicy(Policy):
                 if self.can_execute_locally(f):
                     return SchedulerDecision.EXEC, None
             return SchedulerDecision.DROP, None
-        elif target_node.name in self.edge_nodes:
+        elif target_node in self.edge_nodes:
             return SchedulerDecision.OFFLOAD_EDGE, target_node
-        elif target_node.name in self.cloud_nodes:
+        elif target_node in self.cloud_nodes:
             return conf.OFFLOAD_CLOUD_DECISION+target_node.region.name.upper(), target_node
         else:
             return SchedulerDecision.DROP, None
