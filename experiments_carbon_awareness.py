@@ -1388,17 +1388,18 @@ if __name__ == "__main__":
         SEEDS = SEEDS4
         experiment_main_comparison_brown_normalized(args, config, SEEDS, flag_4half)    #stopped
 
+
     #====== EDGE ONLY
-    elif args.experiment.lower() == "brown_probabilistic_norm_edgeOnly_1half":   #sess7   python3 experiments_carbon_awareness.py --experiment brown_probabilistic_norm_edgeOnly_1half
+    elif args.experiment.lower() == "brown_probabilistic_norm_edge_only_1half":   #sess7   python3 experiments_carbon_awareness.py --experiment brown_probabilistic_norm_1half
         SEEDS = SEEDS1
         experiment_main_comparison_brown_normalized_edgeOnly(args, config, SEEDS, flag_1half)
-    elif args.experiment.lower() == "brown_probabilistic_norm_edgeOnly_2half":   #sess8 python3 experiments_carbon_awareness.py --experiment brown_probabilistic_norm_2half
+    elif args.experiment.lower() == "brown_probabilistic_norm_edge_only_2half":   #sess8 python3 experiments_carbon_awareness.py --experiment brown_probabilistic_norm_2half
         SEEDS = SEEDS2
         experiment_main_comparison_brown_normalized_edgeOnly(args, config, SEEDS, flag_2half)    #stopped
-    elif args.experiment.lower() == "brown_probabilistic_norm_edgeOnly_3half":   #sess7   python3 experiments_carbon_awareness.py --experiment brown_probabilistic_norm_3half
+    elif args.experiment.lower() == "brown_probabilistic_norm_edge_only_3half":   #sess7   python3 experiments_carbon_awareness.py --experiment brown_probabilistic_norm_3half
         SEEDS = SEEDS3
         experiment_main_comparison_brown_normalized_edgeOnly(args, config, SEEDS, flag_3half)
-    elif args.experiment.lower() == "brown_probabilistic_norm_edgeOnly_4half":   #sess8 python3 experiments_carbon_awareness.py --experiment brown_probabilistic_norm_4half
+    elif args.experiment.lower() == "brown_probabilistic_norm_edge_only_4half":   #sess8 python3 experiments_carbon_awareness.py --experiment brown_probabilistic_norm_4half
         SEEDS = SEEDS4
         experiment_main_comparison_brown_normalized_edgeOnly(args, config, SEEDS, flag_4half)    #stopped
 
