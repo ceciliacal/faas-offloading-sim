@@ -1,5 +1,5 @@
+from collections import deque
 from dataclasses import dataclass,field
-
 
 class ContainerPool:
 
@@ -45,12 +45,16 @@ class ContainerPool:
     def __repr__ (self):
         return repr(self.pool)
 
+
 class Node:
     def __init__(self, name, memory, speedup, region, co2_footprint,
                  processing_power_consumption,
-                 tx_energy_consumption,
-                 rx_energy_consumption,
-                 cost=0.0, custom_sched_policy=None, peer_exposed_memory_fraction=1.0):
+                 idle_power_consumption,
+                 tx_power_consumption,
+                 rx_power_consumption,
+                 utilization_update_interval,
+                 cost=0.0, custom_sched_policy=None, peer_exposed_memory_fraction=1.0,
+                 ):
         self.name = name
         self.total_memory = memory
         self.curr_memory = memory
@@ -65,10 +69,29 @@ class Node:
 
         self.co2_footprint = co2_footprint
 
-        self.processing_power_consumption = processing_power_consumption / 1000   #kWatt
-        self.tx_energy_consumption = tx_energy_consumption  / 1e9            #Joule/byte
-        self.rx_energy_consumption = rx_energy_consumption  / 1e9
+        self.processing_power_consumption = processing_power_consumption     #watt
+        self.tx_power_consumption = tx_power_consumption            #mW
+        self.rx_power_consumption = rx_power_consumption
+        self.g_co2_emissions = {}   #key: <function, schedulerDecision>, value: g CO2
+        self.idle_power_consumption = idle_power_consumption
 
+        self.utilization_list = deque(maxlen=1000)
+        self.utilization_samples_interval = utilization_update_interval
+        self.has_dispatcher = None
+
+    def can_allocate_memory (self, required_mem):
+        if self.curr_memory >= required_mem:
+            return True
+        else:
+            self.curr_memory += self.warm_pool.reclaim_memory(required_mem)
+            return self.curr_memory >= required_mem
+
+    def can_execute_function (self, f):
+        return f in self.warm_pool or self.can_allocate_memory(f.memory)
+
+        # take last n samples (or fewer if not enough yet)
+        tail = list(self.utilization_list)[-n:]
+        return  sum(tail) / len(tail)   #average
 
     def __repr__(self):
         return self.name
@@ -83,17 +106,22 @@ class Node:
         return hash(self.name)
 
 
+
 class Dispatcher(Node):
     def __init__(self, name, memory, speedup, region, co2_footprint,
                  processing_power_consumption,
-                 tx_energy_consumption,
-                 rx_energy_consumption,
+                 idle_power_consumption,
+                 tx_power_consumption,
+                 rx_power_consumption,
+                 utilization_update_interval,
                  cost=0.0, custom_sched_policy="dispatcher-policy", peer_exposed_memory_fraction=0.0):
 
         super().__init__(name, memory, speedup, region, co2_footprint,
                          processing_power_consumption,
-                         tx_energy_consumption,
-                         rx_energy_consumption,
+                         idle_power_consumption,
+                         tx_power_consumption,
+                         rx_power_consumption,
+                         utilization_update_interval,
                          cost, custom_sched_policy, peer_exposed_memory_fraction)
         self.aggregated_region_memory = 0.0
         self.avg_speedup = 0.0
@@ -104,10 +132,12 @@ class Dispatcher(Node):
         self.avg_cold_starts:dict = {}   #key = function, value = avg #cold starts
 
         self.avg_processing_power_consumption = 0.0
-        self.avg_tx_energy_consumption = 0.0
-        self.avg_rx_energy_consumption = 0.0
+        self.avg_tx_power_consumption = 0.0
+        self.avg_rx_power_consumption = 0.0
+        self.cloud_nodes_list = []
+        self.avg_idle_power_consumption = 0.0
 
-        self.decision = "OFFLOAD_"+region.name.upper()
+
 
 
 @dataclass
@@ -133,6 +163,18 @@ class QoSClass:
     def __le__(self,other):
         return self.name <= other.name
 
+
+class Variant:
+    def __init__(self, name, speedup, utility):
+        self.name = name
+        self.speedup = speedup
+        self.utility = utility
+        self.self_function = None
+
+    def __repr__(self):
+        return f"FunctionVariant(name={self.name}, speedup={self.speedup})"
+
+
 @dataclass
 class Function:
     name: str
@@ -144,7 +186,11 @@ class Function:
     accessed_keys: [] = field(default_factory=lambda: [])
     max_data_access_time: float = None
     outputSizeMean: float = 10
-    variants: [] = field(default_factory=lambda: [])
+    variants: [Variant] = field(default_factory=lambda: [])
+    is_default: bool = False
+    active_variant = None
+    has_variants: bool = False
+    speedup: float = 1.0
     
     def __repr__ (self):
         return self.name
@@ -158,13 +204,7 @@ class Function:
     def __le__(self,other):
         return self.name <= other.name
 
-class FunctionVariant:
-    def __init__(self, name, speedup=None):
-        self.name = name
-        self.speedup = speedup
 
-    def __repr__(self):
-        return f"FunctionVariant(name={self.name}, speedup={self.speedup})"
 
 
 

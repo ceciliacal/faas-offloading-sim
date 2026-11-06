@@ -4,10 +4,11 @@ from faas import Node, Function, QoSClass
 @dataclass
 class OptCarbonAwareProblemParams:
     local_node: Node
-    cloud_regions_dipatchers: dict #dispatchers dictionary
+    cloud_regions_dispatchers: dict #dispatchers dictionary
     possible_decisions: list
     functions: [Function]
     classes: [QoSClass]
+    variants: dict
     arrival_rates: dict
     serv_time_local: dict
     serv_time_cloud: dict
@@ -26,9 +27,16 @@ class OptCarbonAwareProblemParams:
     init_time_edge: dict = None
     bandwidth_edge: float = float("inf")
     aggregated_edge_power_consumption: float = float("inf")
-    aggregated_edge_energy_tx: float = float("inf")
-    aggregated_edge_energy_rx: float = float("inf")
+    aggregated_edge_power_tx: float = float("inf")
+    aggregated_edge_power_rx: float = float("inf")
     co2_green_threshold: float = float("inf")
+    alpha: float = 0.0
+    beta: float = 0.0
+    t: float = 0.0
+    utilization_LP_dict: dict = None,
+    energy_LP_dict: dict = None,
+    aggregated_edge_idle_power_consumption: float = float("inf")
+    aggregated_edge_cost: float = float("0.0")
 
 
     def fun_classes(self):
@@ -36,8 +44,3 @@ class OptCarbonAwareProblemParams:
             for c in self.classes:
                 yield (f,c)
 
-    def reg_fun_classes(self):
-        for r in self.cloud_regions_dipatchers.keys():
-            for f in self.functions:
-                for c in self.classes:
-                    yield (r.name,f,c)

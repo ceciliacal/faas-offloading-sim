@@ -1,4 +1,6 @@
 import json
+from collections import deque
+
 import conf
 
 class Stats:
@@ -51,6 +53,15 @@ class Stats:
         self.completions_cloud_nodes = {(r, f, n): 0 for r in infra.regions for f in functions for n in infra.get_cloud_nodes_by_region(r)}
         self.cold_starts_cloud_nodes = {(r, f, n): 0 for r in infra.regions for f in functions for n in infra.get_cloud_nodes_by_region(r)}
 
+        self.total_processing_time = 0.0
+
+        self.co2_emission_totalOld = 0.0 #co2 grams
+        self.co2_emission_total = 0.0 #co2 grams
+        self.co2_emission_computation = 0.0 #co2 grams
+        self.co2_emission_transmission = 0.0 #co2 grams
+
+        self.co2_emission_per_node = {n: 0.0 for n in self.nodes}
+
     def to_dict (self):
         stats = {}
         raw = vars(self)
@@ -90,7 +101,7 @@ class Stats:
         stats["perClassCompleted"] = class_completions
         stats["perClassAvgRT"] = class_rt
 
-        stats["budgetExceededPercentage"] = max(0, (self.cost-self.budget)/self.budget)
+        #stats["budgetExceededPercentage"] = max(0, (self.cost-self.budget)/self.budget)
 
         stats["_Time"] = self.sim.t
 

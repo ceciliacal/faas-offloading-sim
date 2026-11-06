@@ -1,0 +1,148 @@
+{
+
+  "cloud_regions": {
+    "cloud_region_a": [128000, 0.28, 800.0, 5120.0, 3072.0, 0.0],
+    "cloud_region_b": [128000, 0.28, 800.0, 5120.0, 3072.0, 1.0]
+  },
+  "possible_decisions": [
+    "EXEC",
+    "EXEC_VAR",
+    "OFFLOAD_EDGE",
+    "OFFLOAD_CLOUD_cloud_region_a",
+    "OFFLOAD_CLOUD_cloud_region_b",
+    "DROP"
+  ],
+  "functions": ["f1", "f2", "f3"],
+  "classes": ["standard", "critical"],
+  "variants": {
+  "f1": ["f1_var_0.8"],
+  "f2": ["f2_var_0.5"],  "f3": ["f3_var_0.5"]
+},
+
+  "arrival_rates": {
+    "f1": {"critical": 2.0, "standard": 1.0},
+    "f2": {"critical": 1.5, "standard": 0.8},
+    "f3": {"critical": 0.6, "standard": 0.4}
+  },
+
+  "serv_time_local": {
+    "f1": 0.035,
+    "f2": 0.090,
+    "f3": 0.150
+  },
+
+  "function_input_size_mean": {
+    "f1": 0.035,
+    "f2": 0.090,
+    "f3": 0.150
+  },
+  "function_output_size_mean": {
+    "f1": 0.035,
+    "f2": 0.090,
+    "f3": 0.150
+  },
+
+
+  "serv_time_cloud": {
+    "cloud_region_a": {
+      "f1": 0.025,
+      "f2": 0.070,
+      "f3": 0.120
+    },
+    "cloud_region_b": {
+      "f1": 0.028,
+      "f2": 0.075,
+      "f3": 0.130
+    }
+  },
+
+  "init_time_local": {
+    "f1": 0.200,
+    "f2": 0.800,
+    "f3": 1.200
+  },
+  "init_time_cloud": {
+    "cloud_region_a": {"f1": 0.150, "f2": 0.600, "f3": 0.900},
+    "cloud_region_b": {"f1": 0.160, "f2": 0.650, "f3": 1.000}
+  },
+
+  "cold_start_p_local": {
+    "f1": 0.05,
+    "f2": 0.15,
+    "f3": 0.20
+  },
+  "cold_start_p_cloud": {
+    "cloud_region_a": {"f1": 0.03, "f2": 0.10, "f3": 0.12},
+    "cloud_region_b": {"f1": 0.04, "f2": 0.11, "f3": 0.14}
+  },
+
+  "offload_time_cloud": {
+    "cloud_region_a": 0.030,
+    "cloud_region_b": 0.040
+  },
+  "bandwidth_cloud": {
+    "cloud_region_a": 125000000,
+    "cloud_region_b": 100000000
+  },
+
+  "usable_local_memory_coeff": 0.85,
+  "budget": 5.0,
+
+  "aggregated_edge_memory": 16384,
+
+  "serv_time_edge": {
+    "f1": 0.040,
+    "f2": 0.110,
+    "f3": 0.180
+  },
+  "offload_time_edge": 0.012,
+  "cold_start_p_edge": {
+    "f1": 0.06,
+    "f2": 0.16,
+    "f3": 0.22
+  },
+  "init_time_edge": {
+    "f1": 0.230,
+    "f2": 0.900,
+    "f3": 1.400
+  },
+  "bandwidth_edge": 200000000,
+
+  "aggregated_edge_power_consumption": 250.0,
+  "aggregated_edge_energy_tx": 3e-09,
+  "aggregated_edge_energy_rx": 2.5e-09,
+
+  "co2_green_threshold": 0.25,
+  "alpha": 0.6,
+  "beta": 0.4,
+
+  "node_memory": 8192,
+  "node_co2_footprint": 0.30,
+  "node_processing_power_consumption": 150.0,
+  "node_tx_energy_consumption": 3.2e-09,
+  "node_rx_energy_consumption": 2.8e-09,
+
+  "function_memory": {
+    "f1": 256,
+    "f2": 1024,
+    "f3": 1536
+  },
+
+
+  "class_maxRt": {
+    "critical": 0.250,
+    "standard": 0.500
+  },
+  "class_utility": {
+    "critical": 1.0,
+    "standard": 0.6
+  },
+  "class_deadline_penalty": {
+    "critical": 2.0,
+    "standard": 1.0
+  },
+  "class_drop_penalty": {
+    "critical": 5.0,
+    "standard": 2.5
+  }
+}

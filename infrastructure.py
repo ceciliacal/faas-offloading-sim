@@ -35,7 +35,8 @@ class Infrastructure:
 
     def __init__ (self, regions, network_latency: dict, bandwidth_mbps: dict):
         self.regions = [n for n in regions]
-        self.latency = network_latency
+        self.latency = dict(network_latency)
+        self.base_latency = dict(network_latency)
         self.bandwidth_mbps = bandwidth_mbps
         self.region_nodes = {r: []  for r in self.regions}
         self.region_dict = {r.name: r for r in self.regions}
@@ -44,9 +45,6 @@ class Infrastructure:
         self.cloud_regions = self.get_cloud_regions()
         self.edge_zones = self.get_edge_regions()
         self.num_regions_cloud = len(self.cloud_regions)
-        self.num_edge_zones = len(self.edge_zones)
-        self.region2neighbors = self.get_regions_neighbors(regions)
-        self.set_region_neighbors(regions)
 
         self.cloud_nodes = []
         self.edge_nodes = []
@@ -206,29 +204,17 @@ class Infrastructure:
         else:
             return peers
 
-    def get_regions_by_type (self, reg_type):
-        nodes = []
-        for r in self.regions:
-            if not r.is_cloud() and reg_type == conf.EDGE:
-                nodes.append(r)
-            elif r.is_cloud() and reg_type == conf.CLOUD:
-                nodes.append(r)
-        return nodes
+    def get_dispatcher_by_region_name(self, reg_name):
+        for dispatcher in self.dispatchers:
+            if dispatcher.region.name == reg_name:
+                return dispatcher
 
-    def get_neighbors_region (self, region, reg_choice_rng, max_peers=3):
-        if region in self.region2neighbors:
-            peers = self.region2neighbors[region]
-        else:
-            peers = self.get_regions_by_type(conf.NUM_REGIONS_EDGE).copy()
-            peers.remove(region)
-            self.region2neighbors[region] = peers
-
-        if max_peers > 0 and len(peers) > max_peers:
-            return reg_choice_rng.choice(peers, max_peers) # TODO: random selection
-        else:
-            return peers
-
-
+    def get_base_latency(self, a, b):
+        if (a, b) in self.base_latency:
+            return self.base_latency[(a, b)]
+        if (b, a) in self.base_latency:
+            return self.base_latency[(b, a)]
+        raise KeyError((a, b))
 
     def __repr__ (self):
         s=""

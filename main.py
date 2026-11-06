@@ -1,6 +1,7 @@
 import math
 import sys
 
+
 import numpy as np
 import pandas as pd
 import yaml
@@ -9,13 +10,15 @@ from numpy.random import SeedSequence
 import co2_footprint
 import faas
 from arrivals import PoissonArrivalProcess, TraceArrivalProcess, MAPArrivalProcess
-from faas import FunctionVariant
+from faas import Variant
 from infrastructure import *
 from simulation import Simulation
 
 
 def read_spec_file(spec_file_name, infra, config):
     peer_exposed_memory_fraction = config.getfloat(conf.SEC_SIM, conf.EDGE_EXPOSED_FRACTION, fallback=0.5)
+    utilization_update_interval = config.getfloat(conf.SEC_CONTAINER, conf.UTILIZATION_UPDATE_INTERVAL,
+                                                            fallback=5)
 
     with open(spec_file_name, "r") as stream:
         spec = yaml.safe_load(stream)
@@ -50,9 +53,12 @@ def read_spec_file(spec_file_name, infra, config):
             speedup = n["speedup"] if "speedup" in n else 1.0
             cost = n["cost"] if "cost" in n else 0.0
             custom_policy = n["policy"] if "policy" in n else None
-            processing_power_consumption = n["processing_power_consumption"] if "processing_power_consumption" in n else 0.0
-            tx_energy_consumption = n["tx_energy_consumption"] if "tx_energy_consumption" in n else 0.0
-            rx_energy_consumption = n["rx_energy_consumption"] if "rx_energy_consumption" in n else 0.0
+            processing_power_consumption = n[
+                "processing_power_consumption"] if "processing_power_consumption" in n else 0.0
+            idle_power_consumption = n[
+                "idle_power_consumption"] if "idle_power_consumption" in n else 0.0
+            tx_power_consumption = n["tx_power_consumption"] if "tx_power_consumption" in n else 0.0
+            rx_power_consumption = n["rx_power_consumption"] if "rx_power_consumption" in n else 0.0
 
             # Compute carbon emissions
             carbon_emission = co2_footprint.CO2footprint(node_name)
@@ -61,19 +67,25 @@ def read_spec_file(spec_file_name, infra, config):
             NodeClass = faas.Dispatcher if conf.DISPATCHER in node_name else faas.Node
             node = NodeClass(node_name, memory, speedup, reg, carbon_emission,
                              processing_power_consumption,
-                             tx_energy_consumption,
-                             rx_energy_consumption,
+                             idle_power_consumption,
+                             tx_power_consumption,
+                             rx_power_consumption,
+                             utilization_update_interval,
                              cost=cost,
                              custom_sched_policy=custom_policy,
                              peer_exposed_memory_fraction=peer_exposed_memory_fraction)
-
             # Add node to infrastructure
             node_names[node_name] = node
             infra.add_node(node, reg)
             infra.add_node_by_region_type(node)
 
+        for cloud_node in infra.get_cloud_nodes():
+            if not isinstance(cloud_node, faas.Dispatcher):
+                cloud_node.has_dispatcher = infra.get_dispatcher_by_region_name(cloud_node.region.name)
+
+
         functions = []
-        function_variants = []
+        lightest_variants = []
 
         function_names = {}
         for f in spec["functions"]:
@@ -93,29 +105,27 @@ def read_spec_file(spec_file_name, infra, config):
                 assert (p >= 0.0)
                 keys.append((key, p))
             output_mean = f["output_mean"] if "output_mean" in f else 256
-            variants = []
+            # Create variants
+            speedups = f.get("speedup", [])
+            utilities = f.get("utility", [])
+            assert len(speedups) == len(utilities), "Number of Speedup and utility don't match dimension"
+            assert 1.0 in speedups, "Speedups must have at least 1 as default speed up"
+            speedups_utilities = [Variant(f"{fname}_var_{speedup}", speedup, utility)
+                                  for speedup, utility in zip(speedups, utilities) if speedup != 1.0]
 
-            #Check for speedup, if present, to add function variants
-            for variant in f.get("speedup", []):
-                variant_name = "var_"+str(variant)
-                speedup = variant
+            # Initialize the function
+            function = faas.Function(
+                name=fname, memory=memory, serviceMean=duration_mean, serviceSCV=duration_scv,
+                initMean=init_mean, inputSizeMean=input_mean, accessed_keys=keys,
+                max_data_access_time=max_data_access_time, outputSizeMean=output_mean,
+                variants=speedups_utilities, is_default=True
+            )
 
-                variant = FunctionVariant(variant_name, speedup)
-                variants.append(variant)
-                function_variants.append(variant)
+            function_names[fname] = function
+            functions.append(function)
+            lightest_variants.extend(speedups_utilities)
 
-            fun = faas.Function(fname, memory, serviceMean=duration_mean, serviceSCV=duration_scv, initMean=init_mean,
-                                inputSizeMean=input_mean, accessed_keys=keys, max_data_access_time=max_data_access_time,
-                                outputSizeMean=output_mean, variants=variants)
-            function_names[fname] = fun
-            functions.append(fun)
-
-        #per omogeneità, ogni funzione ha almeno una variante con speedup 1.0
-        for function in functions:
-            if len(function.variants)==0:
-                function.variants.append(f["name"]+"_var_"+str(variant),1.0)
-            else:
-                assert (variant.speedup == 1.0 in function.variants for variant in function.variants)
+        dict_function2variants = process_variants(functions, function_names)
 
         node2arrivals = {}
         for f in spec["arrivals"]:
@@ -159,7 +169,40 @@ def read_spec_file(spec_file_name, infra, config):
                 node2arrivals[node] = []
             node2arrivals[node].append(arv)
 
-    return classes, functions, node2arrivals
+    return classes, functions, node2arrivals, dict_function2variants, lightest_variants
+
+
+#Function variants creation
+def process_variants(functions, function_names):
+    lightest_functions = []  #type Function
+    dict_function2variants = {}
+
+    for function in functions:
+        has_function_any_variant = []
+        for variant in function.variants:   #Variant
+            #if variant.speedup != 1.0:
+                lighter_function = faas.Function(
+                    name=variant.name, memory=function.memory * variant.speedup,
+                    serviceMean= function.serviceMean * variant.speedup,
+                    serviceSCV=function.serviceSCV * variant.speedup, initMean=function.initMean,
+                    inputSizeMean=function.inputSizeMean, accessed_keys=function.accessed_keys,
+                    max_data_access_time=function.max_data_access_time,
+                    outputSizeMean=function.outputSizeMean, is_default=False, speedup=variant.speedup
+                )
+                function_names[lighter_function.name] = lighter_function
+                lightest_functions.append(lighter_function)
+                variant.self_function = lighter_function
+                has_function_any_variant.append(lighter_function)
+            #else:
+            #   function.active_variant = variant
+
+        function.has_variants = bool(has_function_any_variant)
+        #function.variants = [v for v in function.variants]
+        dict_function2variants[function] = has_function_any_variant
+
+    functions.extend(lightest_functions)
+    return dict_function2variants
+
 
 def read_traces_file(filename, col_datetime, col_co2intensity, start_date, end_date):
 
@@ -226,8 +269,6 @@ def init_simulation(config):
 
     regions = regions_setup(config)
 
-    #todo: questa parte sarà da copiare in "default_infra" x experiments
-
     bandwidth_mbps = {}
     latencies = {}
 
@@ -258,9 +299,9 @@ def init_simulation(config):
 
     # Read spec file
     spec_file_name = config.get(conf.SEC_SIM, conf.SPEC_FILE, fallback=None)
-    classes, functions, node2arrivals = read_spec_file(spec_file_name, infra, config)
+    classes, functions, node2arrivals, function_variants, variants = read_spec_file(spec_file_name, infra, config)
 
-    sim = Simulation(config, seed_sequence, infra, functions, classes, node2arrivals)
+    sim = Simulation(config, seed_sequence, infra, functions, classes, node2arrivals, function_variants, variants)
     return sim
 
 
@@ -270,7 +311,11 @@ def main():
     config = conf.parse_config_file(config_file)
     simulation = init_simulation(config)
     final_stats = simulation.run()
+    print("co2_emission_totalOld: ",final_stats.co2_emission_totalOld)
+    print("co2_emission_total: ",final_stats.co2_emission_total)
 
 
+def avg_deque(dq):
+    return (sum(dq) / len(dq)) if dq else 0.0
 if __name__ == "__main__":
     main()
